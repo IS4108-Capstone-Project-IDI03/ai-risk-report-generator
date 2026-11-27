@@ -19,7 +19,7 @@ HERE = Path(__file__).resolve().parent
 PROVIDER, MODEL, EFFORT = "openai", "gpt-6.1-sol", "medium"
 PRICE_IN, PRICE_OUT = 2, 10  # USD per 1M tokens; must match eval/site_walk/run_eval.py PRICES
 # Must match server/src/services/knowledge-document.service.ts FACILITY_TYPES and
-# client/src/features/assessments/demo-data.ts JURISDICTIONS.
+# client/src/features/assessments/options.ts JURISDICTIONS.
 FACILITY_TYPES = [
     "Distribution warehouse", "Cold store", "Chemical plant", "Paper mill", "Port terminal",
     "Data centre", "Office", "Shopping mall", "Mixed-use development",

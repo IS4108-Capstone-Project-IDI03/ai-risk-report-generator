@@ -114,6 +114,28 @@ describe('disabled with a reason', () => {
     }
     expect(press).not.toHaveBeenCalled()
   })
+  it('IconAction is the row action: its press never opens the row, bins are red, links keep their walkthrough tag', () => {
+    const press = vi.fn()
+    const openRow = vi.fn()
+    render(
+      <div onClick={openRow}>
+        <IconAction icon="pencil" label="Edit details" data-walk="knowledge.edit" onClick={press} />
+        <IconAction icon="trash-2" label="Delete" danger onClick={press} />
+        <IconAction icon="download" label="Open plan.pdf" href="/f/1" data-walk="doc.open" />
+      </div>,
+    )
+    const edit = screen.getByRole('button', { name: 'Edit details' })
+    expect(edit).toHaveAttribute('data-walk', 'knowledge.edit')
+    expect(edit.style.color).toBe('var(--graphite-600)')
+    expect(screen.getByRole('button', { name: 'Delete' }).style.color).toBe('var(--red-600)')
+    fireEvent.click(edit)
+    const link = screen.getByRole('link', { name: 'Open plan.pdf, opens in a new tab' })
+    expect(link).toHaveAttribute('data-walk', 'doc.open')
+    expect(link).toHaveAttribute('target', '_blank')
+    fireEvent.click(link)
+    expect(press).toHaveBeenCalledTimes(1)
+    expect(openRow).not.toHaveBeenCalled()
+  })
   it('IconButton shows the reason on hover and stays inert', async () => {
     const onClick = vi.fn()
     render(<IconButton icon="trash-2" label="Remove" disabledReason={reason} onClick={onClick} />)

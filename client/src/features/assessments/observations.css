@@ -18,11 +18,17 @@
   --ob-protection: var(--chart-magenta-dark);
   --ob-exposure: var(--chart-aqua-dark);
 
-  padding: 16px clamp(16px, 2vw, 28px) 32px;
+  /* The same gutter and top as the Checklist, Comparison and Export tabs. */
+  padding: 24px var(--page-gutter) 32px;
   color: var(--text-primary);
   font: 400 15px/1.45 var(--ob-font);
   -webkit-font-smoothing: antialiased;
   animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+@media (max-width: 767px) {
+  .ob {
+    padding: 16px 16px 32px;
+  }
 }
 .ob :is(button, input, textarea) {
   font-family: var(--ob-font);
@@ -140,7 +146,7 @@
   /* The toolbar shortens its labels by the card's own width (below). */
   container-type: inline-size;
   background: var(--surface-card);
-  border-radius: 14px;
+  border-radius: var(--radius-card);
   box-shadow:
     var(--ob-shadow-sm),
     0 0 0 1px var(--ob-line);
@@ -552,74 +558,6 @@
   }
 }
 
-/* ---- Menus (never a native select) ---- */
-.ob-menu-surface {
-  min-width: 220px;
-  max-width: min(calc(100vw - 32px), 360px);
-}
-.ob-menu {
-  max-height: min(60vh, 420px);
-  overflow-y: auto;
-  margin: 0;
-  padding: 6px;
-  list-style: none;
-}
-.ds-sheet .ob-menu {
-  /* The sheet scrolls as a whole, so the list needs no cap of its own. */
-  max-height: none;
-  overflow: visible;
-}
-.ob-menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  min-height: 40px;
-  padding: 0 10px;
-  border: 0;
-  border-radius: 9px;
-  background: none;
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 14px;
-  line-height: 1.3;
-  text-align: left;
-  cursor: pointer;
-}
-.ob-menu-item:hover,
-.ob-menu-item:focus-visible {
-  background: var(--surface-hover);
-}
-.ob-menu-item > span:nth-child(2) {
-  flex: 1 1 auto;
-}
-.ob-menu-trail {
-  color: var(--graphite-600);
-  font-size: 13px;
-  font-weight: 400;
-}
-.ob-menu-item[aria-checked='true'] {
-  color: var(--marsh-navy);
-  font-weight: 600;
-}
-.ob-menu-heading {
-  padding: 10px 10px 4px;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-}
-.ob-menu-hint {
-  margin: 4px 10px 6px;
-  color: var(--text-muted);
-  font-size: 12px;
-  text-wrap: pretty;
-}
-@media (pointer: coarse), (max-width: 559px) {
-  .ob-menu-item {
-    min-height: 44px;
-  }
-}
-
 /* ---- The list ---- */
 .ob-colhead,
 .ob-row {
@@ -690,6 +628,9 @@
   font-size: 14px;
   line-height: 1.4;
   color: var(--text-body);
+  /* A readable line on a wide screen: at 1920 a note ran to about 110 characters. 70ch (the
+     width of 70 zeros) holds about 80 of this text's characters. */
+  max-width: 70ch;
 }
 .ob-row-cat {
   display: flex;
@@ -894,7 +835,7 @@
     padding: 8px 16px;
     border-radius: 999px;
     background: var(--marsh-navy);
-    color: #fff;
+    color: var(--text-inverse);
     font-weight: 500;
     animation: ob-saved-fade 2.4s forwards;
   }
@@ -1094,8 +1035,9 @@
   padding: 0;
   border: 0;
   background: none;
-  color: var(--marsh-navy);
-  font: 600 14px/1.4 var(--ob-font);
+  /* Body text, as an Observations row's: the row is the link, so the words need no link colour. */
+  color: var(--text-primary);
+  font: 400 14px/1.4 var(--ob-font);
   text-align: left;
   overflow-wrap: anywhere;
   display: -webkit-box;
@@ -1161,9 +1103,19 @@ span.ob-pt-thumb {
   min-width: 0;
   font-size: 14px;
 }
+/* v2 tables: the name column left, every other column centred, heads with their cells. */
+.ob-pt-head > :nth-child(3),
+.ob-pt-head > :nth-child(4),
+.ob-pt-where {
+  text-align: center;
+}
+.ob-pt-where > * {
+  justify-content: center;
+}
 .ob-pt-cat {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   min-width: 0;
   font-size: 14px;
@@ -1175,29 +1127,93 @@ span.ob-pt-thumb {
 .ob-pt-cat .ob-cat {
   flex: none;
 }
-/* A phone: each row stacks beside its thumbnail, no sideways scroll. */
+/* A phone: the thumbnail on the left; the observation over one quiet line of where and what
+   (location left, category right), no sideways scroll. */
 @media (max-width: 639px) {
   .ob-pt-head {
     display: none;
   }
   .ob-pt-grid {
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 4px 12px;
-    padding: 0 12px;
+    grid-template-columns: 64px minmax(0, 1fr) auto;
+    grid-template-areas:
+      'thumb main main'
+      'thumb where cat';
+    align-items: start;
+    gap: 6px 12px;
+    padding: 0 16px;
   }
   .ob-pt-row {
+    min-height: 0;
     padding-top: 12px;
     padding-bottom: 12px;
   }
+  .ob-pt-row > :first-child {
+    grid-area: thumb;
+  }
   .ob-pt-thumb {
-    grid-row: 1 / span 3;
-    width: 72px;
-    height: 72px;
-    align-self: start;
+    width: 64px;
+    height: 64px;
+  }
+  .ob-pt-main,
+  .ob-pt-row > .ob-pt-text {
+    grid-area: main;
   }
   .ob-pt-text {
-    min-height: 44px;
-    align-content: center;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+  .ob-pt-where {
+    grid-area: where;
+    align-self: center;
+    min-width: 0;
+    text-align: left;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  /* One line, cut with an ellipsis: the full path is on the observation. */
+  .ob-pt-where > .location-path {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .ob-pt-where .location-path-part {
+    display: inline;
+  }
+  .ob-pt-where .location-path-arrow {
+    margin: 0 2px;
+    vertical-align: -1px;
+  }
+  .ob-pt-cat {
+    grid-area: cat;
+    align-self: center;
+    justify-content: flex-end;
+    gap: 6px;
+    font-size: 13px;
+  }
+  .ob-pt-cat > span:last-child {
+    max-width: 112px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  .ob-pt-cat .ob-cat {
+    width: 22px;
+    height: 22px;
+    border-radius: 6px;
+  }
+  .ob-pt-cat .ob-cat svg {
+    width: 13px;
+    height: 13px;
+  }
+  /* The toggle keeps a 44 px tap area without pushing the line apart. Its extra 16 px all hang
+     below the word: spread evenly, the top 8 px covered the observation's text button above. */
+  .ob-pt-row .ob-pt-meta .ob-pt-toggle {
+    flex: none;
+    min-height: 28px;
+    margin-block: -2px -14px;
+    padding-block: 2px 14px;
+    box-sizing: content-box;
   }
   .ob-pt-go {
     display: none;
@@ -1205,7 +1221,7 @@ span.ob-pt-thumb {
 }
 
 /* All Recordings (CP-12): the photo table's rows, with a play tile for the
-   thumbnail and the recording's name, state and player under the text. */
+   thumbnail and the recording's state and player under the text. */
 .ob-pt-play {
   position: relative;
   z-index: 1;
@@ -1251,17 +1267,13 @@ span.ob-pt-thumb {
   color: var(--red-600);
   font-weight: 600;
 }
-.ob-pt-name {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-/* "Transcript ⌄" / "Description ⌄": a quiet text button at the line's end. */
+/* "Transcript ⌄" / "Description ⌄": a quiet text button after the state, its word
+   lined up with the observation's text above when it starts the line. */
 .ob-pt-toggle {
   display: inline-flex;
   align-items: center;
   gap: 2px;
   min-height: 28px;
-  margin-left: auto;
   padding: 0 8px;
   border: 0;
   border-radius: 999px;
@@ -1270,6 +1282,9 @@ span.ob-pt-thumb {
   font: 600 13px/1 var(--ob-font);
   cursor: pointer;
   transition: background-color 120ms var(--ob-ease);
+}
+.ob-pt-toggle:first-child {
+  margin-left: -8px;
 }
 @media (hover: hover) and (pointer: fine) {
   .ob-pt-toggle:hover {
@@ -1323,6 +1338,13 @@ span.ob-pt-thumb {
 .ob-pt-above {
   position: relative;
   z-index: 1;
+}
+/* The retry icon: 44 px under a finger. */
+@media (pointer: coarse), (max-width: 639px) {
+  .ob-pt-meta .ds-icon-button {
+    width: 44px !important; /* IconButton sizes itself inline */
+    height: 44px !important;
+  }
 }
 .ob-pt-seek {
   display: flex;
@@ -1576,7 +1598,7 @@ span.ob-pt-thumb {
   }
 }
 /* A phone: Add observation across the top (44 px, with its whole name), the search on its own
-   row, the filters two to a row. */
+   row, then the filters as one row of pills that scrolls sideways. */
 @media (max-width: 767px) {
   .ob-bar {
     display: grid;
@@ -1595,27 +1617,24 @@ span.ob-pt-thumb {
     font-size: 16px;
   }
   .ob-bar-pills {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
     order: 1;
+    margin-inline: -12px;
+    padding-inline: 12px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
   }
-  .ob-bar-pills > .ob-button {
-    grid-column: 1 / -1;
+  .ob-bar-pills::-webkit-scrollbar {
+    display: none;
   }
-  .ob-fp {
-    display: flex;
-    min-width: 0;
-  }
-  .ob-fp > :first-child,
-  .ob-fp > :first-child > :first-child {
-    display: flex;
-    flex: 1 1 auto;
-    min-width: 0;
+  .ob-bar-pills > * {
+    flex: none;
   }
   .ob-fp .ds-filter-pill {
-    width: 100%;
     height: 44px;
-    justify-content: space-between;
   }
   .ob-bar-add .cpo-more {
     display: inline;

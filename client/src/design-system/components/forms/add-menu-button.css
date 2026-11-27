@@ -10,9 +10,10 @@
   padding: 0;
   list-style: none;
 }
+/* v2: the tile is centred on the row's two lines, as every leading marker is. */
 .nab-list li button {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 12px;
   width: 100%;
   min-height: 44px;

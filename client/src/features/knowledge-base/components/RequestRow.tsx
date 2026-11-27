@@ -2,7 +2,7 @@
 // engineer's message as a quote, the two ways to close it, and uploading a document for it
 // (F-11), so the engineer can follow that document's ingestion. Used by screens/Requests.tsx.
 import { useRef } from 'react'
-import { Button } from '../../../design-system'
+import { Button, IconAction } from '../../../design-system'
 import { formatWhen } from '../../notifications/formatWhen'
 import type { KnowledgeGapRequest } from '../api'
 
@@ -34,9 +34,7 @@ export function RequestRow({
       <div className="kb-request-body">
         <p className="kb-request-meta">
           <span>{r.askedBy.name}</span>
-          <time className="kb-mono" dateTime={r.createdAt}>
-            {formatWhen(r.createdAt)}
-          </time>
+          <time dateTime={r.createdAt}>{formatWhen(r.createdAt)}</time>
         </p>
         <h3 className="kb-request-question">{r.question}</h3>
         {r.message && (
@@ -48,8 +46,9 @@ export function RequestRow({
       </div>
       <div className="kb-request-actions">
         <Button
-          variant="tonal"
+          variant="primary"
           size="sm"
+          pill
           iconLeft="check"
           data-walk={first ? 'knowledge-requests.row-1.fill' : undefined}
           onClick={onFill}
@@ -59,20 +58,19 @@ export function RequestRow({
         <Button
           variant="secondary"
           size="sm"
+          pill
           iconLeft="x"
           data-walk={first ? 'knowledge-requests.row-1.dismiss' : undefined}
           onClick={onDismiss}
         >
           Dismiss
         </Button>
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft="upload"
+        <IconAction
+          icon="upload"
+          label="Upload a document"
+          tooltip="Upload a document"
           onClick={() => picker.current?.click()}
-        >
-          Upload for it
-        </Button>
+        />
         <input
           ref={picker}
           type="file"

@@ -1,36 +1,17 @@
 /* The Details panel's blocks and its site map (AS-06, boards D1, D2, D3). Loaded by
-   DetailsContent.tsx and SiteMapPanel.tsx. Builds on the panel's frame in ../marshbot.css. */
+   DetailsContent.tsx and SiteMapPanel.tsx, inside the design system's SidePanel (class
+   mb-details-panel). */
 
 /* The panel doesn't scroll on a computer: each block has a budget (useDetailsBudget.ts) that
    shrinks until everything fits. Only below the height where even three one-line rows fit
    does the body scroll, as a last resort, so nothing is unreachable. */
-.mb-panel-sheet .mb-panel-body {
+.ds-side-panel.mb-details-panel .ds-side-panel-body {
   padding-bottom: 20px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
 }
-.mb-panel-body .mb-details {
+.ds-side-panel .mb-details {
   gap: 15px;
-}
-.mb-panel-head {
-  gap: 10px;
-}
-.mb-panel-head h2 {
-  flex: 1;
-}
-.mb-panel-head > span {
-  align-items: center;
-}
-/* The phone sheet's title row: the Edit Details icon keeps 6 px from the close tick, so its
-   44 px tap area (.mb-hit) ends where the tick's begins instead of covering its edge. */
-.mb-details-sheet .ds-sheet-head .mb-hit {
-  margin-right: 6px;
-}
-/* The Back button leads the title, in the sheet's header too (its title comes first in the DOM). */
-.mb-back {
-  order: -1;
-  display: inline-flex;
 }
 
 /* Links only, when even one of each doesn't fit: each block is one 52px row (board D1). */
@@ -45,7 +26,7 @@
 .mb-details > section:has(> .mb-bigrow) + section:has(> .mb-bigrow) {
   margin-top: -15px;
 }
-.mb-two + section > .mb-bigrow {
+.ds-facts + section > .mb-bigrow {
   border-top: 1px solid var(--graphite-100);
 }
 .mb-bigrow-label {
@@ -80,7 +61,7 @@
 }
 /* The panel's header X is 40px and Edit Site 32px, both flush right: the pencil moves 4px so the
    two glyphs share one centre. Its size and tap area are unchanged. */
-.mb-panel-sheet .mb-edit-site {
+.ds-side-panel .mb-edit-site {
   display: inline-flex;
   margin-right: 4px;
 }
@@ -97,15 +78,11 @@
   padding-top: 4px;
 }
 /* Tighter heading rows keep one of each within a 720px-high screen. */
-.mb-panel-body .mb-labelrow {
+.ds-side-panel .mb-labelrow {
   min-height: 28px;
 }
 .mb-people li + li {
   margin-top: 0;
-}
-.mb-person .cl-contact-dot {
-  width: 28px;
-  height: 28px;
 }
 .mb-person {
   min-height: 28px;
@@ -385,7 +362,7 @@ button.mb-place-main {
    edge, so it bleeds 8px past it (the content stays where it was); the keys of a row sit 44px apart so their boxes
    don't overlap. */
 @media (max-width: 767px), (pointer: coarse) {
-  .mb-details-sheet .ds-sheet-body {
+  .mb-details-panel .ds-sheet-body {
     margin-inline: -8px;
     padding-inline: 8px;
   }
@@ -411,25 +388,15 @@ button.mb-place-main {
    and only the places list scrolls. */
 /* On the sheet, not its root: the root covers the whole screen, so the scrim does too. */
 .mb-details-map .ds-sheet {
-  height: 85svh;
+  height: var(--sheet-max-height);
 }
-.mb-details-map .ds-sheet-body {
+.mb-details-map .ds-sheet-body,
+.mb-details-map .ds-side-panel-content {
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
   overflow-y: hidden;
-}
-
-/* Toasts raised from the panel: bottom centre of the panel, not of the window (the panel is 400px
-   wide at the right edge). The conversation's rule that centres toasts on its column sets
-   `left` and `bottom` with !important, so this repeats the class to be the more specific. */
-.mb-panel-dialog
-  .mb-details-toaster.mb-details-toaster.mb-details-toaster[data-sonner-toaster][data-y-position='bottom'][data-x-position='center'] {
-  left: auto !important;
-  right: min(200px, 50%) !important;
-  bottom: 16px !important;
-  transform: translateX(50%) !important;
 }
 
 /* A place's row: hovering the part that pans the map shades the row (design system v2: hover by

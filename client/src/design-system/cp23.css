@@ -147,7 +147,8 @@
 .ds-sheet {
   position: absolute;
   inset: auto 0 0 0;
-  max-height: 85svh;
+  /* It hugs its content and grows to near full height before anything scrolls. */
+  max-height: var(--sheet-max-height);
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
@@ -203,6 +204,16 @@
   overscroll-behavior: contain;
   padding: 8px 0;
 }
+/* 4 px at the foot: room for a focus ring (2 px + 2 px offset) and no more, so the last row sits
+   on the sheet's own 16 px bottom padding instead of floating 24 px up. */
+.ds-sheet-body {
+  padding-bottom: 4px;
+}
+/* A bar pinned under the scrolling content (a side panel's actions): it never scrolls away, and
+   sits on the sheet's bottom edge with only the sheet's own padding below it. */
+.ds-sheet-foot {
+  flex: none;
+}
 .ds-sheet-row {
   display: flex;
   align-items: center;
@@ -236,6 +247,11 @@
 }
 .ds-sheet-row[data-described] {
   min-height: 64px;
+}
+/* A row with a disabled reason under its label: room above and below, so the two lines never
+   touch the next row's label. */
+.ds-sheet-row:has(small) {
+  padding-block: 8px;
 }
 .ds-sheet-row:active:not([aria-disabled='true']) {
   background: var(--graphite-100);
@@ -617,7 +633,8 @@
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  /* The buttons end on the page gutter, in line with the cards above. */
+  padding: 12px var(--page-gutter) calc(12px + env(safe-area-inset-bottom));
   background: var(--surface-card);
   border-top: 1px solid var(--border-subtle);
 }
@@ -648,13 +665,21 @@
   .ds-toast-close::after {
     inset: -8px;
   }
+  /* The calendar's month and year choosers (a tablet; a phone's are in the block below). */
+  .ds-cal-head-pick {
+    min-height: 44px;
+  }
 }
 
-/* Phones: 44 px fields, 16 px text (stops iOS zooming on focus), chip-size status pill */
-@media (max-width: 767px) {
+/* Phones and touch tablets: 44 px fields and 16 px text (stops iOS and iPadOS zooming on focus). */
+@media (max-width: 767px), (pointer: coarse) {
   .ds-field,
   .ds-datepicker-field {
     height: 44px !important;
+  }
+  /* The date's text box reaches over the field's 1 px borders, so its input is 44 tall too. */
+  .ds-datepicker-text {
+    margin-block: -1px;
   }
   .ds-field-input,
   .ds-search input,
@@ -662,6 +687,24 @@
   .ds-datepicker-mask {
     font-size: 16px !important;
   }
+  .ds-search:not(.has-end) {
+    height: 44px;
+  }
+  /* The combobox's Show suggestions toggle: 44 px wide (its width and the input's room for it
+     are inline in Combobox.tsx, hence !important). */
+  .ds-combo-toggle {
+    width: 44px !important;
+  }
+  .ds-field:has(.ds-combo-toggle) .ds-field-input {
+    padding-right: 44px !important;
+  }
+  /* A Radio or Checkbox row (its label takes the tap): 44 px tall, not the 24 px of its text. */
+  label:has(> .ds-choice) {
+    min-height: 44px;
+  }
+}
+/* Phones: chip-size status pill and the rest */
+@media (max-width: 767px) {
   textarea.ds-field-input {
     min-height: 88px;
   }
@@ -683,6 +726,9 @@
   .ds-pill > span:not(.ds-pill-lines) {
     width: 12px !important;
     height: 12px !important;
+  }
+  .ds-action-bar {
+    padding-inline: 16px;
   }
   .ds-action-bar > * {
     flex: 1;

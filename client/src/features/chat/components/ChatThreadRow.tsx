@@ -2,14 +2,16 @@
 // Used by ChatThreadList. OpenUI's own row deletes at once and cannot rename, so this replaces it.
 import { useThreadList } from '@openuidev/react-headless'
 import { useState } from 'react'
-import { IconButton } from '../../../design-system'
+import { IconAction } from '../../../design-system'
 import { DeleteChatDialog } from './DeleteChatDialog'
 import { RenameChatDialog } from './RenameChatDialog'
+import { closeChatsDrawer } from '../chatsDrawer'
 
-type Props = { id: string; title: string }
+// `createdAt` is passed back on rename, so the renamed chat keeps its recency group.
+type Props = { id: string; title: string; createdAt: string | number }
 
 /** A chat row: the title opens the chat; the pencil and bin open the rename and delete dialogs. */
-export function ChatThreadRow({ id, title }: Props) {
+export function ChatThreadRow({ id, title, createdAt }: Props) {
   const selected = useThreadList((s) => s.selectedThreadId === id)
   const select = useThreadList((s) => s.selectThread)
   const update = useThreadList((s) => s.updateThread)
@@ -24,21 +26,25 @@ export function ChatThreadRow({ id, title }: Props) {
         aria-current={selected ? 'true' : undefined}
         // A long name is cut short with an ellipsis; this shows it in full on hover.
         title={title}
-        onClick={() => select(id)}
+        onClick={() => {
+          select(id)
+          closeChatsDrawer()
+        }}
       >
         {title}
       </button>
       <span className="chat-thread-actions">
-        <IconButton
+        <IconAction
           icon="pencil"
-          size="sm"
           label={`Rename ${title}`}
+          tooltip="Rename chat"
           onClick={() => setDialog('rename')}
         />
-        <IconButton
+        <IconAction
           icon="trash-2"
-          size="sm"
+          danger
           label={`Delete ${title}`}
+          tooltip="Delete chat"
           onClick={() => setDialog('delete')}
         />
       </span>
@@ -47,7 +53,7 @@ export function ChatThreadRow({ id, title }: Props) {
           title={title}
           onClose={close}
           onSave={(name) => {
-            update({ id, title: name, createdAt: 0 })
+            update({ id, title: name, createdAt })
             close()
           }}
         />

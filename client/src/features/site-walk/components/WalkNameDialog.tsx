@@ -1,9 +1,10 @@
 // Names a site walk (CP-22 AC13, round 3): asked at Finish walk, and again from
 // the proposal's pencil to rename it. The name is required, so every proposal
 // is told apart by a name the engineer chose. Used by screens/Recording.tsx and
-// components/ProposalHeader.tsx; saved by api.ts finishWalk / renameWalk.
-import { useState, type FormEvent } from 'react'
-import { Dialog, Input } from '../../../design-system'
+// screens/Review.tsx; saved by api.ts finishWalk / renameWalk.
+import { useId, useState, type FormEvent } from 'react'
+import { Button, Dialog, Input } from '../../../design-system'
+import { DialogProblem } from './DialogProblem'
 
 export function WalkNameDialog({
   title,
@@ -27,6 +28,8 @@ export function WalkNameDialog({
   onClose: () => void
 }) {
   const [name, setName] = useState(initial)
+  // The footer's button is outside the form, so it names the form it submits.
+  const form = useId()
   const blank = !name.trim()
   function submit(e: FormEvent) {
     e.preventDefault()
@@ -38,8 +41,19 @@ export function WalkNameDialog({
       title={title}
       width={440}
       onClose={busy ? undefined : onClose}
+      footer={
+        <>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button pill variant="primary" type="submit" form={form} loading={busy} disabled={blank}>
+            {action}
+          </Button>
+        </>
+      }
     >
-      <form className="cap-form" onSubmit={submit} aria-label={title}>
+      <form id={form} className="swd-form" onSubmit={submit} aria-label={title}>
+        <DialogProblem title="Name not saved" problem={problem} />
         <Input
           label="Name"
           required
@@ -51,24 +65,6 @@ export function WalkNameDialog({
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
-        {problem && (
-          <p className="swr-problem" role="alert">
-            {problem}
-          </p>
-        )}
-        <div className="cap-form-actions">
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-          <button type="submit" className="cap-btn cap-btn--primary" disabled={blank || busy}>
-            {busy ? 'Saving…' : action}
-          </button>
-        </div>
       </form>
     </Dialog>
   )

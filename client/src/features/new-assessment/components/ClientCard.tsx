@@ -3,8 +3,7 @@
 // (avatar, name, Change). Either way the Rejected and documents
 // buttons sit at the right. Used by screens/NewAssessmentForm.tsx.
 import { useState } from 'react'
-import { Button, Combobox, Icon } from '../../../design-system'
-import { ClientAvatar } from '../../clients/components/ClientAvatar'
+import { Avatar, Button, Combobox, IconTile, Panel } from '../../../design-system'
 import type { IntakeFile } from '../api'
 import type { NewAssessmentForm } from '../useNewAssessment'
 import { DocumentsPopover } from './DocumentsPopover'
@@ -17,13 +16,12 @@ function ChooseClient({ f }: { f: NewAssessmentForm }) {
   const [text, setText] = useState('')
   const error = f.errors['client.id']
   return (
-    <section className="na-card" aria-label="Client" data-walk="new-assessment.client-card">
-      <div className="na-card-head">
-        <span className="na-tile">
-          <Icon name="building-2" size={16} />
-        </span>
-        <h2>{'Client'}</h2>
-      </div>
+    <Panel
+      className="na-client"
+      title="Client"
+      icon={<IconTile icon="building-2" tone="navy" />}
+      data-walk="new-assessment.client-card"
+    >
       <div className="na-field" data-error={error ? '' : undefined}>
         <Combobox
           label={<span className="na-label">{'Client'}</span>}
@@ -39,7 +37,7 @@ function ChooseClient({ f }: { f: NewAssessmentForm }) {
           }}
         />
       </div>
-    </section>
+    </Panel>
   )
 }
 
@@ -55,7 +53,7 @@ export function ClientCard({ f, rejected }: { f: NewAssessmentForm; rejected: In
         aria-label="Client"
         data-walk="new-assessment.client-card"
       >
-        <ClientAvatar name={name} small />
+        <Avatar kind="client" name={name} size={32} />
         <span className="na-client-text">
           <strong dir="auto">{name}</strong>
         </span>
@@ -75,17 +73,18 @@ export function ClientCard({ f, rejected }: { f: NewAssessmentForm; rejected: In
     )
   }
   return (
-    <section className="na-card" aria-label="Client" data-walk="new-assessment.client-card">
-      <div className="na-card-head">
-        <span className="na-tile">
-          <Icon name="building-2" size={16} />
-        </span>
-        <h2>{'Client'}</h2>
-        <span className="na-card-actions">
+    <Panel
+      className="na-client"
+      title="Client"
+      icon={<IconTile icon="building-2" tone="navy" />}
+      actions={
+        <>
           <RejectedPopover files={rejected} />
           <DocumentsPopover f={f} />
-        </span>
-      </div>
+        </>
+      }
+      data-walk="new-assessment.client-card"
+    >
       <div className="na-grid na-grid--2">
         <div>
           <TextField
@@ -108,6 +107,6 @@ export function ClientCard({ f, rejected }: { f: NewAssessmentForm; rejected: In
           onChange={(e) => f.setDivision(e.target.value)}
         />
       </div>
-    </section>
+    </Panel>
   )
 }

@@ -2,8 +2,7 @@
 // Category, Severity, Type and Status pills and Clear all, as the design system's FilterPill
 // opening a ChoiceMenu (assessments/components/WorkToolbar.tsx does the same). Used by
 // components/ProposalTables.tsx; the matching is proposal.ts matchesProposalFilters.
-import { Button, FilterPill } from '../../../design-system'
-import { ChoiceMenu, type Choice } from '../../assessments/components/ChoiceMenu'
+import { Button, ChoiceMenu, FilterPill, type Choice } from '../../../design-system'
 import { asChoices, catIcons, sevIcons, typeIcons } from '../../assessments/filterChoices'
 import { UNCATEGORISED } from '../../assessments/categories'
 import { OBSERVATION_TYPES } from '../../assessments/observationFilters'
@@ -60,7 +59,7 @@ export function ProposalFilterChips({
               <FilterPill
                 label={chosen ? chosen.label : name}
                 aria-label={chosen ? name + ': ' + chosen.label : name}
-                data-set={chosen ? '' : undefined}
+                active={!!chosen}
                 onClick={toggle}
               />
             )}

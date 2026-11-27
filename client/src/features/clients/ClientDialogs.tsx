@@ -3,7 +3,7 @@
 // follows the same rules, warning and wording wherever it is made.
 import { useState, type ChangeEvent } from 'react'
 import { Button, Callout, Dialog, Input, Select } from '../../design-system'
-import { FACILITY_TYPES, JURISDICTIONS } from '../assessments/demo-data'
+import { FACILITY_TYPES, JURISDICTIONS } from '../assessments/options'
 import {
   correctSite,
   removeClient,
@@ -96,8 +96,7 @@ export function EditSiteDialog({
   }
   return (
     <Dialog
-      className="ds-dialog--v2"
-      title={confirming ? 'Change this site’s scope?' : `Edit ${site.name}`}
+      title={confirming ? 'Change the jurisdiction or facility type?' : `Edit ${site.name}`}
       description={confirming ? undefined : everyAssessment(assessments)}
       width={520}
       onClose={busy ? undefined : onClose}
@@ -127,17 +126,8 @@ export function EditSiteDialog({
         {confirming ? (
           <>
             <p style={{ margin: 0 }}>
-              {`A new jurisdiction or facility type changes the ${plural(assessments, 'assessment')} at ${form.name.trim()}:`}
+              {`This changes the standards used for the ${plural(assessments, 'assessment')} at ${form.name.trim()}, so their checklists and report drafts are marked out of date until you redo them. Saved observations keep the jurisdiction and facility type they had.`}
             </p>
-            <ul style={{ margin: 0, paddingLeft: '20px', lineHeight: '24px' }}>
-              <li>{'Their checklists are marked out of date, to generate again.'}</li>
-              <li>
-                {
-                  'Their report drafts are marked out of date until redrafted, since the standards they draw on change.'
-                }
-              </li>
-              <li>{'Saved observations keep the jurisdiction and facility type they had.'}</li>
-            </ul>
           </>
         ) : (
           <>
@@ -157,7 +147,7 @@ export function EditSiteDialog({
             />
             <Select
               label="Jurisdiction"
-              hint="Filters the standards and regulations drafting draws on"
+              hint="Decides which standards and regulations drafting uses"
               options={jurisdictionOptions}
               value={form.jurisdiction}
               error={fields.jurisdiction}
@@ -207,7 +197,6 @@ export function RenameClientDialog({
         })
   return (
     <Dialog
-      className="ds-dialog--v2"
       title={`Rename ${client.name}`}
       description="The new name appears on all of this client's assessments."
       width={440}
@@ -262,7 +251,6 @@ export function RemoveDialog({
     })
   return (
     <Dialog
-      className="ds-dialog--v2"
       title={`Remove ${target.name}?`}
       description={
         client
@@ -307,7 +295,6 @@ export function RestoreSiteDialog({
     })
   return (
     <Dialog
-      className="ds-dialog--v2"
       title={`Restore ${site.name}`}
       description={`Another site at this client is now called ${site.name}. Give this one a new name to restore it.`}
       width={480}

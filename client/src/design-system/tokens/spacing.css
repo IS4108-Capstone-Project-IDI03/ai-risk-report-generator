@@ -35,6 +35,9 @@
   --inspector-width: 344px;
   --topbar-height: 56px;
   --toolbar-height: 52px;
+  /* The tallest a phone bottom sheet grows before its content scrolls: the full screen less a
+     small gap at the top (clear of a notch), like an iOS sheet. Sheet, dialog sheets, site map. */
+  --sheet-max-height: calc(100svh - max(24px, env(safe-area-inset-top) + 8px));
   /* Chips — Badge and Tag. Deliberately shorter than the control set:
      they are labels and filters, not typed inputs. Tag matches --control-height-sm
      so it can sit in a filter row beside sm buttons and inputs. */

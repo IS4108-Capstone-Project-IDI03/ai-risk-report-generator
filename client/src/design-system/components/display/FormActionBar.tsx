@@ -9,6 +9,8 @@ export type FormActionBarProps = {
   primaryLabel: ReactNode
   onPrimary: () => void
   primaryLoading?: boolean
+  // Off while the action can't be taken, e.g. New Observation's Save with no capture session.
+  primaryDisabled?: boolean
   // The primary button's data-walk tag (F-12).
   primaryWalk?: string
 }
@@ -22,6 +24,7 @@ export function FormActionBar({
   primaryLabel,
   onPrimary,
   primaryLoading,
+  primaryDisabled,
   primaryWalk,
 }: FormActionBarProps) {
   return (
@@ -36,6 +39,7 @@ export function FormActionBar({
         // the word stays in place, faded, so the button stays as wide as it was; word and
         // spinner crossfade in 120 ms (v2 section 8).
         data-walk={primaryWalk}
+        disabled={primaryDisabled}
         aria-busy={primaryLoading || undefined}
         aria-label={typeof primaryLabel === 'string' ? primaryLabel : undefined}
         onClick={primaryLoading ? undefined : onPrimary}

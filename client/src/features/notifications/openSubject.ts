@@ -3,6 +3,7 @@
 // is pressed. Calls the openers that each screen already listens to.
 import type { Notification } from './api'
 import { KNOWLEDGE_REVIEW_PATH, SCREEN_PATHS } from '../auth/access'
+import { queueQuestion } from '../chat/askAgain'
 import { openAssessmentOverview, reloadAssessments } from '../assessments/openAssessment'
 import { openKnowledgeTab } from '../knowledge-base/openTab'
 import { openSiteWalkReview } from '../site-walk/openReview'
@@ -19,7 +20,7 @@ function goTo(path: string) {
 /** Opens what a notification is about, where it has a page; does nothing otherwise. */
 export function openSubject(notification: Notification) {
   const { purpose, context } = notification
-  const { reference, walkId, documentId, status, requestId } = context ?? {}
+  const { reference, walkId, documentId, status, requestId, question } = context ?? {}
   switch (purpose) {
     // An assigned assessment (RV-11): its Overview.
     case 'assessment_assigned':
@@ -32,9 +33,12 @@ export function openSubject(notification: Notification) {
     case 'site_walk_failed':
       return reference && walkId ? openSiteWalkReview(reference, walkId) : undefined
     // A request (CB-07): a new one (no status) opens Requests on it; the asker's outcome
-    // (filled or dismissed) carries a status and opens the chat.
+    // (filled or dismissed) carries a status and opens the chat; a filled one puts the question
+    // back in the chat box (chat/askAgain.ts), as its "Ask again" promises.
     case 'knowledge_gap_request':
-      return status ? goTo(SCREEN_PATHS.chat) : openKnowledgeTab('requests', requestId)
+      if (!status) return openKnowledgeTab('requests', requestId)
+      if (status === 'filled' && question) queueQuestion(question)
+      return goTo(SCREEN_PATHS.chat)
     // A document (IN-07): needs review opens its Review page; a failed one opens Add
     // documents, where Retry is; a finished one opens the Documents list.
     case 'ingestion_status':

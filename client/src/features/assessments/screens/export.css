@@ -1,15 +1,19 @@
-/* The Export tab (EX-01, screens/ReportExport.tsx): what blocks the export
-   beside the export's choices and the report's details. */
+/* The Export tab (EX-01, screens/ReportExport.tsx, components/ExportChecklist.tsx and
+   ExportOptions.tsx): the checkpoint header across the top, then what is left to finish beside
+   the export's choices. Design-system v2 tokens only. */
 .ex-wrap {
-  padding: 24px 28px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px var(--page-gutter) 40px;
   animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
+  font-family: var(--font-sans);
 }
 .ex-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
-  gap: 20px;
+  gap: 16px;
   align-items: start;
-  max-width: 1080px;
 }
 .ex-main,
 .ex-side {
@@ -20,46 +24,57 @@
 }
 .ex-side {
   position: sticky;
-  top: 0;
+  top: 16px;
 }
-.ex-items {
+/* The cards are the shared ListCard; their corners clip the task rows' tints. */
+.ex-card {
+  overflow: hidden;
+}
+/* The task rows sit flush in the card; the card's own corners clip them. */
+.ex-card .ds-task {
+  padding-inline: 20px;
+}
+.ex-card > .ds-task:first-child {
+  border-top: 0;
+}
+
+/* ---- Left to finish: one group per section, its tasks under its name ---- */
+.ex-groups {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.ex-item {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border-subtle);
+.ex-group {
+  border-top: 1px solid var(--border-subtle);
 }
-.ex-item:last-child {
-  border-bottom: 0;
+.ex-group-title {
+  margin: 0;
+  padding: 14px 20px 4px;
+  color: var(--graphite-900);
+  font: 600 14px/20px var(--font-sans);
 }
-.ex-item-body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
-  gap: 2px;
+.ex-group .ds-task {
+  border-top: 0;
 }
-.ex-item-title {
-  color: var(--text-body);
-  font-size: 16px;
+.ex-group .ds-task-name small {
+  margin-top: 1px;
 }
-.ex-item-reason,
+
+/* ---- The export card ---- */
 .ex-muted {
   margin: 0;
-  color: var(--text-muted);
-  font-size: 14px;
-  line-height: 20px;
+  color: var(--graphite-600);
+  font: 400 13px/1.45 var(--font-sans);
+}
+.ex-status:empty {
+  display: none;
 }
 .ex-body {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 16px 18px;
+  gap: 20px;
+  /* 6 px under the card's heading, which keeps 10 px of its own. */
+  padding: 6px 20px 20px;
 }
 .ex-fieldset {
   display: flex;
@@ -70,10 +85,6 @@
   padding: 0;
   border: 0;
 }
-.ex-include {
-  padding-top: 16px;
-  border-top: 1px solid var(--border-subtle);
-}
 /* A label, as design system v2 sets one: 12 / 600. */
 .ex-label {
   margin-bottom: 8px;
@@ -82,34 +93,46 @@
   font-size: 12px;
   font-weight: 600;
 }
+/* A format as a choice card: the radio and its words, the file's tile at the right. */
+.ex-choice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+  background: var(--surface-card);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.ex-choice[data-on] {
+  border-color: var(--marsh-navy);
+  background: var(--ink-50);
+  box-shadow: inset 0 0 0 1px var(--marsh-navy);
+}
+@media (hover: hover) {
+  .ex-choice:not([data-on]):hover {
+    background: var(--graphite-50);
+  }
+}
+.ex-fieldset:disabled .ex-choice {
+  opacity: 0.7;
+}
+.ex-choice:has(:focus-visible) {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
 .ex-foot {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 18px;
-  border-top: 1px solid var(--border-default);
-  background: var(--surface-sunken);
-}
-.ex-report {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 6px 12px;
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: 15px;
-  line-height: 22px;
-}
-.ex-report dt {
-  color: var(--text-muted);
-}
-.ex-report dd {
-  margin: 0;
-  overflow-wrap: anywhere;
+  gap: 10px;
+  padding: 16px 20px 20px;
+  border-top: 1px solid var(--border-subtle);
 }
 .ex-mono {
-  color: var(--text-primary);
-  font-family: var(--font-mono);
-  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 /* Stacked below 1080px, as every workspace tab is. */
@@ -121,18 +144,28 @@
     position: static;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 759px) {
   .ex-wrap {
-    padding: 16px;
+    gap: 12px;
+    padding: 16px 16px 32px;
   }
-  .ex-item {
-    flex-wrap: wrap;
+  .ex-grid {
+    gap: 12px;
+  }
+  .ex-group-title {
+    padding-inline: 16px;
+  }
+  .ex-card .ds-task {
+    padding-inline: 16px;
+  }
+  .ex-body,
+  .ex-foot {
+    padding-inline: 16px;
   }
 }
 
-/* The "Left to finish" title with its help (?) beside it (F-13). */
-.ex-card-title {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+/* A checklist row that only reports (the sample twin): no button, no hover. */
+.ex-item--static {
+  cursor: default;
+  font: 400 14px/1.4 var(--font-sans);
 }

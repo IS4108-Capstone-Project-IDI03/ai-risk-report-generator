@@ -546,6 +546,11 @@ export const CHAT_GROUP = 'chat'
 export const KNOWLEDGE_SEARCH_GROUP = 'knowledge-search'
 // The group walkthrough calls (F-12) fall under: practice work is costed to no assessment.
 export const WALKTHROUGH_GROUP = 'walkthrough'
+// The groups of calls made with no report, by feature, and their names.
+const NO_REPORT_LABELS = {
+  'client-insights': 'Client insights summary',
+  'client-intake': 'Client intake',
+} as const
 // Calls that belong to the user who made them, not an assessment.
 const PERSONAL_FEATURES: IAiCall['feature'][] = ['chat', 'knowledge-search', 'walkthrough']
 // The group for an assessment with no engineer assigned.
@@ -668,10 +673,10 @@ export async function usageOverview(
   const kept = query.engineer ? rows.filter((r) => engineerOf(r) === query.engineer) : rows
   const groupKey = (r: IAiCall) => {
     if (query.groupBy === 'engineer') return engineerOf(r) ?? UNASSIGNED_GROUP
-    // Outside ingestion, only chat, knowledge base searches and walkthroughs have no report.
-    if (r.reportId) return r.reportId
-    if (r.feature === 'walkthrough') return WALKTHROUGH_GROUP
-    return r.feature === 'knowledge-search' ? KNOWLEDGE_SEARCH_GROUP : CHAT_GROUP
+    // A call with no report is grouped by its feature (chat, knowledge base search, walkthrough,
+    // a client's insights summary): filed under chat, a client summary showed as a Chatbot row
+    // whose chat page then had none.
+    return r.reportId ?? r.feature
   }
   const splitKey = splitKeyFor(query.split)
 
@@ -698,6 +703,15 @@ export async function usageOverview(
         ...shared,
         ...none,
         label: 'Knowledge base search',
+        engineerId: null,
+        engineerName: null,
+      }
+    // Any other feature called with no report: its own row, never an assessment's.
+    if ((AI_FEATURES as readonly string[]).includes(key))
+      return {
+        ...shared,
+        ...none,
+        label: NO_REPORT_LABELS[key as keyof typeof NO_REPORT_LABELS] ?? key,
         engineerId: null,
         engineerName: null,
       }

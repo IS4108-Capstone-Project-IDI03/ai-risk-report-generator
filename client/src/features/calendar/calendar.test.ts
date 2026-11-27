@@ -135,6 +135,14 @@ describe('report due dates', () => {
   it('are never late once the report is finalised', () => {
     expect(on('2026-11-10', 'finalised')).toEqual({ state: 'done', note: 'finalised' })
   })
+
+  // Found live: RPT-2026-0003, exported, was listed under Late reports as 4 days late.
+  it('are never late once the report is exported', () => {
+    expect(dueOf({ due: '2026-11-10', status: 'draft', stage: 'exported' }, '2026-11-15')).toEqual({
+      state: 'done',
+      note: 'exported',
+    })
+  })
 })
 
 describe('the work list as calendar items', () => {

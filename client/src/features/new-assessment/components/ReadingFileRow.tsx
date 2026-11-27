@@ -13,6 +13,8 @@ export type FileRow = {
   pasted?: boolean
   state: 'working' | 'waiting' | 'done'
   label?: string
+  // The read stopped (Try again is offered), so no spinner or "Waiting" is left turning.
+  stopped?: boolean
   failure?: Failure
 }
 
@@ -77,7 +79,7 @@ export function ReadingFileRow({
           </span>
         )}
       </span>
-      <ReadingStatus state={row.state} label={row.label} />
+      {!row.stopped && <ReadingStatus state={row.state} label={row.label} />}
     </li>
   )
 }

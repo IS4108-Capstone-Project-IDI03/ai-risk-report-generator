@@ -70,12 +70,12 @@ export const TIPS = {
     roles: ['risk_engineer', 'knowledge_admin'],
     text: "These are the standards in the knowledge base that match this site's facility type and jurisdiction. If one is missing, you can ask a knowledge admin to add it.",
   },
-  // 11. Checklist: Beside the first item's answer buttons
+  // 11. Checklist: Beside the first item's round mark
   'checklist.answers': {
-    label: 'About the answer buttons',
+    label: 'About answering items',
     roles: ['risk_engineer'],
     walkthrough: 'checklist',
-    text: "You can answer an item in 4 ways:\n- **Confirm**: what you saw matches. This saves an observation.\n- **Differs**: what you saw doesn't match. This also saves an observation.\n- **Not seen**: you didn't get to see it.\n- **Not applicable**: it doesn't apply to this site.\nThe last 2 are under ⋯ and save nothing.",
+    text: "Press the round mark beside an item to answer it. Each press moves it on:\n- **Tick**: what you saw matches.\n- **Cross**: what you saw doesn't match.\n- **Not seen**: you didn't get to see it.\nPress again to clear it. A ticked or crossed item can be linked to an observation from its link menu.",
   },
   // 12. Checklist: Regenerate checklist
   'checklist.regenerate': {

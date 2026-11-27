@@ -402,6 +402,10 @@ export function foldComparison(c: Comparison): {
     const sources = d ? d.sources.filter((k) => byKey.has(k)) : item.sources
     const inPair = sources.map((k) => byKey.get(k)!)
     const severity = sources.length ? severityChange(p, inPair) : null
+    // Re-paired with other evidence, the comparison's reason or missing line
+    // speaks of evidence the item no longer cites, so it is left out.
+    const repaired =
+      sources.length !== item.sources.length || sources.some((k) => !item.sources.includes(k))
     return [
       {
         key: p.key,
@@ -414,8 +418,8 @@ export function foldComparison(c: Comparison): {
         // An engineer's pairing settles a disagreement.
         disagree: d ? [] : item.disagree,
         possible: item.possible.filter((k) => !sources.includes(k)),
-        reason: item.reason,
-        missing: item.missing,
+        reason: repaired ? null : item.reason,
+        missing: repaired ? null : item.missing,
         confidence: item.confidence,
         figures: item.figures.filter((f) => sources.includes(f.source)),
         severity,

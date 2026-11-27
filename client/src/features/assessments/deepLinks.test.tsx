@@ -118,6 +118,13 @@ describe('Back after a link opened another tab', () => {
     await waitFor(() => expect(result.current.tab).toBe('checklist'))
   })
 
+  it('opens the default tab, not a blank workspace, when the URL names an unknown tab', () => {
+    window.history.pushState({}, '', '/assessment?ref=RPT-2026-0411&tab=generation')
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    const { result } = renderHook(() => useAssessmentWorkflow(vi.fn(), SESSIONS.risk_engineer))
+    expect(result.current.tab).toBe('overview')
+  })
+
   // Round 9 design pass: the page title went blank after Back, because the URL holds no name.
   it('keeps the open assessment’s name and Recent list, since the URL knows only its reference', () => {
     const loaded = { reference: 'RPT-2026-0130', site: 'Senoko Chilled Hub' }

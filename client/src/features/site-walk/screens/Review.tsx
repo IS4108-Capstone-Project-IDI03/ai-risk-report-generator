@@ -7,12 +7,13 @@
 // Opened from the Observations tab's walk list or the bell; state lives in
 // useProposal, the edits in proposal.ts.
 import { useEffect, useRef, useState } from 'react'
-import { toast } from '../../../design-system'
+import { Callout, toast } from '../../../design-system'
 import { ObservationBadge } from '../../assessments/components/ObservationBadge'
 import { ScreenHeader } from '../../assessments/components/ScreenHeader'
 import { setLeaveGuard } from '../../assessments/leaveGuard'
 import { PhotoDialog, type ViewedPhoto } from '../../assessments/components/PhotoReferences'
 import { useFitPane } from '../../assessments/useFitPane'
+import { useNarrowPane } from '../useNarrowPane'
 import { ExistingLocationDialog } from '../components/ExistingLocationDialog'
 import { LocationForm } from '../components/LocationForm'
 import { ProposalHeader } from '../components/ProposalHeader'
@@ -101,6 +102,8 @@ export function SiteWalkReview({
   const [naming, setNaming] = useState<{ busy: boolean; problem: string | null } | null>(null)
   // The navigator and table stay put; only the table scrolls (round 3).
   const pane = useFitPane<HTMLDivElement>()
+  // Too narrow for the navigator beside the table: it becomes the phone's button and sheet.
+  const [narrow, watchPane] = useNarrowPane(pane)
   const [matching, setMatching] = useState<string | null>(null)
   const [removing, setRemoving] = useState<string | null>(null)
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
@@ -175,7 +178,7 @@ export function SiteWalkReview({
     const at = p!.observations.findIndex((x) => x.ref === o.ref)
     r.change((cur) => edit.removeObservation(cur, o.ref))
     setOpenRef(null)
-    undoToast.current = toast.success('Observation deleted.', {
+    undoToast.current = toast.success('Observation deleted', {
       action: {
         label: 'Undo',
         onClick: () => r.change((cur) => edit.restoreObservation(cur, o.ref, at)),
@@ -245,9 +248,9 @@ export function SiteWalkReview({
         />
       )}
       {r.problem && ready && !page && (
-        <p className="swr-problem" role="alert">
-          {r.problem}
-        </p>
+        <div role="alert">
+          <Callout tone="danger">{r.problem}</Callout>
+        </div>
       )}
       {!ready || !p ? (
         <WalkStatusMessage
@@ -276,6 +279,10 @@ export function SiteWalkReview({
               onStep={setOpenRef}
               onView={setViewing}
               readOnly={readOnly}
+              others={r.existing.filter((l) => !p.locations.some((x) => x.existingId === l.id))}
+              onPlace={(existing) =>
+                r.change((cur) => edit.placeAtExisting(cur, page.ref, existing))
+              }
             />
           ) : screen === 'photos' || screen === 'pages' ? (
             <ProposalMedia
@@ -296,12 +303,17 @@ export function SiteWalkReview({
               onRestore={readOnly ? undefined : restore}
             />
           ) : (
-            <div ref={pane} className="ob-layout" data-fit="">
+            <div
+              ref={watchPane}
+              className="ob-layout"
+              data-fit={narrow ? undefined : ''}
+              style={narrow ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}
+            >
               <ProposalNavigator
                 proposal={p}
                 selected={selected}
                 title={title}
-                phone={phone}
+                phone={phone || narrow}
                 onPick={pick}
                 onAdd={readOnly ? undefined : () => setForm({ kind: 'add' })}
                 onPhotos={() => setScreen('photos')}

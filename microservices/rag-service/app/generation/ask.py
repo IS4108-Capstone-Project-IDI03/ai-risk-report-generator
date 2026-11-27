@@ -19,7 +19,13 @@ from app.chat.quotes import quote_found
 from app.generation.generator import PLACEHOLDER_RULE, passage_headings, quote_check
 
 # Bump on every prompt or check change; the trace of each answer records it (AC6).
-PROMPT_VERSION = "as02-v1"
+PROMPT_VERSION = "as02-v2"  # v2: labels only in brackets; "(none)" reworded
+
+# The engineer sees each citation as a numbered marker, never as O1 or C2, so a label named in
+# the words themselves ("O1 records ...") would read as jargon. Shared with propose.py and guide.py.
+LABELS_RULE = """Labels go only inside the square brackets. The engineer never sees them, so
+  never name one in the words ("O1 records ...", "C2 and C3 say ..."): say "the observation",
+  "the reactor hall observation" or the standard's name instead."""
 
 SYSTEM = f"""You answer a property risk engineer's question about one site assessment they
 are reviewing. Answer ONLY from the evidence in the user message:
@@ -35,6 +41,7 @@ How to write
   Several citations are fine: [O2] [C1 "exact words"].
 - Every statement cites at least one label it was given. Never write a sentence you cannot
   cite, and never cite a label you were not given.
+- {LABELS_RULE}
 - A sentence about a past report says it concerns another site, e.g. "A past report on
   another office records ...".
 - When the evidence answers only part of the question, or none of it, add one line that
@@ -273,7 +280,7 @@ def user_message(
     evidence the passage cites."""
 
     def block(tag: str, parts: list[str]) -> str:
-        return f"<{tag}>\n" + ("\n\n".join(parts) if parts else "(none)") + f"\n</{tag}>"
+        return f"<{tag}>\n" + ("\n\n".join(parts) if parts else NONE_FOUND) + f"\n</{tag}>"
 
     return "\n\n".join(
         [
@@ -303,6 +310,38 @@ def user_message(
             f"Question: {question}",
         ]
     )
+
+
+# What an empty evidence block says. A bare "(none)" led the model to write "no observations
+# were recorded for this site" when the site had several, none of them on the question.
+NONE_FOUND = "(none of this kind relates to the request; the search kept only related evidence)"
+
+_NOUNS = {"observation": "observation", "standard": "standard", "report": "past report"}
+_NOUNS_TEMPLATE = "template part"
+# A run of labels named in a line's words: "O1", "C2 and C3", "O1, O2 and C4".
+_NAMED = re.compile(r"\b[OCPT]\d+(?:(?:\s*,\s*|\s*,?\s+and\s+|\s*&\s*)[OCPT]\d+)*\b")
+
+
+def plain_labels(text: str, labels: dict[str, tuple[str, str, object]]) -> str:
+    """The line's words with any evidence label the model named in them ("O1 records ...")
+    put as plain words ("The observation records ..."). The engineer sees citations as
+    numbered markers, so a label in the words means nothing to them. Only labels the model
+    was given are changed, so "Class C1" or "P1 priority" stays."""
+
+    def plain(m: re.Match) -> str:
+        named = _LABEL.findall(m[0])
+        kinds = [labels[f"{a}{b}"][1] if f"{a}{b}" in labels else None for a, b in named]
+        if None in kinds:
+            return m[0]
+        nouns = [_NOUNS.get(k, _NOUNS_TEMPLATE) for k in kinds]
+        if len(set(nouns)) == 1:
+            return f"the {nouns[0]}" + ("s" if len(nouns) > 1 else "")
+        return " and ".join(f"the {n}" for n in dict.fromkeys(nouns))
+
+    out = _NAMED.sub(plain, text)
+    if out != text and out.startswith("the "):
+        out = "T" + out[1:]
+    return out
 
 
 def observation_text(o) -> str:

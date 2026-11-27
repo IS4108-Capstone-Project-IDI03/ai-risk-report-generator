@@ -196,6 +196,18 @@ describe('POST /api/knowledge-gaps/:id/fill', () => {
     return { ...who, id: req.body.id as string }
   }
 
+  it('dates each document on the day it was uploaded where the team works, not in UTC', async () => {
+    const { admin, id } = await open()
+    // 00:28 on 26 Nov in Singapore is still 25 Nov in UTC.
+    const a = await seedDoc('NFPA 13', '2022', '2026-11-25T16:28:00Z')
+    await admin.session
+      .post(`/api/knowledge-gaps/${id}/fill`)
+      .send({ documentIds: [a] })
+      .expect(200)
+    const note = await NotificationModel.findOne({ targetRole: 'risk_engineer' }).lean()
+    expect(note?.details).toBe('Q?\nNFPA 13 · Edition 2022 · uploaded 26 Nov 2026')
+  })
+
   it('closes the request and tells the asker each document’s title and upload date', async () => {
     const { engineer, admin, id } = await open()
     const a = await seedDoc('NFPA 13', '2022', '2026-10-20T08:00:00Z')

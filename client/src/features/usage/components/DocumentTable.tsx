@@ -12,14 +12,22 @@ import { DataTable } from './DataTable'
 export function DocumentTable({
   documents,
   onOpen,
+  toolbar,
+  footer,
 }: {
   documents: DocumentUsage[]
   onOpen: (document: DocumentUsage) => void
+  // The search, and the count line, drawn in the table's own card.
+  toolbar?: React.ReactNode
+  footer?: string
 }) {
   return (
     <DataTable
       caption="Documents and their cost"
       rows={documents}
+      toolbar={toolbar}
+      footer={footer}
+      empty="No documents match your search"
       columns={[
         {
           header: 'Document',

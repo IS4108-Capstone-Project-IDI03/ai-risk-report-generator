@@ -531,3 +531,44 @@ def test_line_kinds_and_choosing_words():
     assert asking.content_problem("FM Global 2-0 describes the preferred arrangement.") is None
     assert asking.content_problem("The gauge reading was incorrect.") is None
     assert asking.content_problem("The observation records 7 bar; the standard sets 10.") is None
+
+
+def test_a_label_named_in_the_words_reads_as_plain_words(monkeypatch):
+    # The engineer sees citations as numbered markers, never O1 or C2 (live, 26 Nov: "O1 records
+    # that the process block ...").
+    events, _ = run(
+        monkeypatch,
+        [
+            "O1 records that the B1 valve was found shut. [O1]",
+            'O1 and C1 differ on the valve [O1] [C1 "supervised in the open position"].',
+            "Missing: no observation besides O1 records when the valve was last checked.",
+        ],
+    )
+    result = result_of(events)
+    assert [s["text"] for s in result["statements"]] == [
+        "The observation records that the B1 valve was found shut.",
+        "The observation and the standard differ on the valve.",
+    ]
+    assert result["missing"] == [
+        "no observation besides the observation records when the valve was last checked."
+    ]
+
+
+def test_plain_labels_leaves_words_that_are_not_given_labels():
+    labels = {"O1": ("O:a", "observation", None), "O2": ("O:b", "observation", None)}
+    assert asking.plain_labels("O1, O2 and O1 agree.", labels) == "The observations agree."
+    # Not a label it was given: a Class C1 rating stays as written.
+    assert asking.plain_labels("It is a Class C1 risk.", labels) == "It is a Class C1 risk."
+
+
+def test_an_empty_evidence_block_never_reads_as_nothing_recorded(monkeypatch):
+    # Rerank kept no observation, though the site has some: the prompt must not say "(none)",
+    # which led the model to write "no observations were recorded for this site".
+    _, sent = run(
+        monkeypatch,
+        ["FM Global 2-81 requires supervised valves. [C1]"],
+        scores={"O:obs1": 0.01, "O:obs2": 0.01},
+    )
+    prompt = sent["prompts"][0]
+    observations = prompt.split("<observations>")[2].split("</observations>")[0]
+    assert observations.strip() == asking.NONE_FOUND

@@ -3,6 +3,7 @@ import cors from 'cors'
 import cookieParser from 'cookie-parser'
 import { config } from './config'
 import { connectDb } from './models/db'
+import { loadAccounts } from './services/auth.service'
 import { ModelUnavailableError } from './services/settings.service'
 import healthRoutes from './routes/health.routes'
 import knowledgeDocumentRoutes from './routes/knowledge-document.routes'
@@ -162,6 +163,8 @@ app.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
 
 async function start() {
   await connectDb()
+  // Before listening, so a deactivated account's old session is refused from the first request.
+  await loadAccounts()
   // CP-24: before the workers, so a description a worker has just started is
   // never marked interrupted; it queues a fresh run of each reading cut short.
   await resumeReadings()

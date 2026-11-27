@@ -72,7 +72,7 @@ const country = (allowAll: boolean) =>
     )
 
 // The facility types a document may be labelled with (KB-01 AC7). Must match
-// FACILITY_TYPES in client/src/features/assessments/demo-data.ts, which the
+// FACILITY_TYPES in client/src/features/assessments/options.ts, which the
 // forms offer. The checklist's hazard list (rag-service checklist.json) covers each.
 export const FACILITY_TYPES = [
   'Distribution warehouse',
@@ -86,7 +86,7 @@ export const FACILITY_TYPES = [
   'Mixed-use development',
 ]
 // The jurisdictions a site may be in (CP-23 client intake). Must match
-// JURISDICTIONS in client/src/features/assessments/demo-data.ts, which the forms offer.
+// JURISDICTIONS in client/src/features/assessments/options.ts, which the forms offer.
 export const JURISDICTIONS = [
   { code: 'SG', name: 'Singapore' },
   { code: 'MY', name: 'Malaysia' },

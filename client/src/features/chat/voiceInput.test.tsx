@@ -4,7 +4,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { VoiceInput } from './components/VoiceInput'
-import { saveSettings } from './speech'
+import { answerSpoken, saveSettings } from './speech'
 
 let heard = true
 // 'suspended' is what Safari gives an audio meter created outside a click.
@@ -93,6 +93,16 @@ describe('ask by voice (CB-10)', () => {
     expect(screen.getByRole('button', { name: 'Ask by voice' })).toBeInTheDocument()
   })
 
+  it('a plain Read answer aloud does not promise to reopen the mic, but hands-free does', async () => {
+    render(<VoiceInput />)
+    await screen.findByRole('button', { name: 'Ask by voice' })
+    act(() => void answerSpoken.dispatchEvent(new Event('start')))
+    expect(screen.queryByText(/mic opens again/)).not.toBeInTheDocument()
+    act(() => saveSettings({ rate: 1, voiceURI: '', handsFree: true }))
+    act(() => void answerSpoken.dispatchEvent(new Event('start')))
+    expect(screen.getByText(/mic opens again/)).toBeInTheDocument()
+  })
+
   it('Pause holds the recording and Resume carries on', async () => {
     render(<VoiceInput />)
     fireEvent.click(await screen.findByRole('button', { name: 'Ask by voice' }))
@@ -117,9 +127,12 @@ describe('ask by voice (CB-10)', () => {
 
   it('shows the hands-free switch at once, and says what it does', async () => {
     render(<VoiceInput />)
-    expect(await screen.findByText(/Off: you check each question/)).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'About hands-free' })).toBeInTheDocument()
+    expect(screen.queryByText(/Tap the mic and ask/)).toBeNull()
     fireEvent.click(screen.getByRole('switch', { name: 'Hands-free' }))
     expect(screen.getByText(/Say “stop” to end/)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'About hands-free' }))
+    expect(screen.getByText(/Off, you check each question/)).toBeInTheDocument()
   })
 
   it('sends the question without checking it, and says it is searching', async () => {

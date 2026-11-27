@@ -3,7 +3,7 @@
 // its short error and the fix, in a popup (a sheet on a phone). Nothing to do
 // to a row, so no remove or retry. Used by ClientCard.tsx. Calls ReadingFileRow.tsx.
 import { useState } from 'react'
-import { Icon, Popover, useIsPhone } from '../../../design-system'
+import { CountPill, Icon, Popover, useIsPhone } from '../../../design-system'
 import type { IntakeFile } from '../api'
 import { failureOf } from '../reading'
 import { ReadingFileRow } from './ReadingFileRow'
@@ -32,7 +32,7 @@ export function RejectedPopover({ files }: { files: IntakeFile[] }) {
         >
           <Icon name="circle-x" size={16} color="var(--red-600)" />
           <span className="na-docs-word">{'Rejected'}</span>
-          <span className="na-count na-count--red">{files.length}</span>
+          <CountPill tone="danger">{files.length}</CountPill>
           <Icon name="chevron-down" size={16} className="na-docs-chev" />
         </button>
       }

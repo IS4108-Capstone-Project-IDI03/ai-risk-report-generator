@@ -26,8 +26,7 @@ export function ReviewPanel({
       <div className="kb-panel-block">
         <h3 className="kb-panel-title">Fill in the missing details</h3>
         <p className="kb-panel-note">
-          Some details could not be read from the file. Once they are saved, the document becomes
-          active, unless it matches another document.
+          Once they are saved, the document becomes active, unless it matches another document.
         </p>
       </div>
     ) : (
@@ -35,7 +34,7 @@ export function ReviewPanel({
         tone="success"
         title={`${d.title} no longer needs review`}
         actions={
-          <Button variant="secondary" size="sm" onClick={onBack}>
+          <Button pill variant="secondary" size="sm" onClick={onBack}>
             Back to the list
           </Button>
         }

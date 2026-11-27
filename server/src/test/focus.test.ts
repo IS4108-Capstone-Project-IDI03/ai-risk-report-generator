@@ -117,8 +117,8 @@ describe('Focus on the work list', () => {
       priority: { reason: 'overdue', text: 'Report 5 days overdue, nothing drafted yet.', rank: 1 },
     })
     expect(focus.map((r) => r.priority!.text).slice(2)).toEqual([
-      'No time to spare before the report is due.',
-      '1 day to spare before the report is due.',
+      'No time to spare: the report is due in 1 day, with about 2 days of work left.',
+      '1 day to spare: the report is due in 4 days, with about 3 days of work left.',
       "Loading Bay 2 · 1:48 · Couldn't transcribe",
     ])
     expect(focus.map((r) => r.reference)).not.toContain(relaxed)
@@ -159,7 +159,7 @@ describe('priorityFor', () => {
       ),
     ).toEqual({
       reason: 'short_on_time',
-      text: '1 day to spare before the survey.',
+      text: '1 day to spare: the survey is in 2 days, with about 1 day of work left.',
       urgency: 1.5,
     })
   })

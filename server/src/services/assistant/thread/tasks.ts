@@ -2,7 +2,7 @@
 // as rows that change in place (Review, Try again, Transcribing, Done, Open),
 // and MarshBot's words when they are done or a retry fails again.
 // Called by topics.ts and advance.ts.
-import { count, lowerFirst, opens, row, upperFirst } from './cards'
+import { count, opens, row, upperFirst, walkNamed } from './cards'
 import type { Built, TopicCtx } from './types'
 import type { BriefItem, CardRow, ItemLink, Say } from '../types'
 
@@ -195,7 +195,7 @@ export function doneClause(ctx: TopicCtx, item: BriefItem): string | null {
   const walk = item.id.startsWith('walk.ready:') ? item.id.slice('walk.ready:'.length) : null
   if (walk) {
     const made = ctx.facts.walkObservations?.[walk] ?? Number(item.facts.proposed ?? 0)
-    return `the ${lowerFirst(item.title)} is in with ${count(made, 'new observation')}`
+    return `${walkNamed(item.title)} is in with ${count(made, 'new observation')}`
   }
   const media = item.kind === 'failed-recording' || item.kind === 'failed-page'
   if (media && item.facts.outcome === 'removed')

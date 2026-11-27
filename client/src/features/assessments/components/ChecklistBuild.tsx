@@ -97,6 +97,7 @@ export function ChecklistBuild({
       <div className="cl-build-actions">
         <Button
           variant="primary"
+          pill
           iconLeft="sparkles"
           loading={running}
           disabled={running}
@@ -112,7 +113,7 @@ export function ChecklistBuild({
           Generate checklist
         </Button>
         {onCancel && (
-          <Button variant="link" disabled={running} onClick={onCancel}>
+          <Button variant="pill" disabled={running} onClick={onCancel}>
             Cancel
           </Button>
         )}

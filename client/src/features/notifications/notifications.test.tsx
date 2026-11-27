@@ -484,11 +484,12 @@ describe('NotificationBell — knowledge request details', () => {
 // CB-07 UI polish: each purpose has its own glyph, coloured by status; the header is one row.
 describe('NotificationBell — icons and header', () => {
   it('colours by status: red, amber, green, graphite, else navy', () => {
-    expect(toneFor('failed').fg).toContain('critical')
-    expect(toneFor('needs_review').fg).toContain('moderate')
-    expect(toneFor('filled').fg).toContain('low')
-    expect(toneFor('dismissed').fg).toContain('text-secondary')
-    expect(toneFor(undefined).fg).toBe('var(--ink-600)')
+    // The shared IconTile's tones (red, amber, green, grey, ink blue).
+    expect(toneFor('failed')).toBe('danger')
+    expect(toneFor('needs_review')).toBe('warn')
+    expect(toneFor('filled')).toBe('good')
+    expect(toneFor('dismissed')).toBe('neutral')
+    expect(toneFor(undefined)).toBe('ink')
   })
 
   it('shows a different glyph for each purpose', async () => {

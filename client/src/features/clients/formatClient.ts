@@ -1,6 +1,6 @@
 // Small wording helpers shared by the client page and the Clients table.
 import type { AssessmentType } from '../../design-system'
-import { JURISDICTIONS } from '../assessments/demo-data'
+import { JURISDICTIONS } from '../assessments/options'
 import { formatDay, formatDayYearTime } from '../assessments/format'
 import type { Stamp } from './api'
 

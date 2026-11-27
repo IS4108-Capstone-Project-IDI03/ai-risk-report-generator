@@ -2,7 +2,7 @@
 // OpenUI Lang answer is rendered the way the chat screen renders a streamed one.
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { Renderer } from '@openuidev/react-lang'
+import { Renderer } from 'openui-lang-v1'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CitationSelectionContext } from './components/citationSelection'
 import { DocumentsContext, type DocSummary } from './components/documents'

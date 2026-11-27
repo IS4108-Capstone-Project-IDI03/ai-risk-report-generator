@@ -208,6 +208,19 @@ export function detailedBlockers({
         `Its figures are not all entered. ${missing}`,
         figures.notEntered ?? `${name}'s figures are not all entered.`,
       )
+    // Drafted but empty: no evidence covered any subsection, so drafting it again
+    // on Generation would come back empty too. Point at the document editor.
+    if (section.completion.state === 'not_started' && section.draft) {
+      add(
+        'not_written',
+        section.id,
+        title,
+        'review',
+        'It was drafted, but no observation covers any of its subsections. Write it in the document editor, or add observations that cover it and draft it again.',
+        `${name} has nothing written: no observation covers any of its subsections.`,
+      )
+      continue
+    }
     if (section.completion.state === 'not_started') {
       add(
         'not_written',

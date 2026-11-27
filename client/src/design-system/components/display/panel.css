@@ -1,0 +1,70 @@
+/* Panel (Panel.tsx): a v2 card with a titled heading row. White, radius 16, 1 px --graphite-200,
+   20 px padding (16 on a phone); title 16 / 700 navy, note 12 / 400 --graphite-600. Tokens only.
+   It is a size container ("ds-panel"), so what it holds can lay itself out by the panel's width. */
+.ds-panel {
+  container: ds-panel / inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 20px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  font-family: var(--font-sans);
+}
+.ds-panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ds-panel-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  /* 32 px: the height of an icon action, so a panel with actions and one without line up. */
+  min-height: 32px;
+}
+.ds-panel-title-row {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.ds-panel-icon {
+  display: flex;
+  flex: 0 0 auto;
+  /* 12 px from the title with the row's 4 px gap. */
+  margin-right: 8px;
+}
+/* A count after the title sits 8 px from it, centred on the title's line. */
+.ds-panel-after {
+  display: inline-flex;
+  margin-left: 8px;
+  vertical-align: 1px;
+}
+.ds-panel-title {
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/1.3 var(--font-sans);
+  text-wrap: balance;
+}
+.ds-panel-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px 8px;
+}
+.ds-panel-note {
+  margin: 0;
+  color: var(--graphite-600);
+  font: 400 12px/1.45 var(--font-sans);
+}
+@media (max-width: 767px) {
+  .ds-panel {
+    padding: 16px;
+  }
+}

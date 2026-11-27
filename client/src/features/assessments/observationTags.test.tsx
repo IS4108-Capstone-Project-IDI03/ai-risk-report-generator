@@ -4,6 +4,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { SavedObservation } from './api'
+import { created } from '../new-assessment/testKit'
 
 const REF = 'RPT-2026-0411'
 const OBS_URL = `/api/assessments/${REF}/observations`
@@ -11,6 +12,13 @@ const LOCATIONS_URL = `/api/assessments/${REF}/locations`
 const BAY_3 = { id: 'l1', building: 'Warehouse', name: 'Bay 3 — north aisle', floor: 'Ground' }
 const STAIRWELL = { id: 'l2', building: 'Block A', name: 'Stairwell B', floor: 'Level 2' }
 const PUMP_HOUSE = { id: 'l3', building: null, name: 'Pump house', floor: null }
+const BAY_1 = { id: 'l4', building: 'Warehouse', name: 'Bay 1 — despatch', floor: 'Ground' }
+// The assessment the tests open, on the signed-in engineer's work list.
+const ASSESSMENT = {
+  ...created(REF, 'Tilbury Distribution Centre'),
+  status: 'capturing',
+  captureStartedAt: '2026-04-11T08:00:00.000Z',
+}
 
 function observation(fields: Partial<SavedObservation> = {}): SavedObservation {
   return {
@@ -47,13 +55,27 @@ const VALVE = observation({
   location: PUMP_HOUSE,
   note: 'Unlabelled valve in the pump house.',
 })
-// The sample assessment's own observations, kept in the browser.
+// More observations, so a label or place can match several.
 const RACKING =
   'Pallet racking installed against north wall since last visit. Two ESFR heads obstructed.'
 const PUMP_TEST =
   'Pump test certificate not produced on request. Site engineer believes it is held by the contractor.'
 const SORTATION =
   'Sortation line controller is a single point of failure. Client quotes 14 weeks to replace.'
+const RACKING_OBS = observation({ id: 'o5', note: RACKING, severity: 'critical', location: BAY_3 })
+const PUMP_TEST_OBS = observation({
+  id: 'o6',
+  note: PUMP_TEST,
+  severity: 'high',
+  location: PUMP_HOUSE,
+})
+const SORTATION_OBS = observation({
+  id: 'o7',
+  note: SORTATION,
+  copeDimensions: ['Occupancy'],
+  severity: 'moderate',
+  location: BAY_1,
+})
 
 const json = (status: number, body: unknown) =>
   Promise.resolve(
@@ -63,31 +85,31 @@ const json = (status: number, body: unknown) =>
     }),
   )
 
-// A stand-in for the gateway, answering by route. The dashboard list is
-// unreachable, so the app falls back to its sample rows. A tag edit applies to
+// A stand-in for the gateway, answering by route. A tag edit applies to
 // the listed observations, as the gateway does, unless patchReply says otherwise.
 let listed: SavedObservation[] = []
-let reachable = true
 let patchReply: ((id: string, tags: Record<string, unknown>) => Promise<Response>) | null = null
 const patches: { id: string; tags: Record<string, unknown> }[] = []
 // Set once the gateway has answered for the locations. They are asked for only
 // after the observations arrive, and until then the navigator builds its places
-// from the observations, so the sample's Pump house and this one both show.
+// from the observations, so a place can show twice.
 let locationsServed = false
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
-    if (!reachable) return Promise.reject(new TypeError('Failed to fetch'))
+    if (url === '/api/assessments') return json(200, [ASSESSMENT])
     // The workspace lists deleted ones too, for the Deleted button's count.
     if (url === OBS_URL || url === OBS_URL + '?include=deleted') return json(200, listed)
     if (url === LOCATIONS_URL)
-      return json(200, [BAY_3, STAIRWELL, PUMP_HOUSE]).finally(() => (locationsServed = true))
+      return json(200, [BAY_3, BAY_1, STAIRWELL, PUMP_HOUSE]).finally(
+        () => (locationsServed = true),
+      )
     const patch = url.match(/^\/api\/observations\/(\w+)$/)
     if (patch && init.method === 'PATCH') {
       const id = patch[1]
       const tags = JSON.parse(String(init.body))
       patches.push({ id, tags })
       if (patchReply) return patchReply(id, tags)
-      const location = [BAY_3, STAIRWELL, PUMP_HOUSE].find((l) => l.id === tags.locationId)
+      const location = [BAY_3, BAY_1, STAIRWELL, PUMP_HOUSE].find((l) => l.id === tags.locationId)
       listed = listed.map((o) =>
         o.id === id
           ? {
@@ -113,10 +135,12 @@ async function openObservations() {
   window.history.replaceState(null, '', '/')
   render(<App />)
   await signIn()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  // The sample observations show straight away; wait for the gateway's.
-  if (reachable && listed.length) {
+  // Wait for the gateway's observations.
+  if (listed.length) {
     await screen.findByText(listed[0].note!)
     // Then for the gateway's locations, or the navigator can briefly list a
     // place twice (a slow CI runner clicked in that gap).
@@ -178,8 +202,7 @@ beforeAll(() => {
   }
 })
 beforeEach(() => {
-  listed = [HOSE_REEL, STAIRWELL_DOOR, VALVE]
-  reachable = true
+  listed = [HOSE_REEL, STAIRWELL_DOOR, VALVE, RACKING_OBS, PUMP_TEST_OBS, SORTATION_OBS]
   patchReply = null
   patches.length = 0
   locationsServed = false
@@ -330,7 +353,14 @@ describe('Filtering observations by tag (CP-06 AC2)', () => {
 
 describe('Filtering the list by tag (CP-36)', () => {
   it('narrows the list to a kind or label, with counts, and back to All', async () => {
-    listed = [observation({ kinds: ['recommendation'], labels: ['pump'] }), STAIRWELL_DOOR, VALVE]
+    listed = [
+      observation({ kinds: ['recommendation'], labels: ['pump'] }),
+      STAIRWELL_DOOR,
+      VALVE,
+      RACKING_OBS,
+      PUMP_TEST_OBS,
+      SORTATION_OBS,
+    ]
     await openObservations()
     const row = screen.getByRole('group', { name: 'Filter by tag' })
     expect(within(row).getByRole('button', { name: /^Recommendation 1/ })).toBeInTheDocument()
@@ -523,23 +553,5 @@ describe('Editing an observation’s tags (CP-06 AC1, AC3)', () => {
     expect(placeOf(screen.getByRole('button', { name: /Hose reel/ }))).toBe(
       'Warehouse › Ground › Bay 3 — north aisle',
     )
-  })
-
-  it('edits a sample observation in this demo only', async () => {
-    reachable = false
-    await openObservations()
-    openPage(PUMP_TEST)
-
-    fireEvent.click(within(openTag('Category')).getByRole('menuitemcheckbox', { name: 'Exposure' }))
-    chooseTag('Location', /Open-plan office/)
-
-    expect(await screen.findByRole('status')).toHaveTextContent('Saved')
-    expect(patches).toEqual([])
-    backToList()
-    const row = screen.getByRole('button', { name: /Pump test certificate/ })
-    expect(row).toHaveTextContent('Exposure')
-    expect(placeOf(row)).toBe('Office annexe › Level 1 › Open-plan office')
-    goTo('Open-plan office')
-    expect(shown(RACKING, PUMP_TEST, SORTATION)).toEqual([PUMP_TEST])
   })
 })

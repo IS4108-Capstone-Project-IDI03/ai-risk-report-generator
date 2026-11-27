@@ -122,7 +122,7 @@ def test_returns_one_entry_per_previous_item_with_its_labels(monkeypatch):
         "provider": "anthropic",
         "model": "claude-test",
         "effort": "medium",
-        "prompt_version": "rv13-v1",
+        "prompt_version": "rv13-v2",
         "privacy": {"enabled": False, "masked_count": 0},
     }
     assert prompts[0]["feature"] == "report-comparison"
@@ -199,7 +199,13 @@ def test_leaves_out_a_reason_that_breaks_the_rules_and_a_figure_from_no_source(m
                     )
                 ],
             ),
-            entry("P2", "fixed", ["F1"], reason="Valves were found locked open."),
+            entry(
+                "P2",
+                "fixed",
+                ["F1"],
+                reason="Valves were found locked open.",
+                missing="F1 names no other valve.",
+            ),
         ]
     )
 
@@ -209,7 +215,10 @@ def test_leaves_out_a_reason_that_breaks_the_rules_and_a_figure_from_no_source(m
     first = body["items"][0]
     assert first["reason"] is None and first["missing"] is None
     assert first["figures"] == []
-    assert sorted(body["dropped_reasons"]) == ["figure", "first_person", "recommendation"]
+    # A label the engineer never sees ("F1") is not shown either; the clean reason stays.
+    assert body["items"][1]["reason"] == "Valves were found locked open."
+    assert body["items"][1]["missing"] is None
+    assert sorted(body["dropped_reasons"]) == ["figure", "first_person", "label", "recommendation"]
 
 
 def test_compares_a_long_report_in_parts_with_all_the_evidence_each_time(monkeypatch):

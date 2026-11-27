@@ -1,19 +1,21 @@
 // The knowledge base's Documents tab (KB-01, IN-05, IN-07): every document in the
 // knowledge base, grouped by source type, filtered by label, status or title.
-// Opening a document's title shows its details; Edit details and Restore open
-// one dialog; Withdraw and Reinstate both ask first (StatusChangeDialog).
+// Opening a row shows its details in a side panel (DocumentPanel); Edit details and Restore
+// open one dialog over it; Withdraw and Reinstate both ask first (StatusChangeDialog).
 // Shown by KnowledgeBase.tsx; talks to the gateway through api.ts.
 import { useEffect, useState } from 'react'
 import {
   Button,
   Callout,
+  EmptyNote,
   EmptyState,
   IconRegistry,
-  Input,
-  Select,
+  ListCard,
+  TableFooter,
   toast,
+  useIsPhone,
 } from '../../../design-system'
-import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import { plural } from '../../clients/formatClient'
 import {
   listIngestedDocuments,
   publishManualDocument,
@@ -23,82 +25,18 @@ import {
 import { isDraft, needsReview } from '../display'
 import { CitedDeleteDialog } from '../components/CitedDeleteDialog'
 import { DeleteDocumentDialog } from '../components/DeleteDocumentDialog'
-import { DocumentGroup, type Group } from '../components/DocumentGroup'
+import { DocumentGroup } from '../components/DocumentGroup'
+import { DOCUMENT_TOASTER, DocumentPanel } from '../components/DocumentPanel'
+import { DocumentToolbar } from '../components/DocumentToolbar'
 import { EditDetailsDialog } from '../components/EditDetailsDialog'
 import { EditHistoryDialog } from '../components/EditHistoryDialog'
 import { ReviewBanner } from '../components/ReviewBanner'
 import { StatusChangeDialog } from '../components/StatusChangeDialog'
 import { PassagesDialog } from '../components/PassagesDialog'
-import { NO_FILTERS, type Filters } from '../documentFilters'
-import { Tip } from '../../help/Tip'
+import { applyFilters, NO_FILTERS, type Filters } from '../documentFilters'
+import { GROUPS } from '../documentGroups'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
-
-const GROUPS: Group[] = [
-  { sourceType: 'fm_standard', title: 'FM standards', icon: IconRegistry.evidence.standard },
-  { sourceType: 'nfpa_standard', title: 'NFPA standards', icon: IconRegistry.evidence.standard },
-  { sourceType: 'local_standard', title: 'Local standards', icon: IconRegistry.evidence.standard },
-  { sourceType: 'marsh_report', title: 'Past Marsh reports', icon: IconRegistry.evidence.report },
-  // Documents whose source type labelling could not confirm (IN-05).
-  { sourceType: null, title: 'Source type unconfirmed', icon: 'circle-help' },
-]
-// '' is "don't filter"; 'all' is a value of its own, so "All countries" finds
-// only documents labelled for all countries (exact match, AC4).
-const COUNTRY_FILTER = [
-  { value: '', label: 'Any country' },
-  { value: 'all', label: 'All countries' },
-  ...JURISDICTIONS,
-]
-const FACILITY_FILTER = [
-  { value: '', label: 'Any facility type' },
-  { value: 'all', label: 'All facility types' },
-  ...FACILITY_TYPES,
-]
-// The groups' source types (IN-17); an unconfirmed one matches no value here.
-const SOURCE_FILTER = [
-  { value: '', label: 'Any source type' },
-  ...GROUPS.filter((g) => g.sourceType).map((g) => ({
-    value: g.sourceType as string,
-    label: g.title,
-  })),
-]
-const STATUS_FILTER = [
-  { value: '', label: 'Any status' },
-  { value: 'active', label: 'Active' },
-  { value: 'needs_review', label: 'Needs review' },
-  { value: 'withdrawn', label: 'Withdrawn' },
-  // A manual entry still being typed in (IN-18).
-  { value: 'draft', label: 'Draft' },
-]
-// How a document entered the knowledge base (IN-18).
-const ENTRY_FILTER = [
-  { value: '', label: 'Any entry' },
-  { value: 'upload', label: 'Uploaded' },
-  { value: 'manual', label: 'Manual entry' },
-]
-// Whether a document shows the status badge chosen in the filter; must match
-// components/DocumentRow.tsx, where Needs review is never Active (IN-05) and a
-// draft is neither (IN-18).
-const hasStatus = (d: KnowledgeDocument, status: string) =>
-  status === 'withdrawn'
-    ? Boolean(d.withdrawn)
-    : status === 'draft'
-      ? isDraft(d)
-      : status === 'needs_review'
-        ? needsReview(d)
-        : !d.withdrawn && !isDraft(d) && !needsReview(d)
-
-// A fuzzy title match: the typed letters appear in the title in order, with
-// gaps allowed, ignoring case and spaces ("nfpa13" finds "NFPA 13 …").
-// ponytail: no typo tolerance; add a fuzzy library if admins ask for it.
-function titleMatches(title: string, query: string) {
-  const t = title.toLowerCase()
-  let at = 0
-  for (const letter of query.toLowerCase().replace(/\s/g, '')) {
-    at = t.indexOf(letter, at) + 1
-    if (at === 0) return false
-  }
-  return true
-}
+import '../documents.css'
 
 // The filters the admin left the list with, kept in the browser's history
 // entry by KnowledgeBase.tsx so the way back from a Review page restores them.
@@ -145,6 +83,7 @@ export function KnowledgeDocuments({
   const [changingStatus, setChangingStatus] = useState<KnowledgeDocument | null>(null)
   const [deleting, setDeleting] = useState<KnowledgeDocument | null>(null)
   const [passagesOf, setPassagesOf] = useState<KnowledgeDocument | null>(null)
+  const phone = useIsPhone()
   // F-12: ready once the list has loaded; held while it is empty, since the walkthroughs point at rows.
   useWalkthroughScreen('knowledge-base', documents !== null, documents?.length === 0)
 
@@ -169,20 +108,19 @@ export function KnowledgeDocuments({
   }, [documents, focused])
 
   const needReview = (documents ?? []).filter(needsReview)
+  const openDocument = documents?.find((d) => d.id === openId) ?? null
+  // While the panel is open on a computer it covers the app's toaster (a modal dialog in the top
+  // layer), so its toasts show inside it; otherwise the app's own notice.
+  const say = (message: string) =>
+    openDocument && !phone
+      ? toast.success(message, { toasterId: DOCUMENT_TOASTER })
+      : notify(message)
   // Loads and saves both change the list, so the tab's count follows it.
   useEffect(() => {
     if (documents) onNeedReview(needReview.length)
   }, [documents, needReview.length, onNeedReview])
   const filtering = Object.values(filters).some((value) => value.trim() !== '')
-  const shown = (documents ?? []).filter(
-    (d) =>
-      titleMatches(d.title, filters.title) &&
-      (!filters.sourceType || d.sourceType === filters.sourceType) &&
-      (!filters.jurisdiction || d.jurisdiction === filters.jurisdiction) &&
-      (!filters.facilityType || d.facilityType === filters.facilityType) &&
-      (!filters.status || hasStatus(d, filters.status)) &&
-      (!filters.entry || d.entryMethod === filters.entry),
-  )
+  const shown = applyFilters(documents ?? [], filters)
   // A changed document replaces its row in place; the gateway's list is
   // sorted by title, which a corrected title may change, so re-sort.
   const replaced = (updated: KnowledgeDocument) =>
@@ -196,14 +134,14 @@ export function KnowledgeDocuments({
     setEditing(null)
     // Without this, a corrected document that no longer matches the filters
     // would just vanish, with no sign the save worked.
-    notify(`Details saved for ${updated.title}.`)
+    say(`Details saved for ${updated.title}.`)
   }
   // Withdraw and reinstate (KB-01). The notice matters under a Status filter,
   // where the row leaves the list.
   const statusChanged = (updated: KnowledgeDocument) => {
     replaced(updated)
     setChangingStatus(null)
-    notify(`${updated.title} ${updated.withdrawn ? 'withdrawn' : 'reinstated'}.`)
+    say(`${updated.title} ${updated.withdrawn ? 'withdrawn' : 'reinstated'}.`)
   }
   // Delete (IN-12): the row goes at once, and its open panel with it. The list is
   // then reloaded, since a document that matched the deleted one is matched again.
@@ -219,10 +157,11 @@ export function KnowledgeDocuments({
   const publish = async (draft: KnowledgeDocument) => {
     try {
       replaced(await publishManualDocument(draft.id))
-      notify(`${draft.title} published.`)
+      say(`${draft.title} published.`)
     } catch (error: unknown) {
       toast.error("Can't publish yet", {
         description: error instanceof Error ? error.message : 'Try again shortly.',
+        toasterId: openDocument && !phone ? DOCUMENT_TOASTER : undefined,
       })
     }
   }
@@ -235,30 +174,20 @@ export function KnowledgeDocuments({
     review: (needReview.find((d) => d.match) ?? needReview[0])?.id,
   }
   const clearFilters = () => setFilters(NO_FILTERS)
-  const toggle = (id: string) => setOpenId((current) => (current === id ? null : id))
 
   return (
-    <section className="kb-docs" aria-labelledby="kb-docs-title">
-      <header className="kb-docs-head">
-        <h2 id="kb-docs-title">All documents</h2>
-        <p>
-          {canManage
-            ? 'Browse every document in the knowledge base and fix their details.'
-            : 'Browse every document in the knowledge base.'}
-        </p>
-      </header>
-
+    <div className="kb-content">
       {unreachable && (
         <Callout
           tone="danger"
-          title="Knowledge base not loaded"
+          title="Couldn't load the knowledge base"
           actions={
-            <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+            <Button variant="secondary" size="sm" pill onClick={() => setAttempt((n) => n + 1)}>
               Try again
             </Button>
           }
         >
-          The gateway could not be reached. Check that the server is running, then try again.
+          Can&apos;t reach the server. Check your connection, then try again.
         </Callout>
       )}
 
@@ -273,96 +202,27 @@ export function KnowledgeDocuments({
         </div>
       )}
 
-      <div className="kb-list">
-        <div className="kb-toolbar">
-          <Input
-            size="sm"
-            type="search"
-            iconLeft="search"
-            aria-label="Search titles"
-            placeholder="Search titles"
-            value={filters.title}
-            onChange={(e) => setFilters({ ...filters, title: e.target.value })}
-          />
-          <Select
-            size="sm"
-            aria-label="Source type"
-            data-walk="knowledge.filter.source"
-            options={SOURCE_FILTER}
-            value={filters.sourceType}
-            onChange={(e) => setFilters({ ...filters, sourceType: e.target.value })}
-          />
-          <Select
-            size="sm"
-            aria-label="Country"
-            data-walk="knowledge.filter.country"
-            options={COUNTRY_FILTER}
-            value={filters.jurisdiction}
-            onChange={(e) => setFilters({ ...filters, jurisdiction: e.target.value })}
-          />
-          <Select
-            size="sm"
-            aria-label="Facility type"
-            data-walk="knowledge.filter.facility"
-            options={FACILITY_FILTER}
-            value={filters.facilityType}
-            onChange={(e) => setFilters({ ...filters, facilityType: e.target.value })}
-          />
-          {/* The status tip (F-13) sits beside the filter; the span keeps the two on one line. */}
-          <span className="kb-filter-help">
-            <Select
-              size="sm"
-              aria-label="Status"
-              data-walk="knowledge.filter.status"
-              options={STATUS_FILTER}
-              value={filters.status}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-            />
-            <Tip id="knowledge.status" />
-          </span>
-          <Select
-            size="sm"
-            aria-label="Entry"
-            options={ENTRY_FILTER}
-            value={filters.entry}
-            onChange={(e) => setFilters({ ...filters, entry: e.target.value })}
-          />
-          {filtering && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}>
-              Clear filters
-            </Button>
-          )}
-          {/* The result of the filters, at the strip's far end; the numbers
-              carry the weight, the words stay quiet. */}
-          {documents && (
-            <span className="kb-count" role="status">
-              {filtering ? (
-                <>
-                  Showing <b>{shown.length}</b> of <b>{documents.length}</b> documents
-                </>
-              ) : (
-                <>
-                  Total <b>{documents.length}</b>{' '}
-                  {documents.length === 1 ? 'document' : 'documents'}
-                </>
-              )}
-            </span>
-          )}
-        </div>
+      <ListCard as="section" label="Documents">
+        <DocumentToolbar
+          filters={filters}
+          filtering={filtering}
+          onChange={setFilters}
+          onAdd={canManage ? onAdd : undefined}
+        />
 
         {documents === null ? (
           !unreachable && (
-            <p className="kb-list-note" role="status">
+            <EmptyNote centred status>
               Loading the knowledge base…
-            </p>
+            </EmptyNote>
           )
         ) : filtering && shown.length === 0 ? (
           <EmptyState
             icon={IconRegistry.action.filter}
-            title="No documents match these filters"
+            title="No documents match"
             description="Clear a filter or choose another value to see the other documents."
             action={
-              <Button variant="secondary" onClick={clearFilters}>
+              <Button variant="secondary" pill onClick={clearFilters}>
                 Clear filters
               </Button>
             }
@@ -371,59 +231,81 @@ export function KnowledgeDocuments({
           <EmptyState
             icon="library"
             title="The knowledge base is empty"
-            description="Documents appear here once an upload finishes ingesting."
+            description="Documents appear here once an upload has been read."
             action={
               canManage ? (
-                <Button variant="secondary" iconLeft="upload" onClick={onAdd}>
+                <Button variant="secondary" pill iconLeft="upload" onClick={onAdd}>
                   Add documents
                 </Button>
               ) : undefined
             }
           />
         ) : (
-          // A real table, so every header sits over its own column.
-          <table className="kb-table">
-            <thead data-walk="knowledge.head">
-              <tr>
-                <th className="kb-col-toggle" aria-label="Open details" />
-                <th>Document</th>
-                <th className="kb-col-status" data-walk="knowledge.status.head">
-                  Status
-                </th>
-                <th className="kb-col-actions">
-                  <span className="kb-sr">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            {GROUPS.map((group) => {
-              const rows = shown.filter((d) => d.sourceType === group.sourceType)
-              // While filtering, an empty group is noise; unfiltered, it says so.
-              // The Unconfirmed group exists only when it has documents.
-              if ((filtering || group.sourceType === null) && rows.length === 0) return null
-              return (
-                <DocumentGroup
-                  key={group.sourceType ?? 'unconfirmed'}
-                  group={group}
-                  documents={rows}
-                  openId={openId}
-                  focused={focused}
-                  onToggle={toggle}
-                  onEdit={(document) => setEditing({ document })}
-                  onHistory={setHistoryOf}
-                  onChangeStatus={setChangingStatus}
-                  onDelete={setDeleting}
-                  onReview={(document) => onReview(document.id, filters)}
-                  onPassages={setPassagesOf}
-                  onPublish={publish}
-                  onClauses={(document) => onClauses(document.id, filters)}
-                  canManage={canManage}
-                  walk={walk}
-                />
-              )
-            })}
-          </table>
+          <>
+            {/* A real table, so every header sits over its own column. */}
+            <table className="cl-table kb-table" aria-label="Documents">
+              <colgroup>
+                <col />
+                <col className="kb-col-status" />
+                <col className="kb-col-actions" />
+              </colgroup>
+              <thead data-walk="knowledge.head">
+                <tr>
+                  <th scope="col">Document</th>
+                  <th scope="col" data-walk="knowledge.status.head">
+                    Status
+                  </th>
+                  <th scope="col">
+                    <span className="kb-sr">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              {GROUPS.map((group) => {
+                const rows = shown.filter((d) => d.sourceType === group.sourceType)
+                // While filtering, an empty group is noise; unfiltered, it says so.
+                // The Unconfirmed group exists only when it has documents.
+                if ((filtering || group.sourceType === null) && rows.length === 0) return null
+                return (
+                  <DocumentGroup
+                    key={group.sourceType ?? 'unconfirmed'}
+                    group={group}
+                    documents={rows}
+                    openId={openId}
+                    focused={focused}
+                    onOpen={(document) => setOpenId(document.id)}
+                    onReview={(document) => onReview(document.id, filters)}
+                    canManage={canManage}
+                    walk={walk}
+                  />
+                )
+              })}
+            </table>
+            <TableFooter
+              tone="warn"
+              late={needReview.length ? `${needReview.length} need review` : undefined}
+              onLateClick={() => setFilters({ ...NO_FILTERS, status: 'needs_review' })}
+            >
+              {filtering
+                ? `${shown.length} of ${plural(documents.length, 'document')}`
+                : plural(documents.length, 'document')}
+            </TableFooter>
+          </>
         )}
-      </div>
+      </ListCard>
+
+      <DocumentPanel
+        document={openDocument}
+        onClose={() => setOpenId(null)}
+        onReview={() => openDocument && onReview(openDocument.id, filters)}
+        onEdit={() => openDocument && setEditing({ document: openDocument })}
+        onHistory={() => setHistoryOf(openDocument)}
+        onChangeStatus={() => setChangingStatus(openDocument)}
+        onDelete={() => setDeleting(openDocument)}
+        onPassages={() => setPassagesOf(openDocument)}
+        onPublish={() => (openDocument ? publish(openDocument) : Promise.resolve())}
+        onClauses={() => openDocument && onClauses(openDocument.id, filters)}
+        canManage={canManage}
+      />
 
       {passagesOf && <PassagesDialog document={passagesOf} onClose={() => setPassagesOf(null)} />}
       {historyOf && (
@@ -473,6 +355,6 @@ export function KnowledgeDocuments({
           onSaved={saved}
         />
       )}
-    </section>
+    </div>
   )
 }

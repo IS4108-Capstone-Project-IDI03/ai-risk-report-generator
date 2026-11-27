@@ -39,6 +39,8 @@ export type PopoverProps = {
   // user took it (a calendar over a form: without this, Tab out left it open over the next fields,
   // or closing it by hand pulled focus back to the trigger).
   closeOnFocusOut?: boolean
+  // Fixed only: at least as wide as the trigger (a select's list under its field).
+  matchWidth?: boolean
 }
 
 // The top and bottom of the boxes round the trigger that cut off what overflows them, as a
@@ -56,6 +58,24 @@ function clipEdges(from: Element | null) {
     bottom = Math.min(bottom, r.bottom)
   }
   return { top, bottom }
+}
+
+// The left, right and top of the boxes round the trigger that cut off what overflows them, a
+// scrolling box included (unlike clipEdges): nothing scrolls a surface into view past its sides or
+// above its top. A menu at the Passages dialog's right edge was cut off by it (IN-17), and one
+// flipped above a field in Edit details ran off the dialog's top.
+function clipSides(from: Element | null) {
+  let left = -Infinity
+  let right = Infinity
+  let top = -Infinity
+  for (let el = from?.parentElement; el && el !== document.body; el = el.parentElement) {
+    if (getComputedStyle(el).overflowX === 'visible') continue
+    const r = el.getBoundingClientRect()
+    left = Math.max(left, r.left)
+    right = Math.min(right, r.right)
+    top = Math.max(top, r.top)
+  }
+  return { left, right, top }
 }
 
 // A small floating surface anchored to a trigger. It owns the overlay
@@ -80,6 +100,7 @@ export function Popover({
   sheetClassName,
   fixed = false,
   closeOnFocusOut = false,
+  matchWidth = false,
 }: PopoverProps) {
   const asSheet = useIsPhone() && !noSheet
   const anchor = useRef<HTMLDivElement>(null)
@@ -124,6 +145,7 @@ export function Popover({
     // `fixed`: the trigger's own box on screen decides the place, clamped to the window.
     const placeFixed = () => {
       const t = anchor.current?.getBoundingClientRect()
+      if (t && matchWidth) el.style.minWidth = `${t.width}px`
       const width = el.offsetWidth
       // The whole height, also while capped (scrollHeight), so a cap never shrinks the next place.
       const height = Math.max(el.offsetHeight, el.scrollHeight)
@@ -176,11 +198,16 @@ export function Popover({
       const width = el.offsetWidth
       if (!width) return
       const margin = 8
-      const room = document.documentElement.clientWidth - margin
+      const sides = clipSides(anchor.current)
+      const room = Math.min(document.documentElement.clientWidth, sides.right) - margin
+      // Inside the main area, its left edge is the limit: the window's let a right-aligned
+      // surface open under the sidebar rail at 768 (the Focus list).
+      const main = anchor.current?.closest('main')?.getBoundingClientRect().left ?? 0
+      const minLeft = Math.max(main, sides.left) + margin
       // Unscaled left edge: the anchor's left plus the surface's offset inside it.
       const left = (el.offsetParent?.getBoundingClientRect().left ?? 0) + el.offsetLeft
       const right = left + width
-      const shift = left < margin ? margin - left : right > room ? room - right : 0
+      const shift = left < minLeft ? minLeft - left : right > room ? room - right : 0
       if (shift) el.style.transform = `translateX(${shift}px)`
       // Vertical: stay above a sticky bottom bar and the window edge. Flip above the trigger
       // when there is more room there, else cap the height and scroll.
@@ -190,7 +217,7 @@ export function Popover({
       const box = el.getBoundingClientRect()
       const trigger = anchor.current?.getBoundingClientRect()
       if (!trigger || box.bottom <= limit) return
-      if (trigger.top - Math.max(0, clip.top) - margin * 2 >= box.height)
+      if (trigger.top - Math.max(0, clip.top, sides.top) - margin * 2 >= box.height)
         el.setAttribute('data-flip', '')
       else {
         el.style.setProperty('--cap', `${Math.max(160, limit - box.top)}px`)
@@ -207,7 +234,7 @@ export function Popover({
       window.removeEventListener('resize', move)
       window.removeEventListener('scroll', move, true)
     }
-  }, [open, asSheet, fixed, align])
+  }, [open, asSheet, fixed, align, matchWidth])
 
   // Opening moves focus to the selected item (or the first) of a menu inside, so a keyboard
   // user lands in it. Only options and menu items: a form inside keeps its own focus.
@@ -229,7 +256,10 @@ export function Popover({
     if (!open || asSheet) return
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && isTop()) closeRef.current(false)
+      if (event.key !== 'Escape' || !isTop()) return
+      // Cancelled, so a dialog the popover opens over does not close on the same press.
+      event.preventDefault()
+      closeRef.current(false)
     }
     // mousedown, not click, so a press that starts outside closes before any
     // click handler inside a sibling runs.

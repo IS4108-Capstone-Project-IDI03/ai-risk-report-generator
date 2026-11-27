@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Icon, IconButton, Popover } from '../../../design-system'
+import './more-menu.css'
 
 export type MoreMenuItem = {
   label: string

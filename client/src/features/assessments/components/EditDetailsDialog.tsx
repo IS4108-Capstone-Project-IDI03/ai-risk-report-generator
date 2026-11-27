@@ -8,7 +8,8 @@ import { Problem } from '../../clients/ClientDialogs'
 import { useDialogSave } from '../../clients/useDialogSave'
 import { beforeStartLine, INVALID_DATE } from '../../new-assessment/validate'
 import { updateAssessment, type Assessment } from '../api'
-import { SURVEY_TYPES } from '../demo-data'
+import { SURVEY_TYPES } from '../options'
+import './edit-details.css'
 
 type DateKey = 'siteVisitDate' | 'siteVisitEndDate' | 'reportDueDate'
 
@@ -81,9 +82,8 @@ export function EditDetailsDialog({
   }
   return (
     <Dialog
-      className="ds-dialog--v2"
       title="Edit Assessment Details"
-      description={`${record.reference} · ${record.site.name}, ${record.client}`}
+      description={`${record.reference} · ${record.site.name}`}
       width={520}
       onClose={busy ? undefined : onClose}
       footer={
@@ -106,7 +106,7 @@ export function EditDetailsDialog({
       }
     >
       <div
-        style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+        className="ed-fields"
         // Escape closes an open calendar, not the dialog: without this one press would close both.
         onKeyDown={(e) =>
           e.key === 'Escape' && e.currentTarget.querySelector('.ds-popover') && e.preventDefault()
@@ -120,17 +120,8 @@ export function EditDetailsDialog({
           error={fields.surveyType}
           onChange={(e) => setForm({ ...form, surveyType: e.target.value })}
         />
-        {/* Two equal columns on a computer; auto-fit stacks them once a column would be under
-            190px (a dialog narrower than about 444px), so no media query is needed. An error line
-            stays in its own column and wraps there. */}
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
-            gap: '16px',
-            alignItems: 'start',
-          }}
-        >
+        {/* An error line stays in its own column and wraps there (ed-dates, edit-details.css). */}
+        <div className="ed-dates">
           {date('siteVisitDate', 'Survey Date')}
           {/* The last survey day (CP-60), editable here so a save never clears it. */}
           {date('siteVisitEndDate', 'Survey End Date', form.siteVisitDate || undefined)}

@@ -8,6 +8,9 @@ import { raise, type RaisedItem } from '../item'
 export function siteWalks(ctx: CheckContext): RaisedItem[] {
   return ctx.walks.flatMap((w) => {
     const title = w.name ?? 'Site walk'
+    // The sentence's subject. A walk's name is the engineer's own words, often a
+    // plural place ("Tower A basements"), so "<name> is waiting" could read wrong.
+    const subject = w.name ? `The site walk “${w.name}”` : 'A site walk'
     const time = clockTime(new Date(w.createdAt))
     const base = {
       kind: 'site-walks',
@@ -24,7 +27,7 @@ export function siteWalks(ctx: CheckContext): RaisedItem[] {
           id: `walk.ready:${w.id}`,
           weight: 'fix_now',
           detail: `${time} · ${proposed} proposed`,
-          fact: `${title} is waiting for review.`,
+          fact: `${subject} is waiting for review.`,
           facts: { status: w.status, proposed },
         }),
       ]
@@ -36,7 +39,7 @@ export function siteWalks(ctx: CheckContext): RaisedItem[] {
           id: `walk.failed:${w.id}`,
           weight: 'fix_now',
           detail: `${time} · Couldn't be read`,
-          fact: `${title} couldn't be read.`,
+          fact: `${subject} couldn't be read.`,
           facts: { status: w.status, error: w.error },
         }),
       ]
@@ -47,7 +50,7 @@ export function siteWalks(ctx: CheckContext): RaisedItem[] {
           id: `walk.open:${w.id}`,
           weight: 'info',
           detail: `Started ${time}, still open`,
-          fact: `${title} is still open.`,
+          fact: `${subject} is still open.`,
           facts: { status: w.status },
         }),
       ]
@@ -58,7 +61,7 @@ export function siteWalks(ctx: CheckContext): RaisedItem[] {
           id: `walk.reading:${w.id}`,
           weight: 'info',
           detail: `${time} · Being read`,
-          fact: `${title} is being read.`,
+          fact: `${subject} is being read.`,
           facts: { status: w.status },
         }),
       ]

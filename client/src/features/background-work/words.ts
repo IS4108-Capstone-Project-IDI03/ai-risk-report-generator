@@ -48,3 +48,19 @@ export function timedWords(step: string, startedAt?: string, now = Date.now()): 
         : `${minutes} min`
   return `${step} · ${elapsed}`
 }
+
+// What a failed job's reason says, in a few plain words. The gateway's own sentences can be
+// long and name internal services; the full reason stays on the job's own page.
+const REASONS: [RegExp, string][] = [
+  [/too long|timed out|time out/i, 'Took too long'],
+  [/interrupt|restart/i, 'Was interrupted'],
+  [/privacy|protect/i, "Couldn't protect details"],
+  [/transcri/i, "Couldn't transcribe"],
+  [/categor|severity|suggest/i, 'No suggestion made'],
+  [/read|pdf|ocr|extract|parse/i, "Couldn't be read"],
+]
+
+/** Returns a short plain reason for a failed job, never the gateway's own sentence. */
+export function plainReason(error?: string): string {
+  return REASONS.find(([pattern]) => error && pattern.test(error))?.[1] ?? "Didn't finish"
+}

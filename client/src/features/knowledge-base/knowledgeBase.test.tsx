@@ -112,9 +112,7 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     mockGateway([])
     await openAddDocuments()
 
-    expect(
-      screen.getByText(/^PDF, Word \(DOCX, DOC\), PowerPoint \(PPTX, PPT\), RTF or ODT/),
-    ).toBeInTheDocument()
+    expect(screen.getByText(/^PDF, Word, PowerPoint, RTF or ODT/)).toBeInTheDocument()
     expect(screen.getByLabelText(/Choose files/)).toHaveAttribute(
       'accept',
       '.pdf,.docx,.doc,.pptx,.ppt,.rtf,.odt',
@@ -154,10 +152,10 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     const row = screen.getByRole('group', { name: 'scan.pdf' })
     expect(await within(row).findByText('Type needed')).toBeInTheDocument()
     expect(within(row).getByText('Choose its source type in Recent uploads.')).toBeInTheDocument()
-    expect(within(row).queryByRole('combobox')).not.toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: /^Source type for / })).not.toBeInTheDocument()
     const recent = screen.getByRole('region', { name: 'Recent uploads' })
     expect(
-      await within(recent).findByRole('combobox', { name: 'Source type for scan.pdf' }),
+      await within(recent).findByRole('button', { name: 'Source type for scan.pdf' }),
     ).toBeInTheDocument()
   })
 
@@ -181,11 +179,9 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     await within(row).findByText('Type needed')
     const recent = screen.getByRole('region', { name: 'Recent uploads' })
 
-    fireEvent.change(
-      await within(recent).findByRole('combobox', { name: 'Source type for scan.pdf' }),
-      { target: { value: 'nfpa_standard' } },
-    )
-    fireEvent.click(within(recent).getByRole('button', { name: 'Start ingestion' }))
+    fireEvent.click(await within(recent).findByRole('button', { name: 'Source type for scan.pdf' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'NFPA standard' }))
+    fireEvent.click(within(recent).getByRole('button', { name: 'Start reading' }))
 
     expect(await within(row).findByText('Uploaded')).toBeInTheDocument()
     expect(
@@ -309,8 +305,10 @@ describe('Knowledge base uploads (IN-01, IN-05)', () => {
     expect(within(table).getByText('Failed')).toBeInTheDocument()
     expect(within(table).getByText('Docling could not parse nfpa-13.pdf')).toBeInTheDocument()
     expect(within(table).getByText('Complete')).toBeInTheDocument()
+    // How long uploads stay is behind the heading's (?), not a caption.
+    fireEvent.click(screen.getByRole('button', { name: 'About recent uploads' }))
     expect(
-      within(table).getByText(
+      screen.getByText(
         'Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.',
       ),
     ).toBeInTheDocument()

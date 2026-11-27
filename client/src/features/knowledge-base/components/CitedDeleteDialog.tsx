@@ -21,11 +21,11 @@ export function CitedDeleteDialog({
       onClose={onClose}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button pill variant="secondary" onClick={onClose}>
             Close
           </Button>
           {!d.withdrawn && (
-            <Button variant="danger-tonal" onClick={onWithdraw}>
+            <Button pill variant="danger-tonal" onClick={onWithdraw}>
               Withdraw instead
             </Button>
           )}

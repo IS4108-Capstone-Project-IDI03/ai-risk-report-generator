@@ -1,10 +1,12 @@
-// The saved chats in the sidebar (CB-03), loaded from the gateway and shown newest first.
-// Used by ChatSidebar. Each row is a ChatThreadRow.
+// The saved chats in the sidebar (CB-03), loaded from the gateway and shown newest first, in
+// recency groups (Today, Yesterday, Previous 7 days, Older) under small quiet labels, as chat
+// apps list them. Used by ChatSidebar. Each row is a ChatThreadRow; groups come from ../chatGroups.ts.
 import { useThreadList } from '@openuidev/react-headless'
 import { useEffect } from 'react'
+import { groupByRecency } from '../chatGroups'
 import { ChatThreadRow } from './ChatThreadRow'
 
-/** Loads the engineer's chats once and lists them, or says when there are none. */
+/** Loads the engineer's chats once and lists them by recency, or says when there are none. */
 export function ChatThreadList({ searching = false }: { searching?: boolean }) {
   const threads = useThreadList((s) => s.threads)
   const loading = useThreadList((s) => s.isLoadingThreads)
@@ -33,8 +35,13 @@ export function ChatThreadList({ searching = false }: { searching?: boolean }) {
     )
   return (
     <nav aria-label="Chats" className="chat-thread-list">
-      {threads.map((t) => (
-        <ChatThreadRow key={t.id} id={t.id} title={t.title} />
+      {groupByRecency(threads).map((group) => (
+        <section key={group.label} className="chat-thread-group" aria-label={group.label}>
+          <h3 className="chat-thread-group-label">{group.label}</h3>
+          {group.items.map((t) => (
+            <ChatThreadRow key={t.id} id={t.id} title={t.title} createdAt={t.createdAt} />
+          ))}
+        </section>
       ))}
     </nav>
   )

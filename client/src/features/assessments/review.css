@@ -1,17 +1,18 @@
-/* The review workspace (RV-01): the section rail, the draft editor and the
-   source panel. Layout widths and the stacked breakpoint come from the
-   workflow's review styles (useAssessmentWorkflow). */
+/* The review workspace (RV-01, redesigned with design system v2): the report outline on the
+   left, the part being reviewed as a document in the middle, and its evidence and Ask on the
+   right. The workspace lays out its own columns (.rv-ws) from its width, so they follow the
+   sidebar being open or collapsed; under 1080 px the three stack and the page scrolls. */
 .rv-label {
   margin: 0;
-  font-size: 11px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--graphite-700);
 }
+/* Dates, counts and editions that line up: the app font with even-width figures (v2 section 4). */
 .rv-mono {
-  font-family: var(--font-mono);
-  font-size: var(--text-mono-size);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .rv-muted {
   margin: 0;
@@ -20,105 +21,160 @@
   color: var(--text-secondary);
 }
 
-/* Section rail */
-/* Edit document (RV-08), above the review summary. */
-.rv-rail-edit {
+/* ---- The three columns ---- */
+.rv-ws {
+  container: rv-ws / inline-size;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 16px 18px 14px;
-  border-bottom: 1px solid var(--border-subtle);
+  height: 100%;
+  min-height: 0;
+  animation: omFade 180ms cubic-bezier(0.2, 0, 0.2, 1);
 }
-.rv-rail-edit .rv-muted {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-}
-.rv-rail-head {
-  padding: 16px 18px 10px;
-}
-.rv-rail-progress {
-  padding: 0 18px 14px;
-}
-.rv-rail-progress .rv-muted {
-  margin-top: 8px;
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-}
-.rv-rail-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.rv-rail-row {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 10px 18px 10px 16px;
-  border: none;
-  border-left: 2px solid transparent;
-  background: transparent;
-  text-align: left;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 120ms var(--ease-standard);
-}
-.rv-rail-row:hover {
-  background: var(--surface-hover);
-}
-.rv-rail-row[aria-current='true'] {
-  border-left-color: var(--action-primary);
-  background: var(--surface-selected);
-}
-.rv-rail-row:focus-visible {
-  outline-offset: -2px;
-}
-.rv-rail-number {
-  flex: 0 0 24px;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--text-muted);
-}
-.rv-rail-body {
-  flex: 1;
+.rv-rail {
+  flex: 0 0 276px;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  overflow: auto;
+  background: var(--surface-card);
+  border-right: 1px solid var(--border-default);
 }
-.rv-rail-title {
-  font-size: 15px;
-  line-height: 20px;
-  color: var(--text-body);
+.rv-side {
+  flex: 0 0 clamp(320px, 26%, 400px);
+  min-width: 0;
+  overflow: auto;
+  background: var(--surface-card);
+  border-left: 1px solid var(--border-default);
 }
-.rv-rail-states {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
+/* 1280 with the sidebar open: the outline and the evidence give the document the room. */
+@container rv-ws (max-width: 1180px) {
+  .rv-rail {
+    flex-basis: 256px;
+  }
+  .rv-rail-top {
+    padding-inline: 12px;
+  }
+  .rv-side {
+    flex-basis: 300px;
+  }
+  .rv-editor-inner {
+    padding-inline: 24px;
+  }
 }
-.rv-rail-regenerating {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  flex-basis: 100%;
+@media (max-width: 1079px) {
+  .rv-ws {
+    flex-direction: column;
+    height: auto;
+  }
+  .rv-rail,
+  .rv-side {
+    flex: none;
+    overflow: visible;
+    border: 0;
+  }
+  .rv-rail {
+    border-bottom: 1px solid var(--border-default);
+  }
+  .rv-side {
+    border-top: 1px solid var(--border-default);
+  }
 }
-.rv-rail-completion {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-  color: var(--text-secondary);
-}
-.rv-rail-legend {
-  margin: 10px 0 0;
-  padding: 16px 18px 24px;
-  border-top: 1px solid var(--border-subtle);
-  font-size: 14px;
-  line-height: 20px;
-  color: var(--text-muted);
+/* Phone: the part comes first, then its evidence (or its versions), and the outline last, so
+   the text is not a screen of rows away; choosing a row brings the part back up
+   (ReviewWorkspace's reveal). The document editor (.dm-wrap) keeps its outline first. */
+@media (max-width: 759px) {
+  .rv-ws > .rv-editor {
+    order: -1;
+  }
+  .rv-ws:not(.dm-wrap) > .rv-rail {
+    order: 1;
+    border-top: 1px solid var(--border-default);
+    border-bottom: 0;
+  }
 }
 
-/* Draft editor */
+/* ---- The outline: where the report stands, then a row per part ---- */
+.rv-rail-top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px 20px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.rv-rail-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 24px;
+  margin-bottom: -2px;
+}
+.rv-rail-stats {
+  display: flex;
+  flex-wrap: wrap;
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+.rv-rail-stats > span + span::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--graphite-400);
+}
+.rv-rail-stats .is-flagged {
+  color: var(--amber-600);
+  font-weight: 600;
+}
+.rv-rail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 8px 28px;
+  list-style: none;
+}
+/* A section that needs another look: amber tile on the tinted row, as Generation flags one. */
+.rv-rail .ds-srow-nav[data-flag='warn']:not([aria-current='true']) .ds-srow-num {
+  background: var(--amber-50);
+  color: var(--amber-600);
+}
+.rv-rail-completion {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--graphite-600);
+}
+.rv-rail-regenerating {
+  color: var(--ink-600);
+  font-weight: 600;
+}
+/* Stacked (tablet and phone): the outline is two columns of rows from 600 px, so the part
+   being read is close under it. */
+@media (max-width: 1079px) {
+  .rv-rail-top {
+    padding: 16px 16px 14px;
+  }
+  .rv-rail-list {
+    padding: 8px 8px 12px;
+  }
+}
+@media (min-width: 600px) and (max-width: 1079px) {
+  /* Where the report stands at the left, the findings' counts at the right. */
+  .rv-rail-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 12px 32px;
+  }
+  .rv-rail-top > .rv-summary {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+  }
+  .rv-rail-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px 8px;
+  }
+}
+
+/* ---- The part being reviewed: a reading column centred in the middle ---- */
 .rv-editor {
   flex: 1;
   min-width: 0;
@@ -129,45 +185,342 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding: 20px clamp(16px, 2vw, 28px) 48px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 28px clamp(16px, 2.4vw, 32px) 64px;
 }
-.rv-editor-bar {
+@media (max-width: 1079px) {
+  .rv-editor {
+    overflow: visible;
+  }
+}
+@media (max-width: 759px) {
+  .rv-editor-inner {
+    padding: 20px 16px 40px;
+  }
+}
+/* Edit document above the empty state, at the right as on a part's title bar. */
+.rv-editor-tools {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  justify-content: flex-end;
+  padding: 20px clamp(16px, 3.2vw, 40px) 0;
 }
-.rv-editor-bar .rv-label {
-  flex: 1;
-  font-size: 13px;
-}
-/* A heading with an action at its right, e.g. Redraft on Section 3 (GN-13). */
-.rv-heading-row {
+/* A part's title with its tools at the right (PartBar): Redraft, Version history, the
+   "4 of 10" stepper and Edit document. The tools wrap under a long title on a narrow column. */
+.rv-part-bar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px 12px;
+  gap: 10px 16px;
 }
+.rv-part-tools {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+/* The title keeps its own width and the tools wrap under a long one, so it reads on one line
+   rather than in a narrow column beside them. */
 .rv-heading-title {
   display: flex;
+  flex: 1 1 auto;
   align-items: center;
   gap: 6px;
   min-width: 0;
+  min-height: 36px;
+}
+/* Stacked (tablet and phone): the title has its own line and the tools one row under it, the
+   "5 of 10" stepper at the left and the part's actions at the right, the same on every part.
+   On a phone Redraft and Edit document are round icons (PartBar's callers), so the row fits. */
+@media (max-width: 1079px) {
+  .rv-heading-title {
+    flex-basis: 100%;
+  }
+  .rv-part-tools {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    margin-left: 0;
+  }
+  .rv-part-tools > .rs {
+    order: -1;
+    margin-right: auto;
+  }
+}
+@media (max-width: 759px) {
+  .rv-part-tools {
+    gap: 4px;
+  }
 }
 .rv-editor h2 {
   margin: 0;
-  font-size: var(--text-h2-size);
-  line-height: var(--text-h2-lh);
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--marsh-navy);
+  text-wrap: balance;
 }
 .rv-provenance {
   margin: -8px 0 0;
-  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
+}
+/* Under a section's title: when it was drafted and last saved in the document, one line. */
+.rv-part-meta {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: -10px;
+}
+.rv-part-meta > .rv-provenance {
+  margin: 0;
+}
+.rv-part-meta > .rv-provenance + .rv-provenance::before {
+  content: '·';
+  margin: 0 6px;
+  color: var(--graphite-400);
+}
+
+/* ---- The section as one page of the report ---- */
+.rv-page {
+  background: var(--surface-card);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+}
+.rv-sub {
+  /* The page's side margin, which wide tables (Section 3) reach into. */
+  --sub-pad: clamp(16px, 3vw, 32px);
+  padding: 22px var(--sub-pad) 18px;
+  scroll-margin-top: 16px;
+}
+.rv-sub + .rv-sub {
+  border-top: 1px solid var(--border-subtle);
+}
+/* Subsections with nothing to review are quiet, dense rows, so a run of them reads as a list
+   and the drafted ones stand out. */
+.rv-sub.is-empty {
+  padding-top: 12px;
+  padding-bottom: 13px;
+}
+.rv-sub.is-empty .rv-sub-note {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 17px;
+}
+.rv-sub.is-empty .rv-sub-note > span:first-child {
+  margin-top: 1px;
+}
+.rv-sub-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.rv-sub-heading {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+  color: var(--marsh-navy);
+  text-wrap: balance;
+}
+.rv-sub.is-empty .rv-sub-heading {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--graphite-700);
+}
+/* "2 sources": opens the subsection's first source in the evidence panel. */
+.rv-sub-sources {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text-link);
+  font: 500 13px/18px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+@media (hover: hover) {
+  .rv-sub-sources:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+@media (pointer: coarse) {
+  .rv-sub-sources {
+    min-height: 44px;
+  }
+}
+.rv-sub-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 6px 0 0;
   font-size: 13px;
   line-height: 19px;
-  color: var(--text-muted);
+  color: var(--graphite-600);
+}
+.rv-sub-note > span:first-child {
+  flex: none;
+  margin-top: 2px;
+  color: var(--graphite-400);
+}
+.rv-sub-body {
+  font-family: var(--font-serif);
+  font-size: var(--text-body-lg-size);
+  line-height: var(--text-body-lg-lh);
+  color: var(--text-body);
+}
+.rv-sub-body > .rv-muted {
+  margin-bottom: 8px;
+  font-family: var(--font-sans);
+}
+/* Section 2's narrative while it is still as drafted: on the AI tint, as a finding to decide. */
+.rv-sub-body.rv-sub-ai {
+  margin: 0 -14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--ai-bg);
+}
+/* A quiet line at a subsection's foot: where its content comes from, when it was saved. */
+.rv-sub-foot {
+  margin-top: 14px;
+}
+/* The subsection heading's count, beside it (Appendix A, the OFIs in the report). */
+.rv-sub-head > .ds-count-pill {
+  flex: none;
+  align-self: center;
+}
+
+/* ---- Section 3 on the page: Marsh's matrix, the suggestions and the OFIs in the report ---- */
+.rv-page .rv-ram {
+  margin: 0;
+}
+.rv-page .rv-ram > p {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 26px;
+  color: var(--text-body);
+}
+.rv-page .rv-ram h3 {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
+  color: var(--marsh-navy);
+}
+.rv-page .rv-charts {
+  margin-top: 0;
+}
+/* The matrix's six columns reach into the page's side margin and set a little smaller. */
+.rv-page .rv-ram .rv-maturity-scroll {
+  margin: 0 calc(8px - var(--sub-pad));
+}
+.rv-page .rv-ram-table {
+  font-size: 12.5px;
+}
+.rv-page .rv-ram-table th,
+.rv-page .rv-ram-table td {
+  padding: 8px 5px;
+}
+.rv-sub.rv-ofi-group {
+  gap: 16px;
+}
+.rv-ofi-group-title {
+  display: flex;
+  flex: 1 1 280px;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.rv-ofi-group-head .rv-ofi-group-title .rv-muted {
+  flex: none;
+  margin: 0;
+}
+/* One OFI: its category over Marsh's table, then its sources and Accept, as a finding's bar.
+   A suggestion still to accept sits on the AI tint; one in the report is the page's own. */
+.rv-ofi {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  /* Marsh's OFI table is wide: the block reaches 8 px from the page's edges. */
+  margin: 0 calc(8px - var(--sub-pad));
+  padding: 12px;
+  border-radius: 12px;
+}
+.rv-ofi.is-pending {
+  background: var(--ai-bg);
+}
+.rv-ofi-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rv-ofi-category {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--graphite-700);
+}
+.rv-ofi-foot {
+  margin-top: 0;
+}
+/* Phone: Marsh's OFI table reflows into label and value pairs, two to a row, instead of a table
+   wider than the screen. A row with a lead label and six cells (loss expectancy) puts its label
+   on a line of its own. !important beats the table's inline widths (OfiSuggestions.tsx). */
+@media (max-width: 759px) {
+  .rv-ofi .rv-ofi-table {
+    display: block;
+    min-width: 0 !important;
+  }
+  .rv-ofi .rv-ofi-table colgroup {
+    display: none;
+  }
+  .rv-ofi .rv-ofi-table :is(thead, tbody) {
+    display: block;
+  }
+  .rv-ofi .rv-ofi-table tr {
+    display: grid;
+    grid-template-columns: minmax(96px, 38%) minmax(0, 1fr);
+  }
+  .rv-ofi .rv-ofi-table tr > :is(th, td) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .rv-ofi .rv-ofi-table tr:has(> :nth-child(7):last-child) > :first-child {
+    grid-column: 1 / -1;
+  }
+  .rv-ofi .rv-ofi-table .ds-field {
+    min-width: 0;
+  }
+}
+/* Tables inside the page take the page's smaller corner. */
+.rv-page .rv-maturity-table {
+  border-radius: 12px;
+  background: var(--surface-card);
+}
+.rv-page .rv-maturity-table tr:first-child > :first-child {
+  border-top-left-radius: 12px;
+}
+.rv-page .rv-maturity-table tr:first-child > :last-child {
+  border-top-right-radius: 12px;
+}
+
+/* Written by the engineer above the subsections: no heading, the page's own text. */
+.rv-sub-intro {
+  padding-top: 22px;
 }
 .rv-statement {
   margin: 0;
@@ -207,12 +560,13 @@
   padding: 0 3px;
   vertical-align: text-top;
   border: 1px solid transparent;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-pill);
   background: var(--ai-bg);
   color: var(--ai-fg);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 11px;
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   cursor: pointer;
   transition: var(--transition-control);
@@ -225,21 +579,48 @@
   background: var(--ai-fg);
   color: var(--text-inverse);
 }
+/* Touch: an invisible 44 px box round the numeral takes the tap, so the prose keeps its line
+   height (as kit.css does for a footer link). The "Drafted text" and "How the score…" toggles
+   and a claim in the Evidence panel get a 44 px row. */
+@media (max-width: 767px), (pointer: coarse) {
+  .rv-cite {
+    position: relative;
+  }
+  /* The chat's markers (also .rv-cite) keep their own narrower area (chat.css .chat-cite::after). */
+  .rv-cite:not(.chat-cite)::after {
+    content: '';
+    position: absolute;
+    /* 44 x 44 round the numeral's centre, whatever its width (a neighbour's may overlap it). */
+    top: 50%;
+    left: 50%;
+    width: max(100%, 44px);
+    height: 44px;
+    transform: translate(-50%, -50%);
+  }
+  /* Padding, not flex: a flex summary loses its disclosure triangle. */
+  .rv-editor details > summary {
+    box-sizing: border-box;
+    min-height: 44px;
+    padding-top: 12px;
+  }
+  .rv-claim-text {
+    min-height: 44px;
+  }
+}
 .rv-subsection-note {
-  padding: 14px 20px;
+  padding: 16px 20px;
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
 }
 .rv-subsection-note strong {
   display: block;
   font-size: 15px;
 }
 
-/* Source panel */
+/* Source panel: one group per kind of evidence, a hairline between groups. */
 .rv-panel-section {
-  padding: 16px 18px;
+  padding: 18px 20px 20px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .rv-panel-section:last-child {
@@ -248,9 +629,10 @@
 }
 .rv-panel-head {
   display: flex;
-  align-items: baseline;
-  gap: 10px;
-  margin-bottom: 10px;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  margin-bottom: 8px;
 }
 .rv-panel-head .rv-label {
   flex: 1;
@@ -277,8 +659,7 @@
   padding: 14px 16px 16px;
   background: var(--surface-card);
   border: 1px solid var(--border-focus);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border-radius: var(--radius-card);
   scroll-margin: 16px;
 }
 .rv-viewer:focus {
@@ -287,10 +668,11 @@
 .rv-viewer:focus-visible {
   outline: 2px solid var(--border-focus);
 }
+/* Nothing open yet: one quiet line, no box. */
 .rv-viewer.is-empty {
-  border-style: dashed;
-  border-color: var(--border-strong);
-  box-shadow: none;
+  padding: 0;
+  border: none;
+  background: transparent;
 }
 .rv-viewer-head {
   display: flex;
@@ -308,13 +690,13 @@
   justify-content: center;
   min-width: 20px;
   height: 20px;
-  padding: 0 4px;
-  border-radius: var(--radius-xs);
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
   background: var(--ai-bg);
   color: var(--ai-fg);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  font-weight: var(--weight-medium);
+  font-size: 12px;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
 }
 .rv-viewer h3 {
   margin: 0;
@@ -374,14 +756,15 @@
   margin-top: 12px;
   font-size: var(--text-small-size);
 }
+/* A claim: the finding's words and what it cites, on the sunken grey, ink once picked. */
 .rv-claim {
   padding: 10px 12px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: var(--surface-sunken);
 }
 .rv-claim.is-active {
-  border-color: var(--border-focus);
+  border-color: var(--ink-200);
   background: var(--surface-selected);
 }
 .rv-claim-heading {
@@ -445,8 +828,8 @@
 }
 
 .rv-observation-card {
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   overflow: hidden;
   background: var(--surface-card);
 }
@@ -476,7 +859,7 @@
   width: 96px;
   height: 72px;
   object-fit: cover;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-tile);
   background: var(--surface-sunken);
 }
 .rv-appendix-caption {
@@ -487,10 +870,10 @@
 }
 .rv-appendix-input {
   width: 100%;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
   color: var(--text-primary);
   font: inherit;
@@ -514,8 +897,8 @@
 .rv-appendix-photo {
   margin: 0;
   overflow: hidden;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   background: var(--surface-card);
 }
 .rv-appendix-photo img {
@@ -547,23 +930,29 @@
 
 /* Findings and their review decisions (RV-02). A finding waiting for a
    decision keeps the AI rule; once accepted or edited the rule goes neutral. */
+/* A finding reads as the report's text; one still to decide sits on the AI tint with its
+   decisions under it, so what needs the engineer stands out in the page without a box round
+   every sentence. */
 .rv-finding {
-  padding-left: 12px;
-  border-left: 2px solid var(--border-subtle);
+  margin: 0 -14px;
+  padding: 8px 14px 10px;
+  border-radius: 12px;
+  transition: background-color var(--duration-base) var(--ease-out);
 }
 .rv-finding.is-pending {
-  border-left-color: var(--ai-border);
+  background: var(--ai-bg);
 }
 .rv-finding + .rv-finding {
-  margin-top: 16px;
+  margin-top: 6px;
 }
 /* Text drafted from the Ask tab and inserted (AS-04 AC2): violet, as a finding
    waiting for a decision is, until the engineer accepts it; a sentence with no
    supporting source underlined in amber and badged Unsupported (AC3). */
 .rv-ai-text {
-  padding: 8px 12px;
-  border-left: 2px solid var(--ai-border);
-  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  margin: 0 -14px;
+  padding: 10px 14px;
+  border: 1px solid var(--ai-border);
+  border-radius: 12px;
   background: var(--ai-bg);
 }
 .rv-ai-text + .rv-ai-text {
@@ -595,14 +984,15 @@ mark.rv-ai-unsupported {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
-  margin-top: 6px;
+  min-height: 32px;
+  margin-top: 4px;
   font-family: var(--font-sans);
 }
 .rv-finding-by {
-  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 16px;
-  color: var(--text-muted);
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
 }
 .rv-finding-gap {
   flex: 1;
@@ -616,12 +1006,14 @@ mark.rv-ai-unsupported {
   flex: 1;
   min-width: 0;
 }
-/* The decision buttons in one box (F-12 points at them together); it wraps like the bar did. */
+/* The decision buttons in one box (F-12 points at them together), kept at the right edge even
+   when they wrap under the decision. */
 .rv-finding-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
+  margin-left: auto;
 }
 /* While MarshBot points at them, only Accept can be pressed (Edit and Reject stay in view). */
 .rv-finding-actions[data-walk-on] > button:not([data-walk]) {
@@ -632,12 +1024,13 @@ mark.rv-ai-unsupported {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 20px;
+  padding: 22px clamp(16px, 3.4vw, 36px);
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
   font-family: var(--font-serif);
+  font-size: var(--text-body-lg-size);
+  line-height: var(--text-body-lg-lh);
 }
 .rv-written {
   max-width: var(--measure-prose);
@@ -720,10 +1113,30 @@ mark.rv-ai-unsupported {
   align-items: center;
   gap: 8px 12px;
 }
+/* The section's decisions in one white strip under its title: the findings' counts at the
+   left, Bulk accept and Regenerate at the right. */
+.rv-review-bar > .rv-review-row:first-child {
+  padding: 8px 10px 8px 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--graphite-200);
+  border-radius: 14px;
+}
+@media (max-width: 759px) {
+  .rv-review-bar > .rv-review-row:first-child {
+    padding: 12px;
+  }
+}
+.rv-review-what {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
 .rv-review-counts {
   /* Wide enough to read on one or two lines: on a phone the buttons wrap under it. Without the
-     width it shrank to a column one word wide beside them. */
-  flex: 1 1 220px;
+     width it shrank to a column one word wide beside them. Its (?) follows it. */
+  flex: 0 1 auto;
   min-width: 0;
   margin: 0;
   font-size: var(--text-small-size);
@@ -737,7 +1150,50 @@ mark.rv-ai-unsupported {
 .rv-review-actions {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+  margin-left: auto;
+}
+/* Stacked (tablet and phone): "Findings" and its (?) over the counts on one line, the buttons
+   at the right; on a phone the buttons take a row of their own, sharing its width. */
+@media (max-width: 1079px) {
+  .rv-review-what {
+    display: grid;
+    grid-template-columns: auto auto 1fr;
+    align-items: center;
+    column-gap: 4px;
+  }
+  .rv-review-counts {
+    display: contents;
+  }
+  /* The (?) beside "Findings", above the counts. */
+  .rv-review-what > :not(.rv-review-counts) {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .rv-review-counts > :last-child {
+    grid-column: 1 / -1;
+    color: var(--graphite-900);
+    font-variant-numeric: tabular-nums;
+  }
+}
+@media (max-width: 759px) {
+  .rv-review-bar > .rv-review-row:first-child {
+    row-gap: 12px;
+  }
+  .rv-review-what {
+    flex: 1 1 100%;
+  }
+  .rv-review-bar > .rv-review-row:first-child > .rv-review-actions {
+    flex: 1 1 100%;
+    flex-wrap: nowrap;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-subtle);
+  }
+  .rv-review-bar > .rv-review-row:first-child > .rv-review-actions > button {
+    flex: 1 1 0;
+    min-width: 0;
+  }
 }
 .rv-replacement-row {
   margin-top: 12px;
@@ -758,46 +1214,67 @@ mark.rv-ai-unsupported {
   overflow-wrap: anywhere;
 }
 
-/* The review summary at the top of the section rail. */
+/* The review summary in the outline: the report's findings by decision, four counts in one
+   quiet strip (number over word), then how many are decided. */
 .rv-summary {
-  padding: 16px 18px 14px;
-  border-bottom: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 .rv-summary-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 10px 0 8px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 10px 0 9px;
+  border-radius: 12px;
+  background: var(--surface-sunken);
 }
 .rv-summary-grid div {
-  padding: 6px 10px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
-  background: var(--surface-card);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+}
+.rv-summary-grid div + div {
+  box-shadow: -1px 0 0 var(--graphite-200);
 }
 .rv-summary-grid dt {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
-  color: var(--text-muted);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--graphite-600);
 }
 .rv-summary-grid dd {
   margin: 0;
-  font-family: var(--font-mono);
-  font-size: 20px;
-  line-height: 26px;
-  font-weight: var(--weight-semibold);
-  color: var(--text-primary);
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--marsh-navy);
 }
-.rv-summary .rv-muted {
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
+/* Pending is what still needs the engineer: its number in the AI violet while any wait. */
+.rv-summary-grid [data-state='pending'] dd:not([data-zero]) {
+  color: var(--ai-fg);
+}
+.rv-summary-line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
 }
 
 /* The review history in the source panel. */
 .rv-history-item {
   padding: 10px 12px;
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-field);
   background: var(--surface-card);
 }
 .rv-history-head {
@@ -817,10 +1294,10 @@ mark.rv-ai-unsupported {
 }
 .rv-history-by {
   margin: 2px 0 0;
-  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 16px;
-  color: var(--text-muted);
+  color: var(--graphite-600);
+  font-variant-numeric: tabular-nums;
 }
 .rv-history-item .rv-passage {
   max-height: 30vh;
@@ -835,7 +1312,7 @@ mark.rv-ai-unsupported {
 .rv-dialog-ai {
   padding: 12px 14px;
   border: 1px solid var(--ai-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-field);
   background: var(--ai-bg);
 }
 
@@ -894,9 +1371,10 @@ mark.rv-ai-unsupported {
   width: 120px;
   font-weight: 600;
 }
-/* Marsh's own legend colours (sampled from the Global PRE template's maturity table).
-   The design system has no such bright set, so they are kept here. Marsh sets white text
-   on them; dark text is used instead, since white on these fills is below 4.5:1. */
+/* Marsh's own legend colours (sampled from the Global PRE template's maturity table), kept
+   exactly as the report prints them: the export draws this table with these rules, and the
+   --report-* tokens are close but not the same. Marsh sets white text on them; dark text is
+   used instead, since white on these fills is below 4.5:1. */
 .rv-maturity {
   --rank-undeveloped: #f25d4c;
   --rank-formalized: #ff9400;
@@ -933,7 +1411,7 @@ mark.rv-ai-unsupported {
   gap: 8px;
   padding: 12px 14px;
   border: 1px solid var(--status-moderate-fg);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-field);
   background: var(--status-moderate-bg);
 }
 
@@ -1016,9 +1494,11 @@ mark.rv-ai-unsupported {
   width: auto;
 }
 
-.rv-ofi-table input {
-  width: 100%;
-  min-width: 80px;
+/* The box, not the input: the Input sets min-width 0 on its own input inline. Wide
+   enough for an 8-digit amount beside the number arrows, or 2500000 shows as "25";
+   the table scrolls sideways in its box when the row no longer fits. */
+.rv-ofi-table .ds-field {
+  min-width: 112px;
 }
 
 /* The report's charts (GN-12): Marsh's graphical summaries under Sections 3 and 4.
@@ -1073,18 +1553,18 @@ mark.rv-ai-unsupported {
 }
 .rv-chart-value {
   color: var(--text-primary);
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 .rv-chart-swatch {
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
 }
 .rv-chart-empty {
   margin: var(--space-6) 0 0;
   padding: var(--space-6);
   border: 1px dashed var(--border-default);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   color: var(--text-muted);
 }
 /* The chart's values for screen readers (AC5). */
@@ -1135,7 +1615,7 @@ mark.rv-ai-unsupported {
 }
 .rv-ram-table td[class^='rv-ram-p'] {
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--graphite-900);
 }
 .rv-ram-p1 {
   background: var(--report-priority-1);
@@ -1187,11 +1667,11 @@ mark.rv-ai-unsupported {
 }
 .rv-band-a {
   background: var(--report-blue);
-  color: #fff;
+  color: var(--text-inverse);
 }
 .rv-band-b {
   background: var(--report-green);
-  color: #fff;
+  color: var(--text-inverse);
 }
 .rv-band-c {
   background: var(--report-amber);
@@ -1201,7 +1681,7 @@ mark.rv-ai-unsupported {
 }
 .rv-band-e {
   background: var(--report-red);
-  color: #fff;
+  color: var(--text-inverse);
 }
 
 /* Beside the scores table: the legend, and under it the Benchmarking box with the
@@ -1232,7 +1712,7 @@ mark.rv-ai-unsupported {
 .rv-proposal-note {
   padding: var(--space-5) var(--space-6);
   border: 1px solid var(--ai-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   background: var(--ai-bg);
 }
 .rv-proposal-note p {
@@ -1262,7 +1742,7 @@ mark.rv-ai-unsupported {
   gap: 8px 16px;
 }
 .rv-version-title {
-  flex: 1 1 260px;
+  flex: 1 1 220px;
   min-width: 0;
 }
 .rv-version-title h3 {
@@ -1286,22 +1766,24 @@ mark.rv-ai-unsupported {
   flex-direction: column;
   gap: 2px;
   width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--border-default);
-  border-left: 2px solid transparent;
-  border-radius: var(--radius-md);
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 12px;
   background: var(--surface-card);
   text-align: left;
   font-family: inherit;
   cursor: pointer;
-  transition: background 120ms var(--ease-standard);
+  transition: background var(--duration-fast) var(--ease-standard);
 }
-.rv-version-row:hover {
-  background: var(--surface-hover);
+@media (hover: hover) {
+  .rv-version-row:hover {
+    background: var(--graphite-50);
+  }
 }
 .rv-version-row[aria-current='true'] {
-  border-left-color: var(--action-primary);
-  background: var(--surface-selected);
+  border-color: var(--ink-200);
+  background: var(--ink-50);
 }
 .rv-version-name {
   display: flex;
@@ -1322,11 +1804,10 @@ mark.rv-ai-unsupported {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 14px 20px 18px;
+  padding: 16px 20px 20px;
   background: var(--surface-card);
-  border: 1px solid var(--border-default);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
 }
 .rv-diff-summary {
   margin: 0;
@@ -1342,10 +1823,10 @@ mark.rv-ai-unsupported {
   padding: 0 0 10px;
   list-style: none;
   border-bottom: 1px solid var(--border-subtle);
-  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 16px;
-  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  color: var(--graphite-600);
 }
 .rv-diff-legend li {
   display: inline-flex;
@@ -1401,12 +1882,10 @@ mark.rv-ai-unsupported {
 }
 .rv-diff-tag {
   display: block;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.08em;
   line-height: 16px;
-  text-transform: uppercase;
-  color: var(--text-muted);
+  color: var(--graphite-600);
 }
 .rv-diff-text {
   margin: 0;
@@ -1430,7 +1909,7 @@ mark.rv-ai-unsupported {
 .rv-diff-block.is-ordered .rv-diff-text::before {
   content: counter(rv-diff-item) '.';
   margin-right: 8px;
-  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: 13px;
   color: var(--text-muted);
 }
@@ -1458,13 +1937,13 @@ mark.rv-ai-unsupported {
 }
 .rv-diff-cite {
   margin-left: 2px;
-  padding: 0 3px;
-  border-radius: var(--radius-xs);
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
   background: var(--ai-bg);
   color: var(--ai-fg);
-  font-family: var(--font-mono);
   font-size: 11px;
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
   vertical-align: text-top;
   line-height: 1;
 }
@@ -1474,4 +1953,119 @@ mark.rv-ai-unsupported {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* Review's own tables (Sections 4, 5 and 6, the OFI tables) in the app's table look: one white
+   card, radius 16, a pale header row with 12 px labels and hairlines between rows. Scoped to the
+   review workspace (.rv-editor): the document editor and the export draw these tables as the
+   report prints them. */
+.rv-editor .rv-maturity-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+}
+/* Rounded by its corner cells, not overflow: hidden, which would clip a wide table that
+   should scroll sideways in its box instead. */
+.rv-editor .rv-maturity-table tr:first-child > :first-child {
+  border-top-left-radius: var(--radius-card);
+}
+.rv-editor .rv-maturity-table tr:first-child > :last-child {
+  border-top-right-radius: var(--radius-card);
+}
+.rv-editor .rv-maturity-table th,
+.rv-editor .rv-maturity-table td {
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid var(--graphite-100);
+}
+.rv-editor .rv-maturity-table tr:last-child > th,
+.rv-editor .rv-maturity-table tr:last-child > td {
+  border-bottom: none;
+}
+.rv-editor .rv-maturity-table thead th {
+  background: var(--graphite-50);
+  border-bottom: 1px solid var(--graphite-200);
+  color: var(--graphite-700);
+  font-size: 12px;
+  line-height: 16px;
+}
+.rv-editor .rv-maturity-table tbody th {
+  color: var(--graphite-900);
+}
+.rv-editor .rv-figures-table td:has(input) {
+  padding: 6px 8px;
+}
+.rv-editor .rv-legend {
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.rv-editor .rv-legend h4 {
+  background: var(--graphite-50);
+  border-bottom: 1px solid var(--graphite-200);
+  color: var(--graphite-700);
+  font-size: 12px;
+}
+
+/* Version history's heading: Back beside "Version history" over the part's title, and
+   Restore this version at the right, as a part's title bar holds its tools. */
+.rv-version-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.rv-version-heading {
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.rv-version-top > .rv-version-restore {
+  margin-left: auto;
+}
+/* Phone: Restore this version takes the row under the title, its (?) after it, rather than
+   wrapping to the right of a stray line. */
+@media (max-width: 759px) {
+  .rv-version-top > .rv-version-restore {
+    flex: 1 1 100%;
+    gap: 8px;
+  }
+  .rv-version-restore > button {
+    order: -1;
+    flex: 1 1 auto;
+  }
+}
+/* The version shown and what it is compared with, on one line over the comparison. */
+.rv-version-head {
+  padding-top: 16px;
+  border-top: 1px solid var(--border-subtle);
+}
+.rv-version-head > .ds-segmented {
+  flex: none;
+}
+.rv-version-eyebrow {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--graphite-600);
+}
+/* A segmented control in the editor column hugs its options rather than filling the row. */
+.rv-editor-inner > .ds-segmented,
+.rv-review-row > .ds-segmented {
+  align-self: flex-start;
+}
+/* 44 px tap targets for the stepper and Version history on a phone; the buttons size themselves
+   inline, hence !important (as the record header's stepper does). */
+@media (max-width: 759px) {
+  .rv-part-tools .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+/* Loading and error states before the workspace is drawn, on the page's side gutter. */
+.rv-state {
+  margin: 0;
+  padding: 24px var(--page-gutter, 32px);
 }

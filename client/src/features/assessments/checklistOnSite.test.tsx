@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { created } from '../new-assessment/testKit'
 import type {
   Checklist,
   ChecklistItem,
@@ -13,6 +14,14 @@ import type {
 } from './api'
 
 const REF = 'RPT-2026-0411'
+// The engineer's work list: the one assessment these tests open.
+const WORK_LIST = [
+  {
+    ...created(REF, 'Tilbury Distribution Centre'),
+    client: 'Northgate Logistics',
+    status: 'capturing',
+  },
+]
 const CAPTURE_URL = `/api/assessments/${REF}/capture-session`
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
@@ -144,6 +153,7 @@ const setCheck = (id: string, check: ItemCheck | null) => {
 }
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+    if (url === '/api/assessments') return json(200, WORK_LIST)
     if (url === CAPTURE_URL) return json(201, CAPTURE)
     if (url === OBS_URL && init.method === 'POST') {
       const details = JSON.parse(String((init.body as FormData).get('details')))
@@ -223,7 +233,9 @@ async function openChecklist(wide = false) {
     }))
   render(<App />)
   await signIn()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   // Capture starts from the Observations tab's Add manually button (CP-22).
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))

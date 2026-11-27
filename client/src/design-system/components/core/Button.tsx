@@ -18,7 +18,7 @@ export type ButtonProps = Omit<
   // Also: `create` (navy pill with the v2 shadow), `pill` (grey secondary pill) and `link-navy`
   // (the quiet link in Marsh navy, for links inside a navy-titled panel).
   variant?: string
-  // Rounds any variant to a pill (radius 999).
+  // Every button is a pill (radius 999); this also rounds a wrapping link.
   pill?: boolean
   // `xs` is a 28 px compact row link; `title` is a link set as a 16 px bold title that wraps.
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'title'
@@ -31,6 +31,8 @@ export type ButtonProps = Omit<
   fullWidth?: boolean
   children?: React.ReactNode
   style?: React.CSSProperties
+  // A link that opens in a new tab, drawn as this button (a document's View original).
+  href?: string
 }
 import { useState } from 'react'
 // `link` is the padding a link variant keeps (links have none by default), `wrap` lets the label
@@ -206,8 +208,11 @@ function Button({
   fullWidth = false,
   children,
   style = {},
+  href,
   ...rest
 }: ButtonProps) {
+  // shortcut: typed as a button so the shared props spread; an <a> ignores `disabled`.
+  const Tag = (href ? 'a' : 'button') as 'button'
   const [hover, setHover] = useState(false)
   const [active, setActive] = useState(false)
   const s = SIZES[size] || SIZES.md
@@ -217,8 +222,9 @@ function Button({
   return (
     <ReasonWrap reason={disabledReason}>
       {(describedBy, onBlockedClick) => (
-        <button
-          type={'button'}
+        <Tag
+          type={href ? undefined : 'button'}
+          {...(href ? { href, target: '_blank', rel: 'noreferrer' } : {})}
           className="ds-press"
           disabled={disabled || loading}
           aria-disabled={disabledReason ? true : undefined}
@@ -255,10 +261,9 @@ function Button({
             textAlign: s.wrap ? 'left' : undefined,
             overflowWrap: s.wrap ? 'anywhere' : undefined,
             letterSpacing: '0.005em',
-            borderRadius:
-              pill || variant === 'create' || variant.startsWith('pill')
-                ? 'var(--radius-pill)'
-                : 'var(--radius-md)',
+            // Every button is a pill (v2 section 5); only a link that wraps over lines keeps a soft
+            // corner, so its hover fill doesn't turn into a lozenge.
+            borderRadius: s.wrap && !pill ? 'var(--radius-md)' : 'var(--radius-pill)',
             cursor: blocked || loading ? 'not-allowed' : 'pointer',
             opacity: blocked ? 0.45 : 1,
             // Only Create floats (v2 section 5); every other button sits flat.
@@ -279,7 +284,7 @@ function Button({
           ) : null}
           {children}
           {iconRight ? <Icon name={iconRight} size={s.icon} /> : null}
-        </button>
+        </Tag>
       )}
     </ReasonWrap>
   )

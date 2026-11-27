@@ -18,17 +18,7 @@
 // - Ask conversations (AS-03) never reach the file either: nothing here or in
 //   document/export/ reads them (AS-03 AC4).
 import { useCallback, useEffect, useState } from 'react'
-import {
-  Button,
-  Callout,
-  Card,
-  Checkbox,
-  EmptyState,
-  Icon,
-  IconButton,
-  Radio,
-  toast,
-} from '../../../design-system'
+import { Button, CheckpointHeader, toast } from '../../../design-system'
 import {
   ExportBlockedError,
   exportReport,
@@ -51,13 +41,12 @@ import {
   type Summary,
 } from '../api'
 import { ExportPages } from '../document/export/ExportPages'
-import { marshDay } from '../document/page/frontMatter'
+import { formatDay } from '../format'
 import { savePendingEdits } from '../pendingSaves'
-import { Tip } from '../../help/Tip'
+import { ExportChecklist } from '../components/ExportChecklist'
+import { ExportOptions } from '../components/ExportOptions'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import './export.css'
-
-const FORMAT_LABEL: Record<ExportFormat, string> = { pdf: 'PDF', docx: 'Word' }
 
 // What the export is doing, for its status line.
 type Step =
@@ -113,8 +102,9 @@ export function ReportExport({
   assessment: Assessment | null
   // The assigned engineer, with the export permission (AC2).
   canExport: boolean
-  // Open the review workspace and Generation, where what is left is finished.
-  onReview: () => void
+  // Open the review workspace (on a blocker's own section) and Generation,
+  // where what is left is finished.
+  onReview: (section?: string) => void
   onGenerate: () => void
 }) {
   const [blockers, setBlockers] = useState<ExportBlocker[] | null>(null)
@@ -225,7 +215,6 @@ export function ReportExport({
   )
   const onFail = useCallback((message: string) => setStep({ kind: 'failed', message }), [])
 
-  const details = [assessment?.site.name, assessment?.client].filter(Boolean)
   // Why the export is not offered yet, for its reason box; null once it is.
   const left = blockers?.length ?? 0
   const notYet = !canExport
@@ -241,228 +230,97 @@ export function ReportExport({
             text: `The report is not complete: ${left} item${left === 1 ? ' is' : 's are'} left to finish. Finish them, then export.`,
           }
         : null
-  const visited = marshDay(assessment?.siteVisitDate)
-  const label = FORMAT_LABEL[format]
+  const visited = assessment?.siteVisitDate
+    ? `Assessed ${formatDay(new Date(assessment.siteVisitDate))}`
+    : null
+  const optionsOff = busy || !canExport
+  const sections = new Set(blockers?.map((b) => b.title)).size
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
+
+  // The status header: checking, the check failed, blocked, or ready (GN-13's checkpoint card).
+  const status = checkError
+    ? {
+        swapKey: 'error',
+        tone: 'bad' as const,
+        icon: 'triangle-alert',
+        title: 'The export check could not be run',
+        line: checkError,
+        action: (
+          <Button
+            variant="secondary"
+            pill
+            iconLeft="rotate-ccw"
+            onClick={() => {
+              setCheckError(null)
+              setChecks((n) => n + 1)
+            }}
+          >
+            Try again
+          </Button>
+        ),
+      }
+    : !blockers
+      ? {
+          swapKey: 'checking',
+          tone: 'ai' as const,
+          icon: 'file-search',
+          busy: true,
+          title: 'Checking the report…',
+          line: 'Every export starts with a check that the report is complete.',
+        }
+      : left
+        ? {
+            swapKey: 'blocked',
+            tone: 'warn' as const,
+            icon: 'list-checks',
+            title: `Export blocked: ${plural(left, 'item')} left`,
+            line: canExport
+              ? `Finish what is listed below in ${plural(sections, 'section')}, then you can export the report.`
+              : `The assigned engineer can export once what is listed below in ${plural(sections, 'section')} is finished.`,
+          }
+        : {
+            swapKey: 'ready',
+            tone: 'ok' as const,
+            icon: 'file-check',
+            title: 'Ready to export',
+            line: 'Every section is written and every finding reviewed.',
+          }
 
   return (
     <div className="ex-wrap">
+      {/* The status, whichever of the four it is: one tag for the walkthrough (F-12). */}
+      <div data-walk="export.status">
+        <CheckpointHeader {...status} />
+      </div>
       <div className="ex-grid">
         <div className="ex-main">
-          {/* The status message, whichever of the four it is: one tag for the walkthrough (F-12). */}
-          <div data-walk="export.status">
-            {checkError ? (
-              <Callout
-                tone="danger"
-                title="The export check could not be run"
-                actions={
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => {
-                      setCheckError(null)
-                      setChecks((n) => n + 1)
-                    }}
-                  >
-                    Try again
-                  </Button>
-                }
-              >
-                {checkError}
-              </Callout>
-            ) : !blockers ? (
-              <p className="ex-muted" role="status">
-                Checking the report…
-              </p>
-            ) : left ? (
-              <Callout
-                tone="danger"
-                title={`Export blocked: ${left} item${left === 1 ? '' : 's'} left`}
-              >
-                Only a complete report is exported: Sections 2 to 12 written, Sections 4 and 5's
-                figures entered, at least one OFI accepted, and every finding decided, with none
-                unsupported, out of date or citing a withdrawn source.
-              </Callout>
-            ) : (
-              <Callout tone="success" title="Ready to export">
-                The report is complete: every section is written and every finding reviewed.
-              </Callout>
-            )}
-          </div>
-
-          {openThreads > 0 && (
-            <Callout
-              tone="info"
-              title={`${openThreads} comment thread${openThreads === 1 ? ' is' : 's are'} still open`}
-              actions={
-                <Button variant="secondary" size="sm" onClick={onReview}>
-                  Open review
-                </Button>
-              }
-            >
-              A reminder only: open threads don't stop the export, and no comments or highlights
-              appear in the file. Resolve them in the document editor once they are settled.
-            </Callout>
-          )}
-
-          <Card
-            title={
-              <span className="ex-card-title">
-                Left to finish <Tip id="export.left-to-finish" />
-              </span>
-            }
-            padding="0"
-            data-walk="export.left"
-          >
-            {blockers?.length ? (
-              <ul className="ex-items">
-                {blockers.map((b, i) => (
-                  <li key={`${b.sectionId}-${i}`} className="ex-item">
-                    <Icon name="triangle-alert" size={15} color="var(--status-moderate-fg)" />
-                    <div className="ex-item-body">
-                      <span className="ex-item-title">{b.title}</span>
-                      <span className="ex-item-reason">{b.reason}</span>
-                    </div>
-                    {b.where === 'generation' ? (
-                      <IconButton
-                        icon="chevron-right"
-                        label={`Open Generation for ${b.title}`}
-                        tooltip="Open Generation"
-                        onClick={onGenerate}
-                      />
-                    ) : (
-                      <IconButton
-                        icon="chevron-right"
-                        label={`Open review for ${b.title}`}
-                        tooltip="Open review"
-                        onClick={onReview}
-                      />
-                    )}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div style={{ padding: '20px' }}>
-                <EmptyState
-                  icon="circle-check"
-                  title={blockers ? 'Nothing left to finish' : 'Not checked yet'}
-                  description={
-                    blockers
-                      ? 'Every section is written and every finding reviewed.'
-                      : 'What is left to finish shows here once the report is checked.'
-                  }
-                />
-              </div>
-            )}
-          </Card>
+          <ExportChecklist
+            blockers={blockers}
+            openThreads={openThreads}
+            canExport={canExport}
+            onReview={onReview}
+            onGenerate={onGenerate}
+          />
         </div>
-
         <aside className="ex-side">
-          <Card title="Export" padding="0">
-            <>
-              <div className="ex-body" data-walk="export.options">
-                <fieldset className="ex-fieldset" disabled={busy || !canExport}>
-                  <legend className="ex-label">Format</legend>
-                  <Radio
-                    name="export-format"
-                    label="PDF (.pdf)"
-                    description="Fixed, laid out as the page layout: to issue to the client"
-                    checked={format === 'pdf'}
-                    disabled={busy || !canExport}
-                    onChange={() => setFormat('pdf')}
-                  />
-                  <Radio
-                    name="export-format"
-                    label="Word document (.docx)"
-                    description="Editable: for review rounds"
-                    checked={format === 'docx'}
-                    disabled={busy || !canExport}
-                    onChange={() => setFormat('docx')}
-                  />
-                </fieldset>
-                <fieldset className="ex-fieldset ex-include" disabled={busy || !canExport}>
-                  <legend className="ex-label">Include</legend>
-                  <Checkbox
-                    label="Citations"
-                    description="Numbered markers, with the sources they cite listed in References after the report"
-                    checked={citations}
-                    disabled={busy || !canExport}
-                    onChange={setCitations}
-                  />
-                  <Checkbox
-                    label="Photo appendix"
-                    description={
-                      appendixPhotos === null
-                        ? 'Appendix A: Site Photos'
-                        : appendixPhotos
-                          ? `Appendix A: ${appendixPhotos} photo${appendixPhotos === 1 ? '' : 's'}, as chosen and ordered there`
-                          : 'No photos are chosen for Appendix A, so it is left out'
-                    }
-                    checked={photos && appendixPhotos !== 0}
-                    disabled={busy || !canExport || appendixPhotos === 0}
-                    onChange={setPhotos}
-                  />
-                </fieldset>
-              </div>
-              <div className="ex-foot">
-                <Button
-                  variant="primary"
-                  pill
-                  iconLeft="download"
-                  fullWidth
-                  // Not offered yet: greyed out, with a reason box saying why (design system v2).
-                  disabledReason={notYet ?? undefined}
-                  disabled={busy}
-                  loading={busy}
-                  data-walk="export.button"
-                  onClick={() => void start()}
-                >
-                  {`Export as ${label}`}
-                </Button>
-                <p className="ex-muted" role="status">
-                  {STATUS[step.kind] ??
-                    (step.kind === 'done'
-                      ? `Downloaded ${step.fileName}.`
-                      : notYet
-                        ? ''
-                        : `Unsaved changes are saved first. The file is named with the report reference and today's date.`)}
-                </p>
-                {step.kind === 'failed' && (
-                  <div role="alert">
-                    <Callout
-                      tone="danger"
-                      title="Nothing was exported"
-                      actions={
-                        <Button variant="secondary" size="sm" onClick={() => void start()}>
-                          Retry
-                        </Button>
-                      }
-                    >
-                      {step.message}
-                    </Callout>
-                  </div>
-                )}
-              </div>
-            </>
-          </Card>
-
-          <Card title="Report" padding="16px 18px">
-            <dl className="ex-report">
-              <dt>Reference</dt>
-              <dd className="ex-mono">{reference}</dd>
-              {details.length > 0 && (
-                <>
-                  <dt>Site</dt>
-                  <dd>{details.join(' · ')}</dd>
-                </>
-              )}
-              <dt>Assessed</dt>
-              <dd>
-                {[visited ?? 'Date not entered', assessment?.engineer?.name]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </dd>
-            </dl>
-          </Card>
+          <ExportOptions
+            facts={[reference, visited, assessment?.engineer?.name].filter(Boolean).join(' · ')}
+            format={format}
+            onFormat={setFormat}
+            citations={citations}
+            onCitations={setCitations}
+            photos={photos}
+            onPhotos={setPhotos}
+            appendixPhotos={appendixPhotos}
+            optionsOff={optionsOff}
+            busy={busy}
+            notYet={notYet ?? undefined}
+            status={
+              STATUS[step.kind] ?? (step.kind === 'done' ? `Downloaded ${step.fileName}.` : '')
+            }
+            failure={step.kind === 'failed' ? step.message : null}
+            onExport={() => void start()}
+          />
         </aside>
       </div>
       {step.kind === 'laying-out' && (

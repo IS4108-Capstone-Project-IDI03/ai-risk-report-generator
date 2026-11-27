@@ -3,7 +3,7 @@
 // Accepting moved here from Generation, which only generates (GN-07, Miya 12 Oct).
 // Rendered by screens/ReviewWorkspace.tsx. Calls the gateway's accept route (api.ts).
 import { useState } from 'react'
-import { Button, Callout } from '../../../design-system'
+import { Button, Callout, CountPill } from '../../../design-system'
 import {
   acceptOfi,
   saveOfiLossValues,
@@ -67,22 +67,32 @@ export function OfiReviewPanel({
   }
 
   const { suggestions, accepted } = ofis
+  // Two subsections of Section 3's page: the suggestions to decide, then the OFIs in the report.
   return (
     <>
       {failure && (
-        <Callout tone="danger" title="Not accepted">
-          {failure}
-        </Callout>
+        <div className="rv-sub">
+          <Callout tone="danger" title="Not accepted">
+            {failure}
+          </Callout>
+        </div>
       )}
       {suggestions.length > 0 && (
-        <section aria-label="Suggested Opportunities for Improvement" className="rv-ofi-group">
+        <section
+          aria-label="Suggested Opportunities for Improvement"
+          className="rv-sub rv-ofi-group"
+        >
           <div className="rv-ofi-group-head" data-walk="review.ofi.head">
-            <p className="rv-muted">
-              {plural(suggestions.length, 'suggestion')}, not in the report until accepted. Accept
-              each one that should be in Section 3.
-            </p>
+            <div className="rv-ofi-group-title">
+              <h3 className="rv-sub-heading">Suggested</h3>
+              <p className="rv-muted">
+                {plural(suggestions.length, 'suggestion')}, not in the report until accepted. Accept
+                each one that should be in Section 3.
+              </p>
+            </div>
             {canAccept && suggestions.length > 1 && (
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft="check-check"
@@ -106,10 +116,16 @@ export function OfiReviewPanel({
           ))}
         </section>
       )}
-      <section aria-label="Opportunities for Improvement in the report" className="rv-ofi-group">
-        {suggestions.length > 0 && <h3 className="rv-label">In the report</h3>}
+      <section
+        aria-label="Opportunities for Improvement in the report"
+        className="rv-sub rv-ofi-group"
+      >
+        <div className="rv-sub-head">
+          <h3 className="rv-sub-heading">In the report</h3>
+          <CountPill>{accepted.length}</CountPill>
+        </div>
         {accepted.length === 0 ? (
-          <p className="rv-muted">No Opportunities for Improvement are in the report yet.</p>
+          <p className="rv-sub-note">No Opportunities for Improvement are in the report yet.</p>
         ) : (
           OFI_CATEGORIES.flatMap((c) => accepted.filter((o) => o.category === c)).map((o, i) => (
             <OfiBlock

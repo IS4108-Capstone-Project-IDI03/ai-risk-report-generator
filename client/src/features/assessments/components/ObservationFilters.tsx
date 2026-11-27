@@ -3,13 +3,19 @@
 // right end, whatever `children` hold (the Add observation button, or the deleted list's
 // count). A pill that is set shows its value (board 03) and an ✕ that clears it, so the applied
 // filters read at a glance. Rendered by screens/Observations.tsx; the filtering is in
-// useAssessmentWorkflow.tsx. FilterChip below is the older chip, still used by All Photos
-// and the site walk tables.
+// useAssessmentWorkflow.tsx. PillFilter is shared with All Photos, Pages and Recordings
+// (PhotoTable.tsx); FilterChip below is the older chip, still used by the site walk tables.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { FilterPill, Icon, SearchField } from '../../../design-system'
+import {
+  ChoiceMenu,
+  FilterPill,
+  Icon,
+  SearchField,
+  useScrollFade,
+  type Choice,
+} from '../../../design-system'
 import { asChoices, catIcons, sevIcons, typeIcons } from '../filterChoices'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
-import { ChoiceMenu, type Choice } from './ChoiceMenu'
 
 type Key = 'cat' | 'sev' | 'type' | 'status'
 
@@ -47,6 +53,8 @@ export function ObservationFilters({
   // A search too narrow for its words (a laptop, sidebar open) says just "Search"; without
   // this the placeholder is cut mid-word. The field's aria-label stays whole.
   const bar = useRef<HTMLDivElement>(null)
+  // On a phone the pills scroll sideways: the edge with more past it fades.
+  const fade = useScrollFade<HTMLDivElement>()
   const [narrow, setNarrow] = useState(false)
   useEffect(() => {
     const field = bar.current?.querySelector('.ob-bar-search')
@@ -65,9 +73,9 @@ export function ObservationFilters({
         value={v.obsFilters.q}
         onChange={(e) => v.setObsFilter('q', e.target.value)}
       />
-      <div className="ob-bar-pills">
+      <div className="ob-bar-pills ds-scroll-fade" ref={fade}>
         {menus.map(([key, name, choices]) => (
-          <FilterMenu
+          <PillFilter
             key={key}
             name={name}
             choices={choices}
@@ -88,9 +96,9 @@ export function ObservationFilters({
   )
 }
 
-// One filter pill: its name until set, then the chosen word with an ✕ (in place of the chevron)
-// that clears it.
-function FilterMenu({
+/** Returns one filter pill: its name until set, then the chosen word with an ✕ (in place of the
+ chevron) that clears it. */
+export function PillFilter({
   name,
   choices,
   value,

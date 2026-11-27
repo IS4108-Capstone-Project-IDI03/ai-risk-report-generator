@@ -29,10 +29,10 @@ export function DiscardDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="danger" loading={busy} onClick={onConfirm}>
+          <Button pill variant="danger" loading={busy} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </>

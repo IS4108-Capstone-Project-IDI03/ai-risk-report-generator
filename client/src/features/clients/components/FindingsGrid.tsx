@@ -3,7 +3,7 @@
 // more is darker) with its count printed, so nothing is read from colour
 // alone. Pointing at or choosing a cell says how severe they are. Called by
 // screens/InsightsTab; shades and wording from ../insights.ts.
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '../../../design-system'
 import type { InsightCell, InsightSite } from '../api'
 import { categoryName, cellText, heatStep } from '../insights'
@@ -31,10 +31,24 @@ export function FindingsGrid({
   const shown = hover ?? pinned
   const site = shown && sites.find((s) => s.id === shown.site)
   const pinnedSite = pinned && sites.find((s) => s.id === pinned.site)
+  const scroll = useRef<HTMLDivElement>(null)
+
+  // On a narrow screen the grid scrolls sideways: a finding's column is scrolled into view, or
+  // "Show in the grid" would ring a column off the edge.
+  useEffect(() => {
+    const box = scroll.current
+    const head = box?.querySelector<HTMLElement>('thead th[data-on]')
+    const names = box?.querySelector<HTMLElement>('thead th:first-child')
+    if (!box || !head || !names || box.scrollWidth <= box.clientWidth) return
+    // Centred in the room right of the site names, which stay pinned at the left.
+    const room = box.clientWidth - names.offsetWidth
+    const left = head.offsetLeft - names.offsetWidth - (room - head.offsetWidth) / 2
+    box.scrollTo?.({ left: Math.max(0, left) })
+  }, [category])
 
   return (
     <>
-      <div className="ci-scroll">
+      <div ref={scroll} className="ci-scroll">
         <table className="ci-grid" onMouseLeave={() => setHover(null)}>
           <caption className="cl-sr">
             {"Observations at each site's latest assessment, by COPE category"}
@@ -59,8 +73,10 @@ export function FindingsGrid({
           <tbody>
             {sites.map((s) => (
               <tr key={s.id} data-dim={(focus && focus !== s.id) || undefined}>
-                <th scope="row" dir="auto" title={s.name}>
-                  {s.name}
+                <th scope="row" title={s.name}>
+                  <span className="cl-clamp" dir="auto">
+                    {s.name}
+                  </span>
                 </th>
                 {s.cells.map((cell, column) => {
                   const here = { site: s.id, column }
@@ -97,31 +113,33 @@ export function FindingsGrid({
           </tfoot>
         </table>
       </div>
-      <div className="ci-scale" aria-hidden="true">
-        <span>{'Fewer'}</span>
-        <span className="ci-scale-steps">
-          {[1, 3, 4, 6, 7].map((step) => (
-            <span key={step} className="ci-cell" data-step={step} />
-          ))}
-        </span>
-        <span>{'More'}</span>
-      </div>
-      <div className="ci-readout">
-        <span>
-          {site && shown
-            ? cellText(site.name, site.cells[shown.column])
-            : 'Point at a cell, or choose one, to see how severe its observations are.'}
-        </span>
-        {pinnedSite && (
-          <Button
-            size="sm"
-            variant="secondary"
-            pill
-            onClick={() => onOpen(pinnedSite.reference, pinnedSite.name)}
-          >
-            {'Open assessment'}
-          </Button>
-        )}
+      <div className="ci-grid-foot">
+        <div className="ci-scale" aria-hidden="true">
+          <span>{'Fewer'}</span>
+          <span className="ci-scale-steps">
+            {[1, 3, 4, 6, 7].map((step) => (
+              <span key={step} className="ci-cell" data-step={step} />
+            ))}
+          </span>
+          <span>{'More'}</span>
+        </div>
+        <div className="ci-readout">
+          <span>
+            {site && shown
+              ? cellText(site.name, site.cells[shown.column])
+              : 'Point at a cell, or choose one, to see how severe its observations are.'}
+          </span>
+          {pinnedSite && (
+            <Button
+              size="sm"
+              variant="secondary"
+              pill
+              onClick={() => onOpen(pinnedSite.reference, pinnedSite.name)}
+            >
+              {'Open assessment'}
+            </Button>
+          )}
+        </div>
       </div>
     </>
   )

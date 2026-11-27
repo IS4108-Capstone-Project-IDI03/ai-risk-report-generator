@@ -3,7 +3,7 @@
 // to the full list. Hidden when nothing is in Focus. On a phone the popover is a sheet (built
 // into Popover). Used by screens/Dashboard. Calls FocusRow and FocusAllDialog.
 import { useState } from 'react'
-import { Icon, Popover, useIsPhone } from '../../../design-system'
+import { CountPill, Icon, Popover, useIsPhone } from '../../../design-system'
 import { FocusAllDialog } from './FocusAllDialog'
 import { FocusRow, type FocusItem } from './FocusRow'
 import './focus.css'
@@ -46,7 +46,7 @@ export function FocusButton({
           >
             <Icon name="target" size={16} />
             {'Focus'}
-            <span className="mb-focus-count">{items.length}</span>
+            <CountPill>{items.length}</CountPill>
           </button>
         }
       >

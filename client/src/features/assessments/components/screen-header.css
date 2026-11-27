@@ -2,16 +2,21 @@
    columns, so the title stays centred whatever Back's width. No rule under it:
    the tabs above and the card below already draw the lines. */
 .sh {
+  /* Back sits 8px under the tabs, where it sits on every other screen. */
+  margin: -8px 0 12px;
+  /* The row below follows the header's own width, not the window's: the app sidebar open or
+     shut changes the room the title has. */
+  container: sh / inline-size;
+}
+.sh-in {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, auto) minmax(0, 1fr);
   align-items: center;
   gap: 12px;
   min-height: 60px;
-  /* Back sits 8px under the tabs, where it sits on every other screen. */
-  margin: -8px 0 12px;
 }
-.sh > .back-button,
-.sh > .ds-backbtn {
+.sh-in > .back-button,
+.sh-in > .ds-backbtn {
   justify-self: start;
   margin-top: 0;
 }
@@ -49,10 +54,10 @@
 }
 /* With actions (a proposal's review): both sides get the same width, at least
    the actions' room (--sh-side), so the title centres on the page, not in the
-   space left over; a long title wraps rather than push it off centre. Under
-   900px the actions go under the title (below). */
-@media (min-width: 900px) {
-  .sh:has(> .sh-actions) {
+   space left over; a long title wraps rather than push it off centre. In a
+   header under 820px the actions go under the title (below). */
+@container sh (min-width: 820px) {
+  .sh-in:has(> .sh-actions) {
     --sh-side: 300px;
     grid-template-columns: minmax(var(--sh-side), 1fr) minmax(0, auto) minmax(var(--sh-side), 1fr);
   }
@@ -68,18 +73,18 @@
 /* A phone: Back keeps its row; the name and detail sit centred beneath it, then
    the actions on a row of their own. */
 @media (max-width: 559px) {
-  .sh {
+  .sh-in {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
   }
 }
-/* Under 900px a header with actions stacks: Back, the title, then the actions. */
-@media (max-width: 899px) {
-  .sh:has(> .sh-actions) {
+/* A header under 820px with actions stacks: Back, the title, then the actions. */
+@container sh (max-width: 819px) {
+  .sh-in:has(> .sh-actions) {
     grid-template-columns: minmax(0, 1fr);
     gap: 4px;
   }
-  .sh:has(> .sh-actions) > .sh-text {
+  .sh-in:has(> .sh-actions) > .sh-text {
     order: 1;
   }
   .sh-actions {

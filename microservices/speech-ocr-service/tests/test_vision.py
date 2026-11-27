@@ -331,7 +331,7 @@ def test_tells_the_model_about_a_marked_area_only_when_one_is_marked(monkeypatch
     assert "'<photo name>, marked area' is a close-up" in instruction
     assert "Describe the condition in the marked area" in instruction
     assert "COPE" not in instruction
-    assert vision.PROMPT_VERSION == "cp10-v1"
+    assert vision.PROMPT_VERSION == "cp10-v2"
 
 
 def test_refuses_a_mark_that_is_not_an_area_inside_the_photo(monkeypatch):

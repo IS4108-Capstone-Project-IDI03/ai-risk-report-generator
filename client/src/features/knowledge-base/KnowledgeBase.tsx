@@ -3,9 +3,10 @@
 // AddDocuments.tsx) and Requests (CB-07, in Requests.tsx). At /admin/knowledge-base/review/<id> it shows one
 // document's Review page instead (IN-07, ReviewDocument.tsx), and at
 // /admin/knowledge-base/manual/<id> a manual document's clauses (IN-18,
-// ManualSections.tsx). Shown by AssessmentApp.tsx.
-import { useEffect, useState } from 'react'
-import { Tabs } from '../../design-system'
+// ManualSections.tsx). Draws its own top bar (title, helper line, tabs, bell), like every
+// list screen. Shown by AssessmentApp.tsx.
+import { useEffect, useState, type ReactNode } from 'react'
+import { Tabs, TopBar, useIsPhone } from '../../design-system'
 import {
   KNOWLEDGE_MANUAL_PATH,
   KNOWLEDGE_REVIEW_PATH,
@@ -22,20 +23,30 @@ import { KnowledgeDocuments } from './screens/KnowledgeDocuments'
 import { ManualSections } from './screens/ManualSections'
 import { Requests } from './screens/Requests'
 import { ReviewDocument } from './screens/ReviewDocument'
+import '../clients/clients.css'
 import './knowledge-base.css'
 
+// The one line under the title: what the open tab is for.
+const HELPER: Record<string, string> = {
+  documents: 'The standards and past reports behind every draft.',
+  add: 'Upload a standard or a past report, and its details are read from the file.',
+  requests: 'Documents engineers asked for when a question had no answer.',
+}
+
 export function KnowledgeBase({
-  narrow,
   notify,
   canManage,
+  bell,
 }: {
-  narrow: boolean
   // Shows a toast, e.g. to confirm a saved correction.
   notify: (message: string) => void
   // A risk engineer browses read-only (IN-17): Documents only, no Add documents
   // or Requests, and nothing in the list that changes a document.
   canManage: boolean
+  // The activity and notification icons, drawn in the top bar on desktop.
+  bell?: ReactNode
 }) {
+  const phone = useIsPhone()
   const [tab, setTab] = useState(knowledgeTab.current)
   // How many documents in the knowledge base need review (IN-05), for the
   // Documents tab's count. The Documents tab reports it after loads and saves;
@@ -153,6 +164,7 @@ export function KnowledgeBase({
           notify={notify}
           // Back to the list, which re-reads the draft's state.
           onBack={() => closeReview()}
+          bell={bell}
         />
       </div>
     )
@@ -164,6 +176,7 @@ export function KnowledgeBase({
           key={reviewing}
           id={reviewing}
           onBack={() => closeReview()}
+          bell={bell}
           onDecided={(message) => {
             setDecided((n) => n + 1)
             closeReview(() => notify(message))
@@ -172,37 +185,46 @@ export function KnowledgeBase({
       </div>
     )
   }
+  const tabs = (
+    <Tabs
+      // fit-content: the row is exactly as wide as its tabs, as on the client page.
+      style={{ borderBottom: 'none', width: 'fit-content', maxWidth: '100%' }}
+      items={[
+        {
+          value: 'documents',
+          label: 'Documents',
+          walk: 'knowledge.tab.documents',
+          count: needReview || undefined,
+          alert: needReview
+            ? `${needReview} ${needReview === 1 ? 'needs' : 'need'} review`
+            : undefined,
+        },
+        ...(canManage ? [{ value: 'add', label: 'Add documents', walk: 'knowledge.tab.add' }] : []),
+        ...(canManage
+          ? [
+              {
+                value: 'requests',
+                label: 'Requests',
+                walk: 'knowledge.tab.requests',
+                count: openRequests || undefined,
+                // The same amber pill as Documents' review count: open requests are a to-do list.
+                alert: openRequests ? `${openRequests} open` : undefined,
+              },
+            ]
+          : []),
+      ]}
+      value={shown}
+      onChange={open}
+    />
+  )
   return (
     <div className="kb">
-      <Tabs
-        items={[
-          {
-            value: 'documents',
-            label: 'Documents',
-            walk: 'knowledge.tab.documents',
-            count: needReview || undefined,
-            alert: needReview
-              ? `${needReview} ${needReview === 1 ? 'needs' : 'need'} review`
-              : undefined,
-          },
-          ...(canManage
-            ? [{ value: 'add', label: 'Add documents', walk: 'knowledge.tab.add' }]
-            : []),
-          ...(canManage
-            ? [
-                {
-                  value: 'requests',
-                  label: 'Requests',
-                  walk: 'knowledge.tab.requests',
-                  count: openRequests || undefined,
-                  // The same amber pill as Documents' review count: open requests are a to-do list.
-                  alert: openRequests ? `${openRequests} open` : undefined,
-                },
-              ]
-            : []),
-        ]}
-        value={shown}
-        onChange={open}
+      <TopBar
+        eyebrow={phone ? undefined : canManage ? 'Administration' : 'Risk engineering'}
+        title="Knowledge base"
+        helper={HELPER[shown]}
+        bell={bell}
+        tabs={tabs}
       />
       {shown === 'documents' ? (
         <KnowledgeDocuments
@@ -218,7 +240,6 @@ export function KnowledgeBase({
         <Requests key={visit} notify={notify} onCount={setOpenRequests} />
       ) : (
         <AddDocuments
-          narrow={narrow}
           onCompleted={setCompleted}
           // From Add documents the list has no filters to keep.
           onReview={(id) => openReview(id, NO_FILTERS)}

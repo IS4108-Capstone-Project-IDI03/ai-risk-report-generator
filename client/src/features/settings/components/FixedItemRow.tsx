@@ -2,7 +2,7 @@
 // and Remove; or, while editing, the two fields in place with Save and Cancel (Enter saves,
 // Escape cancels). Called by screens/ChecklistSection.tsx.
 import { useState } from 'react'
-import { Button, Input } from '../../../design-system'
+import { Button, IconAction, Input } from '../../../design-system'
 import type { FixedItem } from '../api'
 
 type Props = {
@@ -41,12 +41,19 @@ export function FixedItemRow({ item, onSave, onRemove }: Props) {
           <span>{item.text}</span>
           {item.area && <span className="st-muted">Section {item.area}</span>}
         </div>
-        <Button variant="pill" onClick={() => setEditing(true)} aria-label={`Edit ${item.text}`}>
-          Edit
-        </Button>
-        <Button variant="pill" onClick={() => onRemove(item)} aria-label={`Remove ${item.text}`}>
-          Remove
-        </Button>
+        <IconAction
+          icon="pencil"
+          label={`Edit ${item.text}`}
+          tooltip="Edit question"
+          onClick={() => setEditing(true)}
+        />
+        <IconAction
+          icon="trash-2"
+          label={`Remove ${item.text}`}
+          tooltip="Remove question"
+          style={{ color: 'var(--red-600)' }}
+          onClick={() => onRemove(item)}
+        />
       </li>
     )
   return (
@@ -59,7 +66,8 @@ export function FixedItemRow({ item, onSave, onRemove }: Props) {
     >
       <Input label="Question" value={text} onChange={(e) => setText(e.target.value)} />
       <Input
-        label="Report section (optional)"
+        label="Report section"
+        placeholder="Optional"
         value={area}
         onChange={(e) => setArea(e.target.value)}
       />
@@ -69,7 +77,7 @@ export function FixedItemRow({ item, onSave, onRemove }: Props) {
         </p>
       )}
       <div className="st-row-head">
-        <Button variant="primary" disabled={saving} onClick={() => void save()}>
+        <Button variant="primary" pill disabled={saving} onClick={() => void save()}>
           Save
         </Button>
         <Button variant="pill" onClick={cancel}>

@@ -1,5 +1,5 @@
 // The "Check usage and costs" walkthrough (F-12): a tour of the Report generation overview, with one
-// step for the admin's Ingestion tab. Read by features/walkthrough/registry.ts. Tags are in features/usage.
+// step for the admin's Documents tab. Read by features/walkthrough/registry.ts. Tags are in features/usage.
 import type { WalkthroughDef } from '../walkthrough/types'
 
 export const WALKTHROUGHS: WalkthroughDef[] = [
@@ -35,10 +35,10 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: "If you open an assessment, you'll see its costs in more detail, right down to each report section.",
       },
       {
-        // At: The Ingestion tab (admin only).
+        // At: The Documents tab (admin only).
         target: 'usage.tab.ingestion',
         only: 'knowledge_admin',
-        say: 'The **Ingestion** tab shows what it cost to add each document to the knowledge base.',
+        say: 'The **Documents** tab shows what it cost to add each document to the knowledge base.',
       },
     ],
   },

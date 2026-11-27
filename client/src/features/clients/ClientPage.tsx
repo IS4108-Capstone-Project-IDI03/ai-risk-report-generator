@@ -1,7 +1,7 @@
 // A client's page (CP-18, rebuilt CP-23 boards 06 and 07): the loading and error
 // states with Back, then the loaded record. Opened from the Clients list,
 // Group by client and an assessment's client name. Calls screens/ClientRecord.
-import { EmptyState, IconRegistry, TopBar } from '../../design-system'
+import { EmptyNote, EmptyState, IconRegistry, ListCard, TopBar } from '../../design-system'
 import type { ReactNode } from 'react'
 import type { ClientPage as Page } from './api'
 import { ClientRecord } from './screens/ClientRecord'
@@ -55,7 +55,7 @@ export function ClientPage({ page, error, onClients, bell, ...record }: Props) {
       />
       <div className="cl-content">
         {error ? (
-          <div className="cl-card">
+          <ListCard>
             <EmptyState
               icon={error.status === 403 ? 'lock' : IconRegistry.object.client}
               title={
@@ -66,14 +66,18 @@ export function ClientPage({ page, error, onClients, bell, ...record }: Props) {
                     : 'The client could not be loaded'
               }
               description={
-                error.status === 403 ? 'A client opens from your own assessments.' : error.message
+                error.status === 403
+                  ? 'A client opens from your own assessments.'
+                  : error.status === 404
+                    ? 'It may have been removed. Choose another from the Clients list.'
+                    : error.message
               }
             />
-          </div>
+          </ListCard>
         ) : (
-          <p role="status" style={{ margin: 0 }}>
+          <EmptyNote centred status>
             {'Loading the client…'}
-          </p>
+          </EmptyNote>
         )}
       </div>
     </div>

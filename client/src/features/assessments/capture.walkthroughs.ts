@@ -37,11 +37,11 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         say: "Only the assigned engineer can generate the checklist, but you're welcome to read it, and you can download it as a PDF here.",
       },
       {
-        // The first item still to answer: Confirm, Differs and ⋯. Optional: a checklist with every item answered has none.
+        // The checklist's items, each with its round mark. Optional: an empty checklist has none.
         target: 'checklist.answers',
         optional: true,
         only: 'risk_engineer',
-        say: "When you're on site, you can answer each item as you go:\n- **Confirm** if what you saw matches.\n- **Differs** if it doesn't.\n- **Not seen** or **Not applicable**, which you'll find under ⋯.\nConfirm and Differs each save an observation for you.",
+        say: "When you're on site, press the round mark beside each item as you go:\n- Once for a **tick** if what you saw matches.\n- Twice for a **cross** if it doesn't.\n- Three times if you didn't get to see it.\nYou can link a ticked or crossed item to an observation.",
       },
       {
         // The icon only shows once there is a checklist. Engineers only: the admin's step above says it.

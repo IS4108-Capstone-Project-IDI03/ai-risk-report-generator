@@ -126,10 +126,12 @@ export async function mediaParts(
   | { status: 400 | 413 | 415; error: string }
 > {
   const files = form.getAll('recording').filter((part) => part instanceof File)
-  if (files.some((file) => !audioExtension(file.type)))
+  // Named, as an image refusal is: the whole batch is refused, so the engineer must know which one.
+  const unsupported = files.find((file) => !audioExtension(file.type))
+  if (unsupported)
     return {
       status: 415,
-      error: 'This audio format is not supported. Use WebM, Ogg, MP4, M4A, MP3, WAV or FLAC.',
+      error: `${unsupported.name || 'A recording'} is in an audio format that isn't supported. Use WebM, Ogg, MP4, M4A, MP3, WAV or FLAC.`,
     }
   if (files.some((file) => file.size > 25 * 1024 * 1024))
     return { status: 413, error: 'A recording is larger than 25 MB. Upload a shorter one.' }

@@ -37,7 +37,12 @@ export function AddChecklistItem({
   }, [open])
   if (!open)
     return (
-      <button ref={addBtn} type="button" className="cl-add-btn" onClick={() => setOpen(true)}>
+      <button
+        ref={addBtn}
+        type="button"
+        className="ds-add-row cl-add-btn"
+        onClick={() => setOpen(true)}
+      >
         <Icon name="plus" size={16} />
         Add item
       </button>
@@ -80,6 +85,7 @@ export function AddChecklistItem({
         void submit()
       }}
     >
+      <h3 className="cl-form-title">New item</h3>
       <Input label="Question" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
       <p className={'cl-count-words' + (words > WORDS_MAX ? ' cl-error' : '')} aria-live="off">
         {words} / {WORDS_TARGET} words
@@ -141,10 +147,10 @@ export function AddChecklistItem({
         </p>
       )}
       <div className="cl-actions">
-        <Button type="submit" variant="primary" loading={saving} disabled={saving}>
+        <Button type="submit" variant="primary" pill loading={saving} disabled={saving}>
           Add
         </Button>
-        <Button variant="link" disabled={saving} onClick={() => setOpen(false)}>
+        <Button variant="pill" disabled={saving} onClick={() => setOpen(false)}>
           Cancel
         </Button>
       </div>

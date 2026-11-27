@@ -1,5 +1,6 @@
-// One checklist question as a plain row (CP-37): a state box that cycles on click, the question,
-// a quiet "Fixed" tag, a "from ..." line, a link menu on ticked and crossed rows, and a ⋯ menu that appears on hover or focus. Called by ChecklistItems.
+// One checklist question as a plain row (CP-37): a round state mark that cycles on click, the
+// question, a quiet "Fixed" tag, a line with its observation and where it came from, and a link
+// menu (ticked and crossed rows) and ⋯ menu that appear on hover or focus. Called by ChecklistItems.
 import { useState } from 'react'
 import { Icon } from '../../../design-system'
 import type { CheckResult, ChecklistItem } from '../api'
@@ -118,7 +119,7 @@ export function ChecklistRow({
           aria-label={state.label}
           data-mark={item.check?.result ?? 'none'}
         >
-          {state.icon && <Icon name={state.icon} size={16} />}
+          {state.icon && <Icon name={state.icon} size={13} />}
         </span>
       ) : (
         <button
@@ -128,7 +129,7 @@ export function ChecklistRow({
           aria-label={`${title}: ${state.label}, press to change`}
           onClick={() => onMark(nextMark(item.check?.result))}
         >
-          {state.icon && <Icon name={state.icon} size={16} />}
+          {state.icon && <Icon name={state.icon} size={13} />}
         </button>
       )}
       {editing ? (
@@ -152,18 +153,24 @@ export function ChecklistRow({
           {/* An important question reads bold, so it stands out at the top of its section. */}
           {item.important ? <strong className="cl-strong">{title}</strong> : title}
           {item.fixed && <span className="cl-suffix">Fixed</span>}
-          {observation && (
-            <button
-              type="button"
-              className="cl-link"
-              onClick={() => onViewObservation(observation.id)}
-            >
-              View observation
-            </button>
-          )}
-          {source && (
-            <span className="cl-source" title={source}>
-              {source}
+          {/* One quiet line under the question: its observation, then where it came from. */}
+          {(observation || source) && (
+            <span className="cl-sub">
+              {observation && (
+                <button
+                  type="button"
+                  className="cl-obs-link"
+                  onClick={() => onViewObservation(observation.id)}
+                >
+                  <Icon name="camera" size={14} color="var(--text-muted)" />
+                  View observation
+                </button>
+              )}
+              {source && (
+                <span className="cl-source" title={source}>
+                  {source}
+                </span>
+              )}
             </span>
           )}
         </span>

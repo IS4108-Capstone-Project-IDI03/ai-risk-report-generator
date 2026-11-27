@@ -36,17 +36,23 @@ export function DictateButton({ reference, field, onChange }: Props) {
   )
   const { state, stop, start, note } = useRecorder({ onClip })
   const live = state === 'recording' || state === 'paused'
+  // Waiting for the mic or for the words: the mic turns into the busy spinner (as IconAction's
+  // `loading`). Without it a dimmed mic sat there for seconds and looked broken.
+  const busy = state === 'working' || state === 'starting'
   return (
     <span className="dictate">
       {live ? (
         <IconButton icon="square" label="Stop dictating" onClick={stop} />
-      ) : (
+      ) : busy ? (
         <IconButton
-          icon="mic"
-          label="Dictate"
-          disabled={state === 'working' || state === 'starting'}
-          onClick={() => void start()}
+          icon="loader-circle"
+          label={state === 'starting' ? 'Waiting for the microphone' : 'Writing out what you said'}
+          aria-busy
+          aria-disabled
+          style={{ cursor: 'progress' }}
         />
+      ) : (
+        <IconButton icon="mic" label="Dictate" onClick={() => void start()} />
       )}
       {/* Errors follow design system v2: a red icon and short problem, then the fix in grey. */}
       {note && (

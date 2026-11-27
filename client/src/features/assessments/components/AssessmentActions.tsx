@@ -12,7 +12,7 @@ export function AssessmentActions({
   archiveBlocked,
 }: {
   onHistory: () => void
-  // Absent when the assessment has no saved record to show (a sample one).
+  // Absent when the assessment has no saved record to show.
   onDetails?: () => void
   // Absent when this engineer can't archive the assessment.
   onArchive?: () => void

@@ -1,55 +1,22 @@
 // The client page's Insights tab (CP-29): what the engineer's sites at the
-// client add up to. Headline figures, what stands out, the written summary,
-// the sites needing attention, where the findings are and how each site
-// changed between visits. The gateway counts and words everything but the
-// summary, which the model drafts on request. Called by ClientRecord; data from
-// ../useClientInsights.ts.
+// client add up to, read top to bottom: the checked AI summary, the headline
+// figures, then what stands out beside the sites needing attention, then where
+// the findings are beside how each site changed between visits. The gateway
+// counts and words everything but the summary, which the model drafts on
+// request. Called by ClientRecord; data from ../useClientInsights.ts.
 import { useRef, useState } from 'react'
-import { EmptyState, Icon } from '../../../design-system'
-import { CAT_ICON } from '../../assessments/categories'
-import type { ClientInsights, InsightFinding } from '../api'
+import { Button, EmptyNote, EmptyState, ListCard, Panel } from '../../../design-system'
+import type { InsightFinding } from '../api'
 import { AttentionList } from '../components/AttentionList'
 import { FindingsGrid } from '../components/FindingsGrid'
+import { InsightFigures } from '../components/InsightFigures'
 import { InsightSummaryCard } from '../components/InsightSummaryCard'
+import { StandsOutList } from '../components/StandsOutList'
 import { VisitChange } from '../components/VisitChange'
-import { plural } from '../formatClient'
 import type { Measure } from '../insights'
 import { useClientInsights } from '../useClientInsights'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../insights.css'
-
-type Tile = { label: string; value: number; note: string; tone?: 'danger' | 'warn' }
-
-function tilesOf({ totals }: ClientInsights): Tile[] {
-  return [
-    { label: 'Sites', value: totals.sites, note: plural(totals.assessments, 'assessment') },
-    {
-      label: 'Observations',
-      value: totals.observations,
-      note: totals.uncategorised ? `${totals.uncategorised} uncategorised` : 'All categorised',
-      tone: totals.uncategorised ? 'warn' : undefined,
-    },
-    {
-      label: 'Critical and High',
-      value: totals.critical + totals.high,
-      note: totals.critical ? `${totals.critical} Critical` : 'None Critical',
-      tone: totals.critical ? 'danger' : undefined,
-    },
-    {
-      label: 'Priority 1 and 2 OFIs',
-      value: totals.ofisPriority12,
-      note: `of ${totals.ofisAccepted} accepted`,
-    },
-    {
-      label: 'Reports late',
-      value: totals.reportsLate,
-      note: totals.latest
-        ? `${totals.latest.site}, ${plural(totals.latest.days, 'day')}`
-        : 'None late',
-      tone: totals.latest ? 'danger' : undefined,
-    },
-  ]
-}
 
 // The space left above a block brought into view.
 const GAP = 16
@@ -68,13 +35,6 @@ function bringIntoView(block: HTMLElement | null) {
     GAP
   const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   scroller.scrollTo?.({ top: Math.max(0, top), behavior: calm ? 'auto' : 'smooth' })
-}
-
-const FINDING_ICON: Record<InsightFinding['kind'], string> = {
-  category: 'layers',
-  worse: 'trending-up',
-  improved: 'trending-down',
-  severe: 'triangle-alert',
 }
 
 export function InsightsTab({
@@ -97,32 +57,32 @@ export function InsightsTab({
 
   if (error && !insights)
     return (
-      <div className="cl-card">
+      <ListCard>
         <EmptyState
           icon="chart-column"
           title="The insights could not be loaded"
           description={error}
         />
-      </div>
+      </ListCard>
     )
   if (!insights)
     return (
-      <p role="status" style={{ margin: 0 }}>
+      <EmptyNote centred status>
         {'Loading insights…'}
-      </p>
+      </EmptyNote>
     )
   if (insights.empty)
     return (
-      <div className="cl-card">
+      <ListCard>
         <EmptyState
           icon="chart-column"
           title="Nothing to analyse yet"
           description="Insights appear once one of your assessments for this client has an observation."
         />
-      </div>
+      </ListCard>
     )
 
-  // A finding's link lights what it is about and brings its block into view.
+  // A finding's action lights what it is about and brings its block into view.
   const show = (finding: InsightFinding) => {
     const to = finding.kind === 'worse' || finding.kind === 'improved' ? change : grid
     setCategory(finding.category)
@@ -139,124 +99,60 @@ export function InsightsTab({
     <div className="ci">
       <p className="ci-basis">
         {
-          'Figures use your latest assessment with observations at each site. Archived assessments and removed sites are left out.'
+          "Counted from each site's latest assessment with observations. Archived assessments and removed sites are left out."
         }
       </p>
 
-      <dl className="ci-tiles" data-walk="insights.tiles">
-        {tilesOf(insights).map((tile) => (
-          <div key={tile.label} className="cl-card ci-tile">
-            <dt>{tile.label}</dt>
-            <dd className="ci-tile-value">{tile.value}</dd>
-            <dd className="ci-tile-note" data-tone={tile.tone}>
-              {tile.tone && <Icon name="triangle-alert" size={14} />}
-              {tile.note}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      {/* 1. The checked summary: the one AI-written block. */}
+      <InsightSummaryCard
+        summary={insights.summary}
+        canSummarise={insights.canSummarise}
+        writing={writing}
+        failure={failure}
+        onWrite={() => void write()}
+      />
 
-      {insights.findings.length > 0 && (
-        <section className="ci-block" aria-labelledby="ci-stands">
-          <h2 id="ci-stands" className="ci-h">
-            {'What stands out'}
-          </h2>
-          <ul className="ci-findings">
-            {insights.findings.map((finding) => (
-              <li key={finding.kind} className="cl-card ci-finding">
-                <div className="ci-finding-head">
-                  <span className="ci-tile-icon" data-tone={finding.tone} aria-hidden="true">
-                    <Icon
-                      name={
-                        (finding.category && CAT_ICON[finding.category]) ||
-                        FINDING_ICON[finding.kind]
-                      }
-                      size={18}
-                    />
-                  </span>
-                  <h3>{finding.title}</h3>
-                </div>
-                <p>{finding.detail}</p>
-                {finding.share && (
-                  <span
-                    className="ci-meter"
-                    role="img"
-                    aria-label={`${finding.share.count} of ${finding.share.total} observations`}
-                  >
-                    <span
-                      style={{ width: `${(finding.share.count / finding.share.total) * 100}%` }}
-                    />
-                  </span>
-                )}
-                {finding.change && (
-                  <span className="ci-move">
-                    <span>{finding.change.from}</span>
-                    <span aria-hidden="true">{'→'}</span>
-                    <span className="cl-sr">{'to'}</span>
-                    <strong>{finding.change.to}</strong>
-                    {finding.change.period && (
-                      <span className="ci-sub">{finding.change.period}</span>
-                    )}
-                  </span>
-                )}
-                <button type="button" className="ci-link" onClick={() => show(finding)}>
-                  {finding.kind === 'category'
-                    ? 'Show in the grid'
-                    : finding.kind === 'severe'
-                      ? 'Show its findings'
-                      : 'Show the change'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      {/* 2. The gateway's figures. */}
+      <InsightFigures insights={insights} />
 
-      <div className="ci-row">
-        <div className="ci-col ci-col--wide">
-          <InsightSummaryCard
-            summary={insights.summary}
-            canSummarise={insights.canSummarise}
-            writing={writing}
-            failure={failure}
-            onWrite={() => void write()}
-          />
-        </div>
-        <section
-          className="cl-card ci-card ci-col"
-          aria-labelledby="ci-attention"
+      {/* 3. What stands out, beside the sites it is about. */}
+      <div className="ci-pair">
+        {insights.findings.length > 0 && (
+          <Panel title="What stands out" className="ci-panel">
+            <StandsOutList findings={insights.findings} onShow={show} />
+          </Panel>
+        )}
+        <Panel
+          title="Sites needing attention"
+          note="Ordered by Critical findings, then Priority 1 OFIs, then rating."
+          className="ci-panel"
           data-walk="insights.attention"
-        >
-          <div className="ci-card-head">
-            <h2 id="ci-attention" className="ci-h">
-              {'Sites needing attention'}
-            </h2>
-            {focus && (
-              <button type="button" className="ci-link" onClick={() => focusSite(null)}>
+          actions={
+            focus && (
+              <Button
+                variant="link"
+                size="sm"
+                className="ds-press ci-link"
+                onClick={() => focusSite(null)}
+              >
                 {'Show all sites'}
-              </button>
-            )}
-          </div>
-          <p className="ci-sub">
-            {'Ordered by Critical findings, then Priority 1 OFIs, then rating.'}
-          </p>
+              </Button>
+            )
+          }
+        >
           <AttentionList sites={insights.sites} focus={focus} onFocus={focusSite} onOpen={onOpen} />
-        </section>
+        </Panel>
       </div>
 
-      <div className="ci-row">
-        <section
+      {/* 4. The two charts: where the findings are, and how each site moved. */}
+      <div className="ci-pair ci-pair--charts">
+        <Panel
           ref={grid}
-          className="cl-card ci-card ci-col ci-col--grid"
-          aria-labelledby="ci-grid"
+          title="Where the findings are"
+          note="Observations at each site's latest assessment, by COPE category."
+          className="ci-panel"
           data-walk="insights.grid"
         >
-          <h2 id="ci-grid" className="ci-h">
-            {'Where the findings are'}
-          </h2>
-          <p className="ci-sub">
-            {"Observations at each site's latest assessment, by COPE category."}
-          </p>
           <FindingsGrid
             sites={insights.sites}
             byCategory={insights.byCategory}
@@ -264,23 +160,21 @@ export function InsightsTab({
             category={category}
             onOpen={onOpen}
           />
-        </section>
-        <section
+        </Panel>
+        <Panel
           ref={change}
-          className="cl-card ci-card ci-col ci-col--change"
-          aria-labelledby="ci-change"
+          title="Change between visits"
+          note="Each site's first visit against its latest."
+          className="ci-panel"
           data-walk="insights.change"
         >
-          <h2 id="ci-change" className="ci-h">
-            {'Change between visits'}
-          </h2>
           <VisitChange
             sites={insights.sites}
             focus={focus}
             measure={measure}
             onMeasure={setMeasure}
           />
-        </section>
+        </Panel>
       </div>
     </div>
   )

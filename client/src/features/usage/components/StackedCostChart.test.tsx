@@ -1,10 +1,11 @@
 // The stacked cost chart (EV-04). jsdom draws no SVG layout, so these check what
 // a screen reader gets (the chart's table), its controls and its legend.
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CostGroup } from '../chart'
 import { DEFAULT_BAR_LIMIT, StackedCostChart } from './StackedCostChart'
+import { chooseOption } from '../../../design-system/components/forms/selectTestHelpers'
 
 const group = (key: string, cost: number, at: string, segments: Record<string, number>) =>
   ({ key, label: key, estimatedCostUsd: cost, lastActivityAt: at, segments }) as CostGroup
@@ -56,7 +57,7 @@ describe('StackedCostChart', () => {
 
   it('sorts by most recent use when asked', () => {
     chart()
-    fireEvent.change(screen.getByLabelText('Sort bars by'), { target: { value: 'time' } })
+    chooseOption('Sort bars by', 'Most recent')
     expect(tableRows()).toEqual(['RPT-C', 'RPT-A', 'RPT-B'])
   })
 
@@ -66,10 +67,10 @@ describe('StackedCostChart', () => {
     )
     chart(six)
     expect(screen.getByText('Showing all 6 assessments')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Bars shown'), { target: { value: '5' } })
+    chooseOption('Bars shown', '5')
     expect(tableRows()).toEqual(['RPT-6', 'RPT-5', 'RPT-4', 'RPT-3', 'RPT-2'])
     expect(screen.getByText('Showing the top 5 of 6 assessments')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Bars shown'), { target: { value: 'all' } })
+    chooseOption('Bars shown', 'All')
     expect(tableRows()).toHaveLength(6)
   })
 

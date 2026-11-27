@@ -9,7 +9,7 @@
   height: 40px;
   padding: 0 8px 0 14px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-card);
   box-shadow: inset 0 0 0 1px var(--graphite-200);
   color: var(--marsh-navy);
@@ -30,18 +30,8 @@
   background: var(--graphite-100);
   box-shadow: none;
 }
-.mb-focus-count {
-  min-width: 24px;
-  height: 22px;
-  padding: 0 7px;
-  border-radius: 999px;
-  background: var(--graphite-100);
-  color: var(--marsh-navy);
-  font: 700 12px/22px var(--font-sans);
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-.mb-focus-btn[data-open] .mb-focus-count {
+/* The count is the shared CountPill; white while its popover is open, on the button's grey. */
+.mb-focus-btn[data-open] .ds-count-pill {
   background: var(--surface-card);
 }
 @media (pointer: coarse) {
@@ -98,7 +88,8 @@
 .mb-focus-row {
   display: grid;
   grid-template-columns: 32px 24px minmax(0, 1fr) 16px;
-  align-items: start;
+  /* The rank, mark and chevron sit centred on the row's height (v2: every row marker is centred). */
+  align-items: center;
   column-gap: 14px;
   width: 100%;
   padding: 12px 16px;
@@ -112,7 +103,7 @@
 }
 .mb-focus-row[data-due] {
   grid-template-columns: 32px 24px minmax(0, 1fr) auto;
-  border-radius: 12px;
+  border-radius: var(--radius-field);
 }
 .mb-focus-row[data-top] {
   background: var(--ink-50);
@@ -131,7 +122,6 @@
 }
 /* The rank is plain type: no shape, no ordinal; 1 navy, the rest grey. */
 .mb-focus-rank {
-  padding-top: 2px;
   color: var(--graphite-400);
   font: 600 24px/28px var(--font-sans);
   letter-spacing: -0.02em;
@@ -140,9 +130,6 @@
 }
 .mb-focus-row[data-top] .mb-focus-rank {
   color: var(--marsh-navy);
-}
-.mb-focus-row > [role='presentation'] {
-  margin-top: 2px; /* the chevron, level with the reference line */
 }
 .mb-focus-text {
   display: flex;
@@ -184,7 +171,7 @@
   min-height: 36px;
   padding: 0 8px;
   border: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: none;
   color: var(--marsh-navy);
   font: 600 13.5px/1 var(--font-sans);

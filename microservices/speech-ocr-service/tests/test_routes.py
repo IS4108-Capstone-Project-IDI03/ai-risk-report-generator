@@ -133,15 +133,31 @@ def test_transcribe_clip_drops_what_whisper_says_when_it_heard_no_speech(monkeyp
     assert client.post("/transcribe-clip", json=clip).json()["transcript"] == "What is the density?"
 
 
-def test_a_recording_keeps_every_segment_whatever_its_no_speech_score(monkeypatch):
-    # Site-walk and voice-note recordings are not filtered: the engineer reviews those.
+def test_a_recording_drops_what_whisper_says_when_it_heard_no_speech(monkeypatch):
+    # A silent site-walk or voice-note recording (a muted mic, a phone in a pocket) must come back
+    # empty, not as an invented sentence that becomes a finding or a recording's name.
     use_fakes(monkeypatch, FakeS3())
+    FakeOpenAI.text = "For more information, visit www.fema.gov.au"
     FakeOpenAI.segments = [
-        {"start": 0, "end": 2, "text": "Quiet murmur.", "no_speech_prob": 0.9, "x": 1}
+        {
+            "start": 0,
+            "end": 2,
+            "text": " For more information, visit www.fema.gov.au",
+            "no_speech_prob": 0.9,
+        }
     ]
     body = client.post("/transcribe", json={"s3_key": "audio/a.webm"}).json()
-    assert body["transcript"] == "Sprinkler valve chained open."
-    assert [s["text"] for s in body["segments"]] == ["Quiet murmur."]
+    assert body["transcript"] == ""
+    assert body["segments"] == []
+
+    # Real speech and its timed segment are kept.
+    FakeOpenAI.segments = [
+        {"start": 0, "end": 2, "text": " The valve is shut.", "no_speech_prob": 0.02},
+        {"start": 2, "end": 4, "text": " Thank you for watching.", "no_speech_prob": 0.9},
+    ]
+    body = client.post("/transcribe", json={"s3_key": "audio/a.webm"}).json()
+    assert body["transcript"] == "The valve is shut."
+    assert [s["text"] for s in body["segments"]] == ["The valve is shut."]
 
 
 def test_transcribe_clip_rejects_bad_base64():
@@ -167,6 +183,22 @@ def test_transcribe_reports_why_whisper_failed(monkeypatch):
 
     assert response.status_code == 502
     assert "Incorrect API key provided" in response.json()["detail"]
+
+
+def test_transcribe_answers_422_when_whisper_refuses_the_file(monkeypatch):
+    # A file Whisper can't decode is the file's fault: 422 so the gateway fails it at once
+    # rather than retrying it as if the service were busy.
+    use_fakes(monkeypatch, FakeS3())
+    refusal = RuntimeError("Error code: 400 - Invalid file format.")
+    refusal.status_code = 400
+    FakeOpenAI.error = refusal
+
+    response = client.post("/transcribe", json={"s3_key": "audio/a.mp3"})
+    clip = {"audio_base64": base64.b64encode(b"x").decode(), "filename": "q.webm"}
+
+    assert response.status_code == 422
+    assert "Invalid file format" in response.json()["detail"]
+    assert client.post("/transcribe-clip", json=clip).status_code == 422
 
 
 def test_transcribe_reports_a_missing_recording(monkeypatch):

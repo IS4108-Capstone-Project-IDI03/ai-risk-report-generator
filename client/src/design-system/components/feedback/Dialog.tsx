@@ -10,8 +10,14 @@ export type DialogProps = {
   title?: ReactNode
   description?: ReactNode
   footer?: ReactNode
+  // Controls in the header, just left of Close (the passages' page range); a phone gives them
+  // their own row under the title.
+  headerAction?: ReactNode
   width?: number
   onClose?: () => void
+  // Unsaved edits in the dialog: Esc and a backdrop click do nothing, so a stray press can't
+  // throw them away; the Close button and the caller's Cancel still close.
+  unsaved?: boolean
   children?: ReactNode
   style?: CSSProperties
 }
@@ -30,6 +36,12 @@ function leaveCopy(element: HTMLDialogElement) {
   // dropdowns would flash their first option while it fades.
   const picks = element.querySelectorAll('select')
   copy.querySelectorAll('select').forEach((s, n) => (s.selectedIndex = picks[n].selectedIndex))
+  // A cloned <audio>/<video> loads its src again, and the owner may already have revoked that
+  // blob URL (Add media's queued recording): without this the console logs ERR_FILE_NOT_FOUND.
+  copy.querySelectorAll('audio, video').forEach((m) => {
+    m.removeAttribute('src')
+    m.querySelectorAll('source').forEach((s) => s.remove())
+  })
   // The copy carries the open attribute, and showModal refuses a dialog already open.
   copy.removeAttribute('open')
   document.body.append(copy)
@@ -52,8 +64,10 @@ export function Dialog({
   title,
   description,
   footer,
+  headerAction,
   width = 480,
   onClose,
+  unsaved = false,
   children,
   style,
 }: DialogProps) {
@@ -78,7 +92,9 @@ export function Dialog({
       const copy = canAnimate && !element.isConnected ? leaveCopy(element) : null
       element.close()
       const refocus = () => {
-        if (previousFocus instanceof HTMLElement) previousFocus.focus()
+        // preventScroll: returning focus must not scroll the page, or Ask's "Go to the passage"
+        // on a phone would be scrolled back to the button that opened the sheet.
+        if (previousFocus instanceof HTMLElement) previousFocus.focus({ preventScroll: true })
       }
       if (!copy) return refocus()
       // Focus returns once the copy is gone: while it shows, the page behind is inert.
@@ -93,16 +109,18 @@ export function Dialog({
   return (
     <dialog
       ref={dialog}
-      className={`ds-dialog ${className}`}
+      // Every dialog wears the v2 Apple look (kit.css .ds-dialog--v2); a caller's class adds to it.
+      className={`ds-dialog ds-dialog--v2 ${className}`}
       aria-label={ariaLabel}
       aria-labelledby={title ? titleId : undefined}
       aria-describedby={description ? descriptionId : undefined}
       // No way to close: the browser mustn't close it either. Chrome lets a second Esc through
       // however `cancel` answers, which would leave React thinking it's still open.
-      closedby={onClose ? undefined : 'none'}
+      // Unsaved edits: Esc mustn't close it either.
+      closedby={onClose && !unsaved ? undefined : 'none'}
       onCancel={(event) => {
         event.preventDefault()
-        onClose?.()
+        if (!unsaved) onClose?.()
       }}
       // A click on the backdrop closes it, as Esc does (IN-17 follow-up). The backdrop is the
       // <dialog> itself outside its box: a gap between the card's parts is inside the box.
@@ -110,7 +128,7 @@ export function Dialog({
         pressedOutside.current = isBackdrop(event)
       }}
       onClick={(event) => {
-        if (onClose && pressedOutside.current && isBackdrop(event)) onClose()
+        if (onClose && !unsaved && pressedOutside.current && isBackdrop(event)) onClose()
         pressedOutside.current = false
       }}
       style={{ width, ...style }}
@@ -118,11 +136,15 @@ export function Dialog({
       {title || description ? (
         // Keyed by the title, so a step change (Edit site to its scope check) replays the
         // header's fade (.ds-dialog .ds-dialog-header in kit.css).
-        <header className="ds-dialog-header" key={typeof title === 'string' ? title : undefined}>
+        <header
+          className={headerAction ? 'ds-dialog-header has-action' : 'ds-dialog-header'}
+          key={typeof title === 'string' ? title : undefined}
+        >
           <div>
             <h2 id={titleId}>{title}</h2>
             {description && <p id={descriptionId}>{description}</p>}
           </div>
+          {headerAction && <div className="ds-dialog-header-action">{headerAction}</div>}
           {onClose && (
             <IconButton icon="x" label="Close" size="sm" style={closeSize} onClick={onClose} />
           )}

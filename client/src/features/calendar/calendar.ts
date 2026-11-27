@@ -3,6 +3,7 @@
 // (2026-11-09), compared as text and stepped in UTC, so a clock change never
 // moves one. Called by screens/Calendar.tsx and its components.
 import type { Assessment, AssessmentStatus } from '../assessments/api'
+import type { Stage } from '../marshbot/types'
 
 const DAY = 86_400_000
 export const MONTHS =
@@ -67,6 +68,8 @@ export type CalendarItem = {
   // As stored: First survey, Resurvey or Follow-up visit.
   type: string
   status: AssessmentStatus
+  // Where it stands in the work (AS-06); absent from a gateway older than that.
+  stage?: Stage
   // Its survey's first day, and its last when it runs over several; null when not set.
   start: string | null
   end: string | null
@@ -85,6 +88,7 @@ export function toItems(assessments: Assessment[]): CalendarItem[] {
       client: a.client,
       type: a.surveyType,
       status: a.status,
+      stage: a.stage,
       start: a.siteVisitDate,
       // An end on the start day is one day, and one before it is not shown.
       end:
@@ -100,17 +104,23 @@ export function toItems(assessments: Assessment[]): CalendarItem[] {
 /** Returns whether the signed-in person may change the assessment's dates: its assigned engineer. */
 export const canReschedule = (item: CalendarItem, meId: string) => item.engineer?.id === meId
 
-// Late, within 7 days, on track, or done (finalised: nothing left to chase), as
+/** Returns true once the report is delivered: finalised, or exported (AS-06's last stage). Without
+    the stage, an exported report past its due date was listed under Late reports. */
+export const isFinished = (item: Pick<CalendarItem, 'status' | 'stage'>) =>
+  item.status === 'finalised' || item.stage === 'exported'
+
+// Late, within 7 days, on track, or done (finished: nothing left to chase), as
 // the Report due cell counts them (design-system ReportDue.tsx).
 export type DueState = 'late' | 'soon' | 'ok' | 'done'
 const plural = (n: number) => `${n} day${n === 1 ? '' : 's'}`
 /** Returns where a report due date stands and its words ("in 2 days"), or null with no date. */
 export function dueOf(
-  item: Pick<CalendarItem, 'due' | 'status'>,
+  item: Pick<CalendarItem, 'due' | 'status' | 'stage'>,
   today: string,
 ): { state: DueState; note: string } | null {
   if (!item.due) return null
-  if (item.status === 'finalised') return { state: 'done', note: 'finalised' }
+  if (isFinished(item))
+    return { state: 'done', note: item.stage === 'exported' ? 'exported' : 'finalised' }
   const days = daysBetween(today, item.due)
   if (days < 0) return { state: 'late', note: `${plural(-days)} late` }
   if (days === 0) return { state: 'soon', note: 'today' }

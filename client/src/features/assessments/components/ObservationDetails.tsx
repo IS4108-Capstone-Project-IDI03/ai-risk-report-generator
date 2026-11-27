@@ -5,15 +5,13 @@
 // change the observation sees the marks and no actions. Rendered by screens/ObservationPage.tsx.
 // Calls ChoicePickerField, RecordCard, FailedLine.
 import { useEffect, useRef, type ReactNode } from 'react'
-import { FailedLine, Icon } from '../../../design-system'
+import { ChoicePickerField, FailedLine, Icon, type Choice } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import { signal } from '../../walkthrough/signals'
 import { CATEGORY_OPTIONS, SEVERITY_OPTIONS } from '../../site-walk/options'
 import { toggleCategory, UNCATEGORISED_HINT } from '../categories'
 import type { ObservationChange } from '../useAssessmentWorkflow'
 import type { ObservationRowView } from '../useObservationsView'
-import { type Choice } from './ChoiceMenu'
-import { ChoicePickerField } from './ChoicePickerField'
 import { CategoryMark, SeverityMark } from './ObservationMarks'
 import { RecordCard } from './RecordCard'
 

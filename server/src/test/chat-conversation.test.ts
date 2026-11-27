@@ -18,7 +18,9 @@ describe('conversations (CB-03)', () => {
     const long = 'Where must sprinklers be fitted in a warehouse that stores plastics? '.repeat(3)
     const res = await start(alex, long)
     expect(res.status).toBe(201)
-    expect(res.body.title).toBe(long.slice(0, 60).trim())
+    // Cut at a whole word, never mid-word, and marked as cut.
+    expect(res.body.title).toBe('Where must sprinklers be fitted in a warehouse that stores…')
+    expect(res.body.title.length).toBeLessThanOrEqual(60)
     const list = await alex.get('/api/chat/conversations')
     expect(list.body.threads.map((t: { id: string }) => t.id)).toEqual([res.body.id])
   })

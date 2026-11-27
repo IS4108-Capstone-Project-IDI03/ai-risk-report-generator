@@ -41,7 +41,7 @@ export function CapturePhotoPanel({
             onChange={v.addPhotos}
           />
         </div>
-        <span className="cap-hint">{v.photoHint}</span>
+        <span className="cap-hint">{'JPG or PNG, stored exactly as taken.'}</span>
         {!!v.fPhotoError && (
           <div role="alert">
             <Callout tone="warning" title="Not added">

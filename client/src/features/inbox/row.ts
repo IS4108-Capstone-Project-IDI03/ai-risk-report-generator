@@ -89,7 +89,7 @@ export function rowOf(n: Notification): InboxRowModel {
       const detail = failed
         ? c.stage
           ? `Failed during ${c.stage}`
-          : 'Failed to ingest'
+          : "Couldn't be read"
         : (n.details ?? 'Needs review')
       return {
         sender: 'Knowledge base',

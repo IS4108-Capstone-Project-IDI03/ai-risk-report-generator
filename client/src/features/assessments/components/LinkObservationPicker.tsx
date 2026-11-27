@@ -4,15 +4,25 @@ import { useEffect, useState } from 'react'
 import { Dialog, Input } from '../../../design-system'
 import { listObservations, type SavedObservation } from '../api'
 import { locationLabel } from '../locations'
-import { severityLabel } from '../reviewDisplay'
+import { plural, severityLabel } from '../reviewDisplay'
 import '../checklist.css'
 
-// The one line shown for an observation: its note, else its first transcript.
+// The one line shown for an observation, as the Observations list names it: its note, else its
+// first transcript, else its first page's handwriting, else how many photos or pages it holds.
 function snippet(o: SavedObservation) {
   const heard = o.recordings
     .map((r) => r.transcription.correction?.text ?? r.transcription.transcript)
     .find(Boolean)
-  return o.note?.trim() || heard || 'No note'
+  const pages = o.pages ?? []
+  const pageText =
+    (pages[0]?.transcription.correction?.text ?? pages[0]?.transcription.transcript)?.trim() ||
+    (pages.length ? plural(pages.length, 'handwritten page') : '')
+  return (
+    o.note?.trim() ||
+    heard ||
+    pageText ||
+    (o.photos.length ? plural(o.photos.length, 'photograph') : 'No note')
+  )
 }
 const meta = (o: SavedObservation) =>
   [

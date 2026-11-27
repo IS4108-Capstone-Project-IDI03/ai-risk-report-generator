@@ -2,7 +2,7 @@
 // (one `name = Component(...)` per line); OpenUI renders it as it streams.
 // Registered on the chat screen (screens/KnowledgeAssistant.tsx); the rag-service builds
 // its answer prompt from the same names, so they must match microservices/rag-service/app/chat/.
-import { createLibrary, defineComponent } from '@openuidev/react-lang'
+import { createLibrary, defineComponent } from 'openui-lang-v1'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@openuidev/react-ui'
 import { z } from 'zod'
 import { createContext, useContext } from 'react'
@@ -91,7 +91,8 @@ const CitedTable = defineComponent({
   description: 'A comparison table. Every cell is a Cell with its own citations.',
   props: z.object({ headers: z.array(z.string()), rows: z.array(z.array(Cell.ref)) }),
   component: ({ props, renderNode }) => (
-    // Its container scrolls sideways on a phone instead of widening the conversation.
+    // Above 600 px a table; on a phone each row stacks as a record, every cell under its
+    // column's name (data-label, chat.css), so nothing scrolls sideways.
     <Table className="chat-table" containerClassName="chat-table-wrap">
       <TableHeader>
         <TableRow>
@@ -104,7 +105,9 @@ const CitedTable = defineComponent({
         {props.rows.map((row, r) => (
           <TableRow key={r}>
             {row.map((cell, c) => (
-              <TableCell key={c}>{renderNode(cell)}</TableCell>
+              <TableCell key={c} data-label={props.headers[c]}>
+                {renderNode(cell)}
+              </TableCell>
             ))}
           </TableRow>
         ))}

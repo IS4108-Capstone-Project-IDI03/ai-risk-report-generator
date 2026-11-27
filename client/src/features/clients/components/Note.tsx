@@ -4,7 +4,7 @@ import { Icon } from '../../../design-system'
 
 export function Note({ children }: { children: string }) {
   return (
-    <p className="cl-note">
+    <p className="cl-hint">
       <Icon name="info" size={16} color="var(--text-muted)" />
       <span>{children}</span>
     </p>

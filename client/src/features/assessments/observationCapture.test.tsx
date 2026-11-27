@@ -3,10 +3,20 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { created } from '../new-assessment/testKit'
 import { openProposalCapture } from '../site-walk/proposalCapture'
 import type { SavedObservation, SavedRecording } from './api'
 
 const REF = 'RPT-2026-0411'
+// The engineer's work list: the assessment these tests open, and another to switch to.
+const WORK_LIST = [
+  {
+    ...created(REF, 'Tilbury Distribution Centre'),
+    client: 'Northgate Logistics',
+    status: 'capturing',
+  },
+  created('RPT-2026-0398', 'Leeds Cold Store'),
+]
 const CAPTURE_URL = `/api/assessments/${REF}/capture-session`
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
@@ -68,8 +78,7 @@ const json = (status: number, body: unknown) =>
     }),
   )
 
-// A small stand-in for the gateway, answering by route. The dashboard list is
-// unreachable, so the app falls back to its sample rows. A save echoes what
+// A small stand-in for the gateway, answering by route. A save echoes what
 // was sent, as the gateway does.
 type Sent = {
   details: Record<string, unknown>
@@ -95,6 +104,7 @@ let releaseDraftPost: (() => void) | null = null
 let holdDraftPost = false
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+    if (url === '/api/assessments') return json(200, WORK_LIST)
     if (url === CAPTURE_URL) return json(201, CAPTURE)
     if (url === DRAFT_URL && init.method === 'POST') {
       const form = init.body as FormData
@@ -238,7 +248,9 @@ async function openApp() {
 async function openCapture() {
   await openApp()
   // Open the assessment from the work list; Add manually is on its Observations tab.
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   addManually()
   await screen.findByRole('img', { name: 'live' })
   fireEvent.click(
@@ -380,27 +392,21 @@ describe('Capturing site photographs (CP-04)', () => {
 })
 
 describe('Reading an observation only when asked (CP-05, CP-21)', () => {
-  it('keeps demo photos unread, with no button to read them', async () => {
-    // No gateway: capture and the Observations tab stay in the demo.
-    const sent: string[] = []
+  it('keeps a saved photo unread, with no button to read it', async () => {
+    // Only the writes to the assessment: the photo goes to the observations endpoint and nowhere else.
+    const writes: string[] = []
+    const gateway = globalThis.fetch
     vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
-      if (init.method && init.method !== 'GET') sent.push(url)
-      return Promise.reject(new TypeError('Failed to fetch'))
+      if (init.method && init.method !== 'GET' && url.startsWith('/api/assessments'))
+        writes.push(url)
+      return gateway(url, init)
     })
-    await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    addManually()
-    await screen.findByText('Showing sample data')
-    // The sample site has several buildings; each opens to list its locations (CP-16).
-    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
-    fireEvent.click(
-      screen.getByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
-    )
+    await openCapture()
     mode('Photo')
     addPhotos(photo('IMG_0470.jpg'))
     grade('Low')
     save()
-    expect(await screen.findByText(/saved in this demo only/)).toBeInTheDocument()
+    expect(await screen.findByText('Observation saved')).toBeInTheDocument()
 
     // The toast's View button opens the saved observation.
     click('View')
@@ -408,9 +414,86 @@ describe('Reading an observation only when asked (CP-05, CP-21)', () => {
     expect(screen.queryByRole('region', { name: 'AI suggestions' })).not.toBeInTheDocument()
     for (const name of ['Get AI proposal', 'Describe photos'])
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument()
-    // Only the attempt to start a capture session; the photos went nowhere.
-    expect(sent).toEqual([CAPTURE_URL])
+    expect(writes).toEqual([CAPTURE_URL, OBS_URL])
   }, 10000)
+})
+
+describe('When the capture session cannot start', () => {
+  // Answers the capture session as given until the test lets it through, and counts the asks.
+  let sessions = 0
+  let sessionReply: () => Promise<Response>
+  beforeEach(() => {
+    sessions = 0
+    const gateway = globalThis.fetch
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+      if (url !== CAPTURE_URL) return gateway(url, init)
+      sessions++
+      return sessionReply()
+    })
+  })
+  // Opens New Observation on a failed session, with a note and a grade ready. Locations are not
+  // listed until a session runs, so none can be chosen yet.
+  async function openFailed(line: string) {
+    allowMicrophone()
+    await openApp()
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
+    addManually()
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent('Can’t save right now')
+    expect(notice).toHaveTextContent(line)
+    write('Exit sign E4 unlit.')
+    grade('Low')
+  }
+  // Nothing can be saved or recorded, and nothing went to the observations endpoint.
+  function expectBlocked() {
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeDisabled()
+    mode('Voice')
+    expect(screen.getByRole('button', { name: 'Start recording' })).toBeDisabled()
+    mode('Note')
+    click('Save observation')
+    expect(saves).toHaveLength(0)
+    expect(draftPosts).toHaveLength(0)
+  }
+
+  it.each([
+    [
+      'answers 500',
+      () => json(500, { error: 'Boom' }),
+      'The server had a problem. Try again in a moment.',
+    ],
+    [
+      'cannot be reached',
+      () => Promise.reject(new TypeError('Failed to fetch')),
+      'Can’t reach the server. Check your connection, then try again.',
+    ],
+  ])(
+    'says so, blocks Save and recording, and Try again recovers (the session %s)',
+    async (_, reply, line) => {
+      sessionReply = reply
+      await openFailed(line)
+      expectBlocked()
+      expect(sessions).toBe(1)
+
+      // The next ask goes through: the notice goes and Save works.
+      sessionReply = () => json(201, CAPTURE)
+      click('Try again')
+
+      await vi.waitFor(() =>
+        expect(screen.queryByText('Can’t save right now')).not.toBeInTheDocument(),
+      )
+      expect(sessions).toBe(2)
+      expect(screen.getByRole('button', { name: 'Save observation' })).toBeEnabled()
+      // Locations are listed now that a session runs.
+      fireEvent.click(
+        await screen.findByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
+      )
+      save()
+      expect(await screen.findByText('Observation saved')).toBeInTheDocument()
+      expect(saves).toHaveLength(1)
+    },
+  )
 })
 
 describe('Capturing an observation (CP-02, CP-03)', () => {
@@ -585,7 +668,9 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
 
   it('does not save without a location: Location turns red, and a second Save shakes it (AC4)', async () => {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
     await screen.findByRole('img', { name: 'live' })
     write('Exit sign E4 unlit.')
@@ -613,7 +698,7 @@ describe('Capturing an observation (CP-02, CP-03)', () => {
     save()
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Observation not saved' + 'The gateway could not be reached.',
+      'Observation not saved' + 'Can’t reach the server.',
     )
     expect(rows()).toHaveLength(1)
     expect(screen.getByRole('radio', { name: 'High' })).toBeChecked()
@@ -748,20 +833,28 @@ describe('Leaving capture', () => {
   })
 
   it('returns to where the engineer saved, marking what was saved New (CP-16)', async () => {
-    // No gateway: the observations stay in the demo, beside its samples.
-    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
-    await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    addManually()
-    await screen.findByText('Showing sample data')
-    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
-    fireEvent.click(
-      screen.getByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
-    )
+    // One observation was there before; each save adds a newer one to the list.
+    const before = observation({ id: 'o0', note: 'Pump room door propped open.' })
+    listed = [before]
+    saveReply = (sent) => {
+      const n = saves.length
+      listed = [
+        observation({
+          id: 'o' + n,
+          note: sent.details.note as string,
+          recordedAt: `2026-09-29T09:0${n}:00.000Z`,
+        }),
+        ...listed,
+      ]
+      return json(201, listed[0])
+    }
+    await openCapture()
     for (const note of ['Exit sign E4 unlit.', 'Hose reel H2 blocked.']) {
       write(note)
       grade('Low')
       save()
+      await vi.waitFor(() => expect(saves).toHaveLength(note.startsWith('Exit') ? 1 : 2))
+      await vi.waitFor(() => expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(''))
     }
 
     leave()
@@ -769,9 +862,12 @@ describe('Leaving capture', () => {
     // Newest first, so it lands on the newest one saved.
     const newest = await screen.findByRole('button', { name: /Hose reel H2 blocked/ })
     await vi.waitFor(() => expect(newest).toHaveFocus())
-    // The row's hidden text starts "New. " for what was just saved; the samples were there before.
+    // The row's hidden text starts "New. " for what was just saved; the earlier one was there before.
     for (const note of [/Exit sign E4 unlit/, /Hose reel H2 blocked/])
       expect(screen.getByRole('button', { name: note })).toHaveAccessibleName(/^New\./)
+    expect(screen.getByRole('button', { name: /Pump room door/ })).not.toHaveAccessibleName(
+      /^New\./,
+    )
     expect(screen.getAllByRole('button', { name: /^New\./ })).toHaveLength(2)
   })
 
@@ -803,7 +899,9 @@ describe('Leaving capture', () => {
 
     // Left by the navigation rather than the back button.
     fireEvent.click(screen.getByRole('button', { name: /^Assessments/ }))
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
 
     expect(await screen.findByRole('radio', { name: 'Voice, 1' })).toBeInTheDocument()
@@ -929,8 +1027,8 @@ describe('Recordings are transcribed before Save (CP-24 AC1-3)', () => {
 })
 
 describe('Capture layout', () => {
-  // The details panel: the location, tags and (on a wide screen) Save.
-  const tagsCard = () => screen.getByRole('region', { name: 'Details' }).parentElement!
+  // The one form card: the location, what was seen, categories, severity, tags and (wide) Save.
+  const tagsCard = () => screen.getByRole('region', { name: 'Details' })
   async function atWidth(width: number, test: () => Promise<void>) {
     const previous = window.innerWidth
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: width })
@@ -941,17 +1039,16 @@ describe('Capture layout', () => {
     }
   }
 
-  it('puts the tags and Save in a panel beside the form on a wide screen', () =>
+  it('puts what was seen, the tags and Save in one form card on a wide screen', () =>
     atWidth(1280, async () => {
       await openCapture()
 
       const panel = tagsCard()
       expect(within(panel).getByRole('button', { name: 'Save observation' })).toBeInTheDocument()
       expect(within(panel).getByRole('radiogroup', { name: 'Severity' })).toBeInTheDocument()
-      expect(within(panel).queryByRole('textbox', { name: 'Note' })).not.toBeInTheDocument()
-      // The media panel sits beside it, and the back button is above both.
+      // What was seen is a group inside the same card, and the back button is above it.
       expect(
-        within(screen.getByRole('region', { name: 'What you saw' })).getByRole('textbox', {
+        within(within(panel).getByRole('region', { name: 'What you saw' })).getByRole('textbox', {
           name: 'Note',
         }),
       ).toBeInTheDocument()
@@ -960,11 +1057,19 @@ describe('Capture layout', () => {
     }))
 
   it('only picks a location in capture: no edit or remove, and Add a location is last', async () => {
-    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('Failed to fetch')))
+    // Two buildings, each opening to list its locations (CP-16).
+    const gateway = globalThis.fetch
+    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) =>
+      url === LOCATIONS_URL
+        ? json(200, [BAY_3, { id: 'l2', building: 'Office', name: 'Reception', floor: 'Ground' }])
+        : gateway(url, init),
+    )
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     addManually()
-    await screen.findByText('Showing sample data')
+    await screen.findByRole('img', { name: 'live' })
     fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
 
     const locations = screen.getByRole('group', { name: 'Locations' })
@@ -993,7 +1098,9 @@ describe('Capture layout', () => {
   it('leaves a phone screen to the form, with the top bar as the way back', () =>
     atWidth(390, async () => {
       await openApp()
-      fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+      fireEvent.click(
+        (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+      )
       addManually()
 
       // The location picker is a bottom sheet here, which can be closed.
@@ -1069,7 +1176,9 @@ describe('Tagging on the capture screen (CP-06 AC3)', () => {
 describe('Observations tab (CP-03)', () => {
   async function openObservations() {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   }
 
@@ -1082,7 +1191,11 @@ describe('Observations tab (CP-03)', () => {
     await openObservations()
 
     fireEvent.click(await screen.findByRole('button', { name: /Transcription failed/ }))
-    expect(screen.getByText('Whisper timed out.')).toBeInTheDocument()
+    // Once for screen readers, once written out for a phone (no hover tooltip there).
+    expect(screen.getAllByText('Whisper timed out.')).toHaveLength(2)
+    expect(
+      screen.getByText('Whisper timed out.', { selector: '.sw-status-reason' }),
+    ).toBeInTheDocument()
     click('Try transcribing again')
 
     await vi.waitFor(() =>
@@ -1178,7 +1291,9 @@ describe('Adding to a site walk proposal', () => {
 
   it('opens on the proposal’s locations and adds the observation to the proposal', async () => {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
     act(() =>
       openProposalCapture({
@@ -1224,7 +1339,9 @@ describe('Adding to a site walk proposal', () => {
 
   it('leads Back from Add manually to the site walk review it was opened from', async () => {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
     act(() =>
       openProposalCapture({

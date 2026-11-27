@@ -1,15 +1,6 @@
 /* Assigning assessments (RV-11): the avatar, the Assigned engineer picker and the Reassign
    dialog. Used by components/PersonAvatar, components/EngineerPicker and the Assessments
    list's Engineer column. Tokens only (design-system-v2). */
-.person-avatar {
-  display: inline-grid;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--ink-100);
-  color: var(--marsh-navy);
-  font: 700 11px/1 var(--font-sans);
-}
 
 /* The picker: label, a 40 px field-looking button, then one line under it. */
 .ap-picker {
@@ -110,10 +101,6 @@
 .ap-anchor .ob-menu-trail,
 .ap-sheet .ob-menu-trail {
   flex: none;
-}
-/* Rows show the avatar at 28 px with the name and its role word at the right edge. */
-.ob-menu-item .person-avatar {
-  margin-right: 0;
 }
 @media (max-width: 767px) {
   .ap-trigger {

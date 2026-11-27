@@ -1,0 +1,13 @@
+/* The Edit Assessment Details dialog (AS-06 round 9): one column of fields, the three dates in a
+   grid that stacks once a column would be under 190 px (a dialog narrower than about 444 px). */
+.ed-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.ed-dates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 16px;
+  align-items: start;
+}

@@ -1,8 +1,9 @@
-// Steps a calendar month or year back and forward (EV-04): ‹ October 2026 ›.
+// Steps a calendar month or year back and forward (EV-04): ‹ October 2026 ›, the shared
+// PeriodStepper with a way back to now.
 // Forward stops at the current period, and "This month" (or "This year")
 // returns to it from an earlier one. The period shown is a live region, so a
 // screen reader hears it change. Used by screens/ChatUsageDetail.tsx.
-import { Button, IconButton } from '../../../design-system'
+import { Button, PeriodStepper as Stepper } from '../../../design-system'
 
 export function PeriodStepper({
   unit,
@@ -23,16 +24,12 @@ export function PeriodStepper({
 }) {
   return (
     <div className="uc-stepper">
-      <IconButton icon="chevron-left" label={`Previous ${unit}`} size="sm" onClick={onPrevious} />
-      <span className="uc-stepper-label" role="status" aria-label="Period shown">
-        {label}
-      </span>
-      <IconButton
-        icon="chevron-right"
-        label={`Next ${unit}`}
-        size="sm"
-        disabled={isCurrent}
-        onClick={onNext}
+      <Stepper
+        label={label}
+        unit={unit}
+        onPrevious={onPrevious}
+        onNext={onNext}
+        atLatest={isCurrent}
       />
       {!isCurrent && (
         <Button variant="ghost" size="sm" onClick={onCurrent}>

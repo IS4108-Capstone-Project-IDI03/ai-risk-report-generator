@@ -1,9 +1,9 @@
 // Test for the menu's flip inside a card (CP-24): a menu wider than the card it opens in is
-// right-aligned to its trigger. Covers components/ChoiceMenu.tsx.
+// right-aligned to its trigger. Covers design-system/components/forms/ChoiceMenu.tsx.
 import '@testing-library/jest-dom/vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ChoiceMenu } from './components/ChoiceMenu'
+import { ChoiceMenu } from '../../design-system'
 
 afterEach(() => vi.restoreAllMocks())
 

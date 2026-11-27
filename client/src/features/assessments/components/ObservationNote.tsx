@@ -6,6 +6,7 @@
 import { useId, useRef, useState } from 'react'
 import { Textarea } from '../../../design-system'
 import { DictateButton } from '../dictation/DictateButton'
+import { RecordCard } from './RecordCard'
 import type { ObservationChange } from '../useAssessmentWorkflow'
 import '../observation-page.css'
 
@@ -42,17 +43,19 @@ export function ObservationNote({
     if (live) void save({ note: value })
   }
   return (
-    <section className="cpp-card" aria-label="Note">
-      <div className="cpp-card-head">
-        <h3 className="cpp-card-title">{'Note'}</h3>
-        {canChange && reference && (
+    <RecordCard
+      title="Note"
+      actions={
+        canChange &&
+        reference && (
           <DictateButton
             reference={reference}
             field={() => document.getElementById(id) as HTMLTextAreaElement | null}
             onChange={edit}
           />
-        )}
-      </div>
+        )
+      }
+    >
       {canChange ? (
         <Textarea
           id={id}
@@ -83,6 +86,6 @@ export function ObservationNote({
           {text || 'No note.'}
         </p>
       )}
-    </section>
+    </RecordCard>
   )
 }

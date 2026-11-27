@@ -1,13 +1,14 @@
 // Failed line with a pill (CP-24, v2 NEW pattern): the short red error with its alert icon and a
 // labelled "Try again" pill, on one line. Fades in and slides down 3 px (the v2 failed-file
 // motion). 44 px tall on touch screens (cp24.css). Called by the observation page under its
-// fields. Calls Icon, Button.
+// fields and the activity popover's failed rows. Calls Icon, Button.
+import type { ReactNode } from 'react'
 import { Button } from '../core/Button'
 import { Icon } from '../core/Icon'
 
 export type FailedLineProps = {
-  // The short error, e.g. "Suggestion failed".
-  message: string
+  // The short error, e.g. "Suggestion failed" (a node when a caller marks or cuts it).
+  message: ReactNode
   actionLabel?: string
   // Without it (a view-only user) the line only says what failed.
   onAction?: () => void

@@ -19,7 +19,7 @@ export function useDialogSave() {
       else
         setProblem(
           error instanceof GatewayError && error.status === null
-            ? 'The gateway could not be reached. Nothing was saved; try again.'
+            ? "Can't reach the server. Nothing was saved, so try again."
             : error instanceof Error
               ? error.message
               : 'Nothing was saved. Try again.',

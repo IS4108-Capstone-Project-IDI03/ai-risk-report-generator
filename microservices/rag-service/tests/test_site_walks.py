@@ -274,15 +274,38 @@ def test_a_photo_goes_to_one_of_the_three_observations_spoken_nearest_it(monkeyp
     assert attached == {"Finding 3.": ["p1"]}  # obs_0 = the nearest, spoken at that time
 
 
-def test_a_typed_walk_has_no_times_and_matches_no_photos_by_time(monkeypatch, fake_jev):
+def test_a_typed_walk_has_no_times_so_its_photo_goes_by_description(monkeypatch, fake_jev):
+    # Without a time the photo used to reach no observation, and Create all dropped it.
     typed = {"kind": "typed", "text": "Block A store: racking unanchored."}
     reading = [obs("Racking unanchored.", place("Block A", None, "Store"), seq=1)]
     photos = [{"id": "p1", "recording_seq": None, "offset_sec": None, "description": "Racking"}]
     body, prompts = propose(monkeypatch, reading, transcript=typed, photos=photos)
 
     [o] = body.json()["observations"]
-    assert (o["recording_seq"], o["start"], o["end"], o["photo_ids"]) == (None, None, None, [])
+    assert (o["recording_seq"], o["start"], o["end"], o["photo_ids"]) == (None, None, None, ["p1"])
     assert "Typed walk:\nBlock A store" in prompts[0]
+    assert not fake_jev.questions("photo")  # one observation: attached without asking
+
+
+def test_a_photo_with_no_time_is_chosen_among_every_observation(monkeypatch, fake_jev):
+    # A photo added before the first recording, or whose recording was removed.
+    fake_jev.picks["photo"] = lambda c: ("obs_3", 0.9)
+    reading = [obs(f"Finding {i}.", start=i * 10.0, end=i * 10.0 + 5) for i in range(4)]
+    photos = [{"id": "p1", "recording_seq": None, "offset_sec": None, "description": "A valve."}]
+    body = propose(monkeypatch, reading, photos=photos)[0].json()
+
+    [question] = fake_jev.questions("photo")
+    assert len(question["criteria"]) == 4
+    attached = {o["note"]: o["photo_ids"] for o in body["observations"] if o["photo_ids"]}
+    assert attached == {"Finding 3.": ["p1"]}
+
+
+def test_a_photo_with_no_time_or_description_is_left_out(monkeypatch, fake_jev):
+    reading = [obs("Finding 1."), obs("Finding 2.", start=10.0, end=15.0)]
+    photos = [{"id": "p1", "recording_seq": None, "offset_sec": None, "description": None}]
+    body = propose(monkeypatch, reading, photos=photos)[0].json()
+
+    assert all(o["photo_ids"] == [] for o in body["observations"])
     assert not fake_jev.questions("photo")
 
 

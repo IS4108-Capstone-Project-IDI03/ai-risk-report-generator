@@ -1,6 +1,6 @@
 // Google Maps for the site map (CP-26): reading coordinates, building a
-// directions link, and loading Google's script. Used by SiteMapView, SiteMapCard
-// and the New Assessment form. Calls GET /api/sites/map-config (site.routes.ts).
+// directions link, and loading Google's script. Used by SiteMapView, the Details
+// panel's map and the New Assessment form. Calls GET /api/sites/map-config (site.routes.ts).
 import { request } from './api'
 
 export type Coordinates = { lat: number; lng: number }

@@ -13,6 +13,8 @@ export function FilterMenu({
   value,
   onChange,
   anyLabel,
+  disabled,
+  title,
 }: {
   // The pill's text when nothing is chosen, e.g. "Status".
   name: string
@@ -23,6 +25,9 @@ export function FilterMenu({
   onChange: (value: string) => void
   // The first row's words when "Any <name>" would not read well (the calendar, CP-60).
   anyLabel?: string
+  // Greyed out until it can be used (the passages' Section, until a chapter is chosen); `title` says why.
+  disabled?: boolean
+  title?: string
 }) {
   const [open, setOpen] = useState(false)
   const chosen = choices.find((c) => c.value === value)
@@ -45,7 +50,9 @@ export function FilterMenu({
           label={chosen ? chosen.label : name}
           aria-label={chosen ? `${name}: ${chosen.label}` : name}
           aria-haspopup="listbox"
-          data-active={chosen ? '' : undefined}
+          active={!!chosen}
+          disabled={disabled}
+          title={title}
           onClick={() => setOpen(!open)}
         />
       }

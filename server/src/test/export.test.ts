@@ -285,6 +285,20 @@ describe('the export check: only a complete report goes (AC1)', () => {
     })
   })
 
+  it('sends a section drafted with nothing written to the document editor, not Generation', async () => {
+    const a = await assessment()
+    await draft(a._id, { statements: [] })
+    const blockers = (await api.get(url)).body.blockers
+    expect(blockers).toContainEqual({
+      sectionId: '7',
+      title: '7. Construction',
+      where: 'review',
+      reason:
+        'It was drafted, but no observation covers any of its subsections. Write it in the document editor, or add observations that cover it and draft it again.',
+    })
+    expect(blockers.filter((b: { sectionId: string }) => b.sectionId === '7')).toHaveLength(1)
+  })
+
   it('reminds of comment threads still open, without blocking the export (RV-03 AC9)', async () => {
     const a = await completeReport()
     const thread = (status: 'open' | 'resolved') => ({

@@ -4,11 +4,17 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import App from '../../App'
 import { signIn } from '../../test/session'
 import type { SavedObservation, SavedPage } from './api'
+import { created } from '../new-assessment/testKit'
 
 // Scanning handwritten notes (CP-19): Scan mode on the capture screen, and
 // each page with its transcript on the Observations tab.
 
 const REF = 'RPT-2026-0411'
+const ASSESSMENT = {
+  ...created(REF, 'Tilbury Distribution Centre'),
+  client: 'Northgate Logistics',
+  status: 'capturing',
+}
 const CAPTURE_URL = `/api/assessments/${REF}/capture-session`
 const OBS_URL = `/api/assessments/${REF}/observations`
 const LOCATIONS_URL = `/api/assessments/${REF}/locations`
@@ -81,6 +87,7 @@ const retries: string[] = []
 const againRequests: string[] = []
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
+    if (url === '/api/assessments') return json(200, [ASSESSMENT])
     if (url === CAPTURE_URL) return json(201, CAPTURE)
     if (url === OBS_URL && init.method === 'POST') {
       const form = init.body as FormData
@@ -215,7 +222,9 @@ async function openApp() {
 }
 async function openCapture() {
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   addManually()
   await screen.findByRole('img', { name: 'live' })
   fireEvent.click(
@@ -224,7 +233,9 @@ async function openCapture() {
 }
 async function openObservations() {
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
 }
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
@@ -361,43 +372,6 @@ describe('Scanning handwritten pages on the capture screen (CP-19)', () => {
 
     expect(await screen.findByRole('button', { name: /Transcription failed/ })).toBeInTheDocument()
   })
-
-  it('keeps pages in this browser without a capture session, and says they are not transcribed', async () => {
-    const sent: string[] = []
-    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
-      if (init.method && init.method !== 'GET') sent.push(url)
-      return Promise.reject(new TypeError('Failed to fetch'))
-    })
-    await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    addManually()
-    await screen.findByText('Showing sample data')
-    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
-    fireEvent.click(
-      screen.getByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
-    )
-    scanMode()
-    expect(
-      screen.getByText(
-        'No capture session, so pages stay in this browser and are not transcribed.',
-      ),
-    ).toBeInTheDocument()
-    choosePages(photo())
-    grade('Low')
-    save()
-    expect(await screen.findByText(/saved in this demo only/)).toBeInTheDocument()
-
-    // The toast's View button opens the saved observation.
-    click('View')
-    const entry = unfold(pageRow('IMG_0710.jpg'))
-    expect(
-      within(entry).getByText(
-        'No capture session, so this page stays in this browser and is not transcribed.',
-      ),
-    ).toBeInTheDocument()
-    // Only the attempt to start a capture session; the page went nowhere.
-    expect(sent).toEqual([CAPTURE_URL])
-  }, 10000)
 })
 
 describe('Handwritten pages on the Observations tab (CP-19)', () => {
@@ -468,9 +442,10 @@ describe('Handwritten pages on the Observations tab (CP-19)', () => {
     await openObservations()
 
     fireEvent.click(await screen.findByRole('button', { name: /Transcription failed/ }))
+    // Once for screen readers, once written out for a phone (no hover tooltip there).
     expect(
-      screen.getByText('The handwriting service could not transcribe the page.'),
-    ).toBeInTheDocument()
+      screen.getAllByText('The handwriting service could not transcribe the page.'),
+    ).toHaveLength(2)
     click('Try transcribing Page 1 again')
 
     await vi.waitFor(() =>
@@ -683,60 +658,6 @@ describe('Managing saved pages (CP-20)', () => {
     expect(within(added).getByText('Transcribing')).toBeInTheDocument()
     expect(within(added).getByText(/^Added by Alex Rowe · /)).toBeInTheDocument()
   })
-
-  it('writes, adds, removes and restores pages of an observation in this demo only', async () => {
-    const sent: string[] = []
-    vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
-      if (init.method && init.method !== 'GET') sent.push(url)
-      return Promise.reject(new TypeError('Failed to fetch'))
-    })
-    await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-    addManually()
-    await screen.findByText('Showing sample data')
-    fireEvent.click(await screen.findByRole('button', { name: /^Warehouse/, expanded: false }))
-    fireEvent.click(
-      screen.getByRole('button', { name: /^Warehouse › Ground › Bay 3 — north aisle/ }),
-    )
-    scanMode()
-    choosePages(photo())
-    grade('Low')
-    save()
-    await screen.findByText(/saved in this demo only/)
-    click('View')
-
-    // A demo page is never transcribed, so its text can be written by hand.
-    click('Edit text of IMG_0710.jpg')
-    const write = await screen.findByRole('dialog', { name: 'Edit page text' })
-    fireEvent.change(within(write).getByLabelText('Page text'), {
-      target: { value: 'Hydrant H2 blocked' },
-    })
-    fireEvent.click(within(write).getByRole('button', { name: 'Save' }))
-    expect(await screen.findByText('Page text saved in this demo only.')).toBeInTheDocument()
-    expect(pageRow('IMG_0710.jpg')).toHaveTextContent('Hydrant H2 blocked')
-
-    fireEvent.click(screen.getAllByRole('button', { name: 'Add media' })[0])
-    const dialog = await screen.findByRole('dialog', { name: 'Add to observation' })
-    fireEvent.change(within(dialog).getByLabelText('Choose pages'), {
-      target: { files: [photo('IMG_0811.jpg')] },
-    })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to observation' }))
-    expect(await screen.findByText('Added 1 page in this demo only.')).toBeInTheDocument()
-
-    // With a second page, the first can go, and comes back with its text.
-    click('Remove IMG_0710.jpg')
-    const confirm = await screen.findByRole('dialog', { name: 'Remove this page?' })
-    fireEvent.click(within(confirm).getByRole('button', { name: 'Remove page' }))
-    expect(
-      await screen.findByText('Page removed in this demo only. Restore it under Removed media.'),
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Removed media (1)'))
-    click('Restore IMG_0710.jpg')
-    expect(await screen.findByText('Page restored in this demo only.')).toBeInTheDocument()
-    expect(pageRow('IMG_0710.jpg')).toHaveTextContent('Hydrant H2 blocked')
-    // Only the attempt to start a capture session; nothing went anywhere.
-    expect(sent).toEqual([CAPTURE_URL])
-  }, 15000)
 })
 
 describe('The Scans view (CP-19)', () => {
@@ -830,7 +751,8 @@ describe('The Scans view (CP-19)', () => {
     const row = (name: string) =>
       within(view)
         .getAllByRole('listitem')
-        .find((li) => within(li).queryByText(name, { selector: '.ob-pt-name' }))!
+        // By the thumbnail's screen-reader name: the row no longer shows the page's name (redesign round 2).
+        .find((li) => li.querySelector(`.ob-pt-thumb[aria-label="Open ${name}"]`))!
     expect(screen.getByText('5 pages')).toBeInTheDocument()
 
     // Still transcribing, or failed with Retry: no text to open yet.
@@ -913,7 +835,7 @@ describe('Searching the Scans view (CP-13)', () => {
     expect(screen.getByText('No pages match “hydrnt”')).toBeInTheDocument()
     search('seized')
     const [corrected] = within(view).getAllByRole('listitem')
-    expect(corrected).toHaveTextContent('Page 4')
+    expect(corrected.querySelector('.ob-pt-thumb')).toHaveAttribute('aria-label', 'Open Page 4')
     expect(corrected.querySelector('mark.ob-hit')).toHaveTextContent('seized')
 
     // One still transcribing is found by its observation's text.
@@ -949,7 +871,12 @@ describe('Filtering the Scans view (CP-13)', () => {
     const names = () =>
       within(view)
         .getAllByRole('listitem')
-        .map((li) => li.querySelector('.ob-pt-name')!.textContent)
+        .map((li) =>
+          li
+            .querySelector('.ob-pt-thumb')!
+            .getAttribute('aria-label')!
+            .replace(/^Open /, ''),
+        )
     const status = (option: string) => {
       fireEvent.click(screen.getByRole('button', { name: /^Status(:|$)/ }))
       fireEvent.click(

@@ -1,8 +1,7 @@
 // The "already handled" dialog (F-10 round 3, boards 23): shown when a To do row's thing was
 // already dealt with. One way out, Move to Done, so there is no X and Esc does nothing.
-// Called by screens/Inbox.tsx. Calls the design system's Dialog, Button and Icon, PersonAvatar.
-import { Button, Dialog, Icon } from '../../../design-system'
-import { PersonAvatar } from '../../assignment/components/PersonAvatar'
+// Called by screens/Inbox.tsx. Calls the design system's Dialog, Button and Icon and Avatar.
+import { Avatar, Button, Dialog, Icon } from '../../../design-system'
 import { formatBellWhen } from '../../notifications/formatWhen'
 import type { Handled } from '../alreadyHandled'
 
@@ -20,14 +19,14 @@ export function AlreadyHandledDialog({
   const { by, at } = handled
   return (
     <Dialog
-      className="ds-dialog--v2 inbox-handled"
+      className="inbox-handled"
       width={380}
       title={handled.title}
       description={
         // No name known (a delete, or an older action): no line at all.
         by && (
           <>
-            <PersonAvatar name={by.name} size={24} />
+            <Avatar name={by.name} size={24} />
             <span className="inbox-handled__name">{by.id === meId ? 'You' : by.name}</span>
             {/* A space so a screen reader doesn't run the name into the time. */}{' '}
             {at && (

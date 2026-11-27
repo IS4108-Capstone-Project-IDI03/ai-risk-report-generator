@@ -1,0 +1,39 @@
+/* Avatar (Avatar.tsx): initials. A person: round, --ink-100 with --marsh-navy initials (the
+   sidebar's one light blue). A client: a rounded tile (radius 9, or 10 from 40 px) in one of five
+   colours with white initials. Size and font size are set inline by the component. */
+.ds-avatar {
+  display: inline-grid;
+  flex: 0 0 auto;
+  place-items: center;
+  box-sizing: border-box;
+  border-radius: var(--radius-pill);
+  background: var(--ink-100);
+  color: var(--marsh-navy);
+  font-family: var(--font-sans);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+.ds-avatar[data-kind='client'] {
+  border-radius: var(--radius-tile);
+  color: var(--text-inverse);
+}
+.ds-avatar[data-kind='client'][data-big] {
+  border-radius: var(--radius-field);
+}
+.ds-avatar[data-tone='0'] {
+  background: var(--report-navy);
+}
+.ds-avatar[data-tone='1'] {
+  background: var(--violet-600);
+}
+.ds-avatar[data-tone='2'] {
+  background: var(--teal-600);
+}
+.ds-avatar[data-tone='3'] {
+  background: var(--green-600);
+}
+.ds-avatar[data-tone='4'] {
+  background: var(--amber-600);
+}

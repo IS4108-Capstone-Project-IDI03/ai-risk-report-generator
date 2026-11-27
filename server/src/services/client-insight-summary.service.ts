@@ -145,7 +145,10 @@ function numbered(
     statements: statements
       .map((s) => ({
         text: s.text,
-        citations: [...new Set(s.citations.flatMap((label) => numberOf.get(label) ?? []))],
+        // In ascending order, so a statement never reads "[5] [4]".
+        citations: [...new Set(s.citations.flatMap((label) => numberOf.get(label) ?? []))].sort(
+          (a, b) => a - b,
+        ),
       }))
       // S4 only returns cited statements; one whose labels match nothing here is not shown.
       .filter((s) => s.citations.length),
@@ -186,7 +189,9 @@ export async function writeInsightSummary(
         location: o.location,
         severity: o.severity,
         categories: o.categories,
-        date: o.date,
+        // "21 Nov 2026", as the app writes a day: the model copies the date as given,
+        // and an ISO "2026-11-21" would read as code in the summary.
+        date: dayText(o.date),
         text: o.text,
       })),
       privacy,

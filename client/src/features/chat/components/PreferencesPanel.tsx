@@ -2,10 +2,10 @@
 // with add, edit, delete and a memory on/off switch. A light dialog opened from the chat
 // sidebar (components/ChatSidebar.tsx). Calls ../api.ts, which calls /api/chat/memory.
 import { useEffect, useRef, useState } from 'react'
-import { Button, Callout, Dialog, EmptyState, Switch } from '../../../design-system'
+import { Button, Callout, Dialog, EmptyState, HelpTip, Switch } from '../../../design-system'
 import { addFact, fetchMemory, removeFact, saveFact, setMemoryEnabled, type Memory } from '../api'
 import '../preferences.css'
-import { FactForm } from './FactForm'
+import { FactForm, PRIVACY_NOTE } from './FactForm'
 import { FactRow } from './FactRow'
 
 /** Loads the memory when opened, then shows the switch, the add box and the list of facts. */
@@ -51,6 +51,8 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog
+      // A bottom sheet on a phone, like every other dialog there.
+      className="ds-dialog-sheet"
       title="My preferences"
       description="Lasting facts about your work. MarshBot takes them into account in every chat."
       width={560}
@@ -60,7 +62,11 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
         <Callout
           tone="warning"
           title="Could not load your preferences"
-          actions={<Button onClick={() => setTries((n) => n + 1)}>Try again</Button>}
+          actions={
+            <Button pill variant="primary" onClick={() => setTries((n) => n + 1)}>
+              Try again
+            </Button>
+          }
         >
           Check your connection and try again.
         </Callout>
@@ -69,29 +75,35 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
           <p role="status" className="preferences__sr-only">
             {notice}
           </p>
-          <Switch
-            label="Use my preferences in chats"
-            checked={memory.enabled}
-            onChange={(on) =>
-              attempt(async () => {
-                const saved = await setMemoryEnabled(on)
-                change((m) => ({ ...m, enabled: saved.enabled }))
-              })
-            }
-          />
+          <div className="preferences__switch">
+            <Switch
+              label="Use my preferences in chats"
+              checked={memory.enabled}
+              onChange={(on) =>
+                attempt(async () => {
+                  const saved = await setMemoryEnabled(on)
+                  change((m) => ({ ...m, enabled: saved.enabled }))
+                })
+              }
+            />
+            <HelpTip label="About preferences">
+              <p>
+                Your list is kept when this is off. A fact steers an answer; it is never cited as
+                evidence.
+              </p>
+            </HelpTip>
+          </div>
           {problem && <Callout tone="warning">{problem}</Callout>}
-          <p className="preferences__note">Your list is kept when this is off.</p>
-          <p className="preferences__note">
-            Do not type client names or site details. A fact steers an answer; it is never cited as
-            evidence.
-          </p>
           {facts.length >= maxFacts ? (
-            <Callout tone="info">You have {maxFacts} facts. Delete one to add another.</Callout>
+            <Callout tone="info">
+              You have {maxFacts} facts. Delete one to add another. {PRIVACY_NOTE}
+            </Callout>
           ) : (
             <FactForm
               max={maxChars}
               label="Add a fact"
               submitLabel="Add fact"
+              note={PRIVACY_NOTE}
               onSubmit={async (text) => {
                 const added = await addFact(text)
                 change((m) => ({ ...m, facts: [...m.facts, added] }))
@@ -99,14 +111,19 @@ export function PreferencesPanel({ onClose }: { onClose: () => void }) {
               }}
             />
           )}
-          <h3 className="preferences__count">
-            {facts.length} of {maxFacts} facts
-          </h3>
+          {facts.length > 0 && (
+            <h3 className="preferences__count">
+              {facts.length} of {maxFacts} facts
+            </h3>
+          )}
           {facts.length === 0 ? (
             <EmptyState
               icon="brain"
               title="No facts yet"
               description="For example: I mostly survey Singapore offices."
+              // The dialog's last line: the panel's own 20 px is the gap below it; the empty state's
+              // usual 48 px on top of that left an empty band at the foot.
+              style={{ paddingBottom: 0 }}
             />
           ) : (
             <ul className={memory.enabled ? 'fact-list' : 'fact-list fact-list--off'}>

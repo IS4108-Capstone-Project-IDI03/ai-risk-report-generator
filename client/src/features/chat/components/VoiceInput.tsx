@@ -6,23 +6,15 @@
 import { useThread } from '@openuidev/react-headless'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Icon, IconButton, Switch } from '../../../design-system'
+import { HelpTip, Icon, IconAction, Switch } from '../../../design-system'
 import { useRecorder } from '../../assessments/dictation/useRecorder'
 import { transcribeQuestion } from '../api'
 import { answerSpoken, handsFreeTurn, isStopWord, useVoiceSettings } from '../speech'
-import { COMPOSER_BOX, useComposerHosts } from './useComposerHosts'
+import { fillBox } from './fillBox'
+import { useComposerHosts } from './useComposerHosts'
 
 // With no level meter, a hands-free question is cut off after this long.
 const UNMETERED_MS = 15_000
-
-// Puts text in the chat box the way typing would, so OpenUI's own state sees it.
-function fillBox(text: string) {
-  const box = document.querySelector<HTMLTextAreaElement>(COMPOSER_BOX)
-  if (!box) return
-  Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(box, text)
-  box.dispatchEvent(new Event('input', { bubbles: true }))
-  box.focus()
-}
 
 /** Mic button drawn in the chat box; shows its problem (blocked mic, no speech) under it. */
 export function VoiceInput() {
@@ -39,7 +31,7 @@ export function VoiceInput() {
   }, [settings.handsFree])
   const deliver = useCallback(
     (text: string) => {
-      if (!handsFree.current) return fillBox(text)
+      if (!handsFree.current) return void fillBox(text)
       // Saying "stop" leaves hands-free mode without asking anything.
       if (isStopWord(text)) return change({ handsFree: false })
       handsFreeTurn.waiting = true
@@ -67,7 +59,8 @@ export function VoiceInput() {
       setAfter(null)
       if (settings.handsFree && state === 'idle') void start()
     }
-    const speaking = () => setAfter('speaking')
+    // Only a hands-free answer reopens the mic; a plain "Read answer aloud" must not say it will.
+    const speaking = () => settings.handsFree && setAfter('speaking')
     answerSpoken.addEventListener('done', again)
     answerSpoken.addEventListener('start', speaking)
     return () => {
@@ -83,17 +76,19 @@ export function VoiceInput() {
     <div className="voice-input">
       {live ? (
         <>
-          <IconButton
+          <IconAction
             icon={state === 'paused' ? 'play' : 'pause'}
             label={state === 'paused' ? 'Resume recording' : 'Pause recording'}
+            size="md"
             onClick={togglePause}
           />
-          <IconButton icon="square" label="Stop recording" onClick={recorder.stop} />
+          <IconAction icon="square" label="Stop recording" size="md" onClick={recorder.stop} />
         </>
       ) : (
-        <IconButton
+        <IconAction
           icon="mic"
           label="Ask by voice"
+          size="md"
           data-walk="chat.attach-voice"
           disabled={state === 'working' || state === 'starting'}
           onClick={() => void start()}
@@ -107,7 +102,7 @@ export function VoiceInput() {
       ? 'Waiting for the microphone…'
       : state === 'recording'
         ? metered
-          ? 'Listening… stop talking to send'
+          ? `Listening… stop talking to ${settings.handsFree ? 'send' : 'finish'}`
           : 'Listening… press Stop when you finish'
         : state === 'paused'
           ? 'Paused'
@@ -118,10 +113,9 @@ export function VoiceInput() {
               : after === 'speaking'
                 ? 'Reading the answer. The mic opens again when it ends.'
                 : ''
-  // Hands-free is always one switch away, with a line saying what it does or what it is doing.
-  const hint = settings.handsFree
-    ? 'Tap the mic and ask. Your question is sent, the answer is read aloud, then I listen again. Say “stop” to end.'
-    : 'Off: you check each question before it is sent.'
+  // Hands-free is always one switch away. Its explanation sits behind a (?); once it is on, one
+  // short line says what to do next.
+  const hint = settings.handsFree ? 'Tap the mic and ask. Say “stop” to end.' : ''
   const message = (
     <>
       {note && (
@@ -132,11 +126,19 @@ export function VoiceInput() {
         </p>
       )}
       <div className="voice-input__panel">
-        <Switch
-          label="Hands-free"
-          checked={settings.handsFree}
-          onChange={(on) => change({ handsFree: on })}
-        />
+        <span className="voice-input__switch">
+          <Switch
+            label="Hands-free"
+            checked={settings.handsFree}
+            onChange={(on) => change({ handsFree: on })}
+          />
+          <HelpTip label="About hands-free">
+            <p>
+              Off, you check each question before it is sent. On, your question is sent as you speak
+              it, the answer is read aloud, and the mic opens again. Say “stop” to end.
+            </p>
+          </HelpTip>
+        </span>
         <p className="voice-input__state" role="status">
           {step || hint}
           {live && metered && (

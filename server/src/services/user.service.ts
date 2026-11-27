@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { USER_ROLES, UserModel, type IUser } from '../models/user.model'
+import { rememberAccount } from './auth.service'
 import { sendInvitation } from './invitation.service'
 import { duplicateKeyField, isDuplicateKeyError } from './mongo-errors'
 import { nextInSequence } from './sequence.service'
@@ -218,6 +219,8 @@ export async function updateUser(
     throw error
   }
   if (!user) throw new UserNotFoundError()
+  // A deactivation or new role applies to the account's open sessions at once, not at next sign-in.
+  rememberAccount(user)
   if (reinvite && user.active && !user.passwordHash) {
     await sendInvitation(user)
     return getUser(id)

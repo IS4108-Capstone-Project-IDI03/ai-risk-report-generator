@@ -23,7 +23,13 @@ const HEIGHT = 240
 const GROUPED_HEIGHT = 320
 const MAX_BAR_PX = 24
 const AXIS_TICK = { fill: 'var(--text-muted)', fontSize: 12 }
-const VALUE_LABEL = { fill: 'var(--text-muted)', fontSize: 12, fontFamily: 'var(--font-mono)' }
+// App font with aligned digits: no mono type on screen (design-system-v2 v2.22).
+const VALUE_LABEL = {
+  fill: 'var(--text-muted)',
+  fontSize: 12,
+  fontFamily: 'var(--font-sans)',
+  fontVariantNumeric: 'tabular-nums',
+}
 
 // A vertical bar's label, broken onto lines of about 9 characters (a bar's slot in a
 // half-width chart is about 70px), so long names
@@ -272,8 +278,9 @@ export function GroupedBarChart({
         <BarChart
           data={data}
           maxBarSize={MAX_BAR_PX}
-          // A turned label reaches left of its group; leave the first one room.
-          margin={{ top: 16, right: 8, left: 24 }}
+          // A turned label reaches left of its group; leave the first one room. 48, not less:
+          // on a phone or the 1280 px review column "External Exposure" lost its first letter.
+          margin={{ top: 16, right: 8, left: 48 }}
         >
           <CartesianGrid vertical={false} stroke="var(--chart-grid)" />
           <XAxis

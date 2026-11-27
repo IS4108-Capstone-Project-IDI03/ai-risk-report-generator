@@ -6,12 +6,13 @@ import type * as React from 'react'
 import { Icon } from '../../../design-system'
 import type { ModelOption } from '../api'
 
-// Colour is never the only signal: the text says whether a key is set.
+// Colour is never the only signal: the text says whether a key is set. A closed box with a key set
+// shows the dot alone (the words stay for screen readers), so seven rows do not repeat "Key set".
 function Light({ on }: { on: boolean }) {
   return (
-    <span className="st-keyinfo">
+    <span className={`st-keyinfo ${on ? 'st-keyinfo--on' : ''}`} title={on ? 'Key set' : undefined}>
       <span className={`st-light ${on ? 'st-light--on' : 'st-light--off'}`} aria-hidden="true" />
-      {on ? 'Key set' : 'No API key'}
+      <span className="st-keytext">{on ? 'Key set' : 'No API key'}</span>
     </span>
   )
 }

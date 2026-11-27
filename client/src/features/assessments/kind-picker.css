@@ -9,12 +9,21 @@
   border: 0;
   min-width: 0;
 }
+/* The title line: a v2 field label (12 / 600), the add + at its right end. A card titles it as a
+   card (observation-page.css). */
 .kp-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 20px;
   padding: 0;
-  margin-bottom: 6px;
-  font-size: 14px;
-  font-weight: 600;
+  margin-bottom: 4px;
+  color: var(--graphite-700);
+  font: 600 12px/1.3 var(--font-sans);
 }
+
 .kp-chips {
   display: flex;
   flex-wrap: wrap;
@@ -42,6 +51,12 @@
   padding: 0 14px;
   cursor: pointer;
 }
+/* A mouse needs no 44 px target: the v2 pill height, so the tags sit as one compact row. */
+@media (hover: hover) and (pointer: fine) and (min-width: 768px) {
+  .kp-chip {
+    min-height: 36px;
+  }
+}
 .kp-chip[aria-pressed='true'] {
   border-color: var(--graphite-700);
   color: var(--text-primary);
@@ -51,8 +66,7 @@
   border-style: dashed;
 }
 .kp-chip:focus-visible,
-.kp-x:focus-visible,
-.kp-add:focus-visible {
+.kp-x:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
@@ -77,17 +91,25 @@
   min-height: 32px;
   padding: 0 6px 0 10px;
 }
-.kp-add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 44px;
-  min-height: 44px;
-  border: 1px dashed var(--graphite-400);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
+/* The add +: a 28 px shaded disc, its 44 px tap area drawn round it, pulled into the title line so
+   the line keeps its height. !important: IconButton sizes itself inline and kit.css grows every
+   icon button to 44 px on touch. */
+.kp-add.ds-icon-button {
+  position: relative;
+  width: 28px !important;
+  height: 28px !important;
+  min-width: 28px;
+  min-height: 28px;
+  margin-block: -4px;
+}
+.kp-add.ds-icon-button::after {
+  content: '';
+  position: absolute;
+  /* Sized outright and centred: an inset of -8px fell 2 px short, measured inside the border. */
+  width: 44px;
+  height: 44px;
+  inset: 50% auto auto 50%;
+  transform: translate(-50%, -50%);
 }
 .kp-input {
   min-height: 44px;

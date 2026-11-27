@@ -6,7 +6,7 @@
 import { canOpenAssessment } from './assessment.service'
 import { audioExtension } from './observation.service'
 import { privacyFor } from './privacy.service'
-import { SpeechServiceError, transcribeClip } from './speech.service'
+import { SpeechServiceError, transcribeClip, transcriptionFailureReason } from './speech.service'
 
 // About two minutes of speech, as for a spoken chat question (chat-voice.service.ts).
 // Must match the raw-body limit in routes/dictation.routes.ts.
@@ -34,7 +34,7 @@ export async function transcribeDictation(
   if (opens === null) throw new DictationError(404, 'There is no such assessment.')
   if (!opens) throw new DictationError(403, 'You cannot open this assessment.')
 
-  const extension = audioExtension(contentType)
+  const extension = audioExtension(contentType, audio)
   if (!extension) throw new DictationError(415, 'That is not an audio recording.')
   if (!audio.length) throw new DictationError(400, 'The recording is empty.')
   if (audio.length > MAX_DICTATION_BYTES)
@@ -43,7 +43,12 @@ export async function transcribeDictation(
   try {
     text = (await transcribeClip(audio, extension, await privacyFor(reference))).trim()
   } catch (error) {
-    if (error instanceof SpeechServiceError) throw new DictationError(503, error.message)
+    // The short reason, never Whisper's raw error text; a refused file is the clip's fault (422).
+    if (error instanceof SpeechServiceError)
+      throw new DictationError(
+        error.retryable ? 503 : 422,
+        transcriptionFailureReason(error.message) ?? error.message,
+      )
     throw error
   }
   // Without this a silent clip would leave the field as it was with no word why.

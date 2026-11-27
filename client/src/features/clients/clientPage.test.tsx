@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 import type { ClientPage, ClientPageSite } from './api'
 
 // CP-18: a client's page lists the engineer's sites at it, with their own
@@ -456,10 +457,10 @@ describe('Changing a client and its sites (CP-18)', () => {
       within(card('Kent Ridge campus')).getByRole('button', { name: 'Edit Kent Ridge campus' }),
     )
     const dialog = screen.getByRole('dialog', { name: 'Edit Kent Ridge campus' })
-    fireEvent.change(within(dialog).getByLabelText(/Jurisdiction/), { target: { value: 'MY' } })
+    chooseOption(/Jurisdiction/, 'Malaysia', dialog)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
     expect(
-      within(dialog).getByText(/changes the 2 assessments at Kent Ridge campus/),
+      within(dialog).getByText(/standards used for the 2 assessments at Kent Ridge campus/),
     ).toBeInTheDocument()
     expect(calls).toHaveLength(0)
     fireEvent.click(within(dialog).getByRole('button', { name: 'Change scope' }))

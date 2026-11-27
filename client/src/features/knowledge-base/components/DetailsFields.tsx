@@ -1,15 +1,15 @@
 // A knowledge document's details form: source type first, then only the
 // details that type needs. A standard's first line is source type, standard
 // number and title; a report's is source type and title. Used by the Edit details dialog (KB-01), where a
-// detail auto-labelling could not confirm opens empty and marked (IN-05).
+// detail auto-labelling could not confirm opens empty and marked (IN-05). Its dropdowns are our
+// own (the design system's Select), never the browser's select.
 import { Input, Select } from '../../../design-system'
-import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/demo-data'
+import { FACILITY_TYPES, JURISDICTIONS } from '../../assessments/options'
 import { TIER_IDS, TIER_LABELS, type TierId } from '../../settings/tiers'
 import type { DocumentDetails, SourceType, UnconfirmedDetail } from '../api'
 import { editionProblem, FACILITY_UNSET, isStandard } from '../details'
 
 const SOURCE_OPTIONS = [
-  { value: '', label: 'Choose a source type' },
   { value: 'fm_standard', label: 'FM standard' },
   { value: 'nfpa_standard', label: 'NFPA standard' },
   { value: 'local_standard', label: 'Local standard' },
@@ -19,7 +19,6 @@ const SOURCE_OPTIONS = [
 // report is about one country, so it has no "all" choice.
 const STANDARD_COUNTRIES = [{ value: 'all', label: 'All countries' }, ...JURISDICTIONS]
 const STANDARD_FACILITIES = [{ value: '', label: 'All facility types' }, ...FACILITY_TYPES]
-const REPORT_FACILITIES = [{ value: '', label: 'Choose a facility type' }, ...FACILITY_TYPES]
 
 // The marker under a field that is Unconfirmed and still empty (IN-05).
 const unconfirmedHint = <span className="kb-unconfirmed-hint">Unconfirmed — fill this in</span>
@@ -52,40 +51,28 @@ export function DetailsFields({
     unconfirmed.includes(name) && (value === '' || value === FACILITY_UNSET)
       ? unconfirmedHint
       : undefined
-  // A blank first choice, so an empty country doesn't look like the first one.
-  const countries = (list: { value: string; label: string }[]) =>
-    details.jurisdiction === '' ? [{ value: '', label: 'Choose a country' }, ...list] : list
-  const facilities = standard
-    ? [
-        ...(details.facilityType === FACILITY_UNSET
-          ? [{ value: FACILITY_UNSET, label: 'Choose a facility type' }]
-          : []),
-        ...STANDARD_FACILITIES,
-      ]
-    : REPORT_FACILITIES
   return (
     <div className={standard ? 'kb-fields is-standard' : 'kb-fields'}>
       <Select
         label="Source type"
         required
+        placeholder="Choose a source type"
         options={
           standardsOnly ? SOURCE_OPTIONS.filter((o) => o.value !== 'marsh_report') : SOURCE_OPTIONS
         }
         value={details.sourceType}
         error={errors.sourceType}
         hint={hint('sourceType', details.sourceType)}
-        onChange={(e) => onChange({ sourceType: e.target.value as SourceType | '' })}
+        onChange={(e) => onChange({ sourceType: e.target.value as SourceType })}
       />
       {onTierChange && (
+        // No tier shows as Unranked; it is not a choice, as a saved tier cannot be cleared.
         <Select
           label="Tier"
-          options={[
-            // Offered only while no tier is chosen: a saved tier cannot be cleared, so the option would do nothing.
-            ...(tier ? [] : [{ value: '', label: 'Unranked' }]),
-            ...TIER_IDS.map((t) => ({ value: t, label: TIER_LABELS[t] })),
-          ]}
+          placeholder="Unranked"
+          options={TIER_IDS.map((t) => ({ value: t, label: TIER_LABELS[t] }))}
           value={tier ?? ''}
-          onChange={(e) => onTierChange(e.target.value as TierId | '')}
+          onChange={(e) => onTierChange(e.target.value as TierId)}
         />
       )}
       {details.sourceType && (
@@ -151,23 +138,21 @@ export function DetailsFields({
           <Select
             label="Country"
             required
-            options={countries(standard && !local ? STANDARD_COUNTRIES : JURISDICTIONS)}
+            placeholder="Choose a country"
+            options={standard && !local ? STANDARD_COUNTRIES : JURISDICTIONS}
             value={details.jurisdiction}
             error={errors.jurisdiction}
             hint={hint('jurisdiction', details.jurisdiction)}
             onChange={(e) => onChange({ jurisdiction: e.target.value })}
           />
+          {/* A standard's blank is "All facility types"; unset (FACILITY_UNSET) is the
+              placeholder. A report's blank is unset. */}
           <Select
             label="Facility type"
             required={!standard}
-            options={facilities}
-            value={
-              standard
-                ? details.facilityType
-                : details.facilityType === FACILITY_UNSET
-                  ? ''
-                  : details.facilityType
-            }
+            placeholder="Choose a facility type"
+            options={standard ? STANDARD_FACILITIES : FACILITY_TYPES}
+            value={details.facilityType}
             error={errors.facilityType}
             hint={hint('facilityType', details.facilityType)}
             onChange={(e) => onChange({ facilityType: e.target.value })}

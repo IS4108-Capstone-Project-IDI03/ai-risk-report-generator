@@ -1,6 +1,6 @@
 // The "Ask about an assessment" walkthrough (F-12): a try-it with live AI. It asks one question of the
 // practice assessment, waits for the checked answer, then points at it (and at Draft text, for an engineer).
-// Read by features/walkthrough/registry.ts. Tags are in ask/AskPanel.tsx and components/ReviewInspector.tsx.
+// Read by features/walkthrough/registry.ts. Tags are in ask/AskPanel.tsx, ask/components/AskComposer.tsx and components/ReviewInspector.tsx.
 import type { WalkthroughDef } from '../../walkthrough/types'
 
 export const WALKTHROUGHS: WalkthroughDef[] = [

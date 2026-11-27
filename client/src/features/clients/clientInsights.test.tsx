@@ -360,13 +360,21 @@ describe('The written summary (CP-29)', () => {
     expect(calls).toContain('POST /api/clients/c1/insights/summary')
     expect(
       screen.getByText(
-        /^Drafted by the model on .*from 22 observations, 9 accepted OFIs and 1 rating\. Not added to any report\.$/,
+        /^Written by AI .*from 22 observations, 9 accepted OFIs and 1 rating\. It isn't added to any report\.$/,
       ),
     ).toBeVisible()
     expect(screen.getByTitle('Medium confidence')).toBeVisible()
     expect(screen.getByText('Tuas Logistics Hub has no rating yet.')).toBeVisible()
     expect(screen.getByText('In-rack sprinkler valve found closed and untagged.')).toBeVisible()
-    expect(screen.getByText('Observation · Critical · 18 Sep 2026 · RPT-2026-0411')).toBeVisible()
+    // Drawn as the Ask tab's sources are (EvidenceCitation): its kind, then one line of parts,
+    // each kept whole so the reference never splits at a hyphen.
+    const source = screen
+      .getByText('In-rack sprinkler valve found closed and untagged.')
+      .closest('li') as HTMLElement
+    expect(within(source).getByText('Site observation')).toBeVisible()
+    const meta = within(source).getByText('RPT-2026-0411').parentElement!
+    expect(meta).toHaveTextContent('Critical · 18 Sep 2026 · RPT-2026-0411')
+    expect(meta).toBeVisible()
   })
 
   it('marks the source a citation number names', async () => {

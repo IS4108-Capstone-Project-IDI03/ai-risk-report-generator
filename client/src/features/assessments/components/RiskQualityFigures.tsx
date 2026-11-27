@@ -134,7 +134,6 @@ export function RiskQualityFigures({
       {figures.proposal && proposed.size > 0 && (
         <ProposalNote
           walk="review.scores.note"
-          proposal={figures.proposal}
           // Only the categories with a figure still as proposed: an edited one is the
           // engineer's, and the model's reason no longer speaks for it.
           reasons={[...why.values()]
@@ -233,6 +232,7 @@ export function RiskQualityFigures({
         {canEdit && !entered && !figures.proposal && (
           <>
             <Button
+              pill
               variant="secondary"
               size="sm"
               iconLeft="sparkles"
@@ -246,6 +246,7 @@ export function RiskQualityFigures({
         )}
         {canEdit && (
           <Button
+            pill
             variant="primary"
             size="sm"
             data-walk="review.scores.confirm"

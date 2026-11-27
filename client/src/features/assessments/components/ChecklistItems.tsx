@@ -3,7 +3,7 @@
 // the phone sheet. Called by screens/Checklist.tsx and ChecklistSheet.tsx. Calls the mark, edit,
 // remove and add endpoints in api.ts; an observation for a difference goes through AnswerDialog.
 import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
-import { toast } from '../../../design-system'
+import { Icon, toast } from '../../../design-system'
 import {
   GatewayError,
   editChecklistItem,
@@ -91,6 +91,7 @@ export function ChecklistItems({
   answering,
   regenerateHint,
   onViewObservation,
+  notes = true,
   customising = false,
   openArea,
   openItem,
@@ -106,6 +107,9 @@ export function ChecklistItems({
   answering: ChecklistAnswering | null
   regenerateHint: string
   onViewObservation: (observationId: string) => void
+  // False leaves out the checklist's own notes (e.g. "No past Marsh reports match..."), for New
+  // Observation's pane and sheet: the Checklist tab already shows them.
+  notes?: boolean
   // On the tab, for the assigned engineer. The engineer answering on site can change items too.
   customising?: boolean
   // A report section's title to open on, from a MarshBot link (AS-06).
@@ -260,11 +264,12 @@ export function ChecklistItems({
           {regenerateHint}
         </p>
       )}
-      {checklist.notes?.map((note) => (
-        <p key={note} className="cl-note">
-          {note}
-        </p>
-      ))}
+      {notes &&
+        checklist.notes?.map((note) => (
+          <p key={note} className="cl-note">
+            {note}
+          </p>
+        ))}
       {undo && (
         <p className="cl-note" role="status">
           Removed.{' '}
@@ -332,8 +337,14 @@ export function ChecklistItems({
               ))}
             </ul>
             {more > 0 && (
-              <button type="button" className="cl-link" onClick={toggle}>
+              <button
+                type="button"
+                className="cl-show-more"
+                aria-expanded={expanded}
+                onClick={toggle}
+              >
                 {expanded ? 'Show less' : `Show ${more} more`}
+                <Icon name={expanded ? 'chevron-up' : 'chevron-down'} size={14} />
               </button>
             )}
           </section>

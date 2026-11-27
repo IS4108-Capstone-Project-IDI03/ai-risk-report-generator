@@ -4,7 +4,7 @@
 // (screens/KnowledgeAssistant.tsx). Calls api.ts; the chosen photos go out with the next question.
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Icon, IconButton } from '../../../design-system'
+import { Icon, IconAction, IconButton } from '../../../design-system'
 import { GatewayError } from '../../assessments/api'
 import { removeChatPhoto, uploadChatPhoto } from '../api'
 import {
@@ -66,9 +66,10 @@ export function PhotoAttach() {
 
   const button = (
     <div className="photo-attach">
-      <IconButton
+      <IconAction
         icon="image-plus"
         label="Attach a photo"
+        size="md"
         data-walk="chat.attach-photo"
         disabled={items.length + busy >= MAX_PHOTOS}
         onClick={() => picker.current?.click()}

@@ -3,6 +3,9 @@
 import { useState } from 'react'
 import { Button, Textarea } from '../../../design-system'
 
+// The privacy note shown wherever a fact is typed (add, edit) or the add box is replaced (at the limit).
+export const PRIVACY_NOTE = 'Do not type client names or site details.'
+
 type Props = {
   initial?: string
   max: number
@@ -11,10 +14,20 @@ type Props = {
   // Saves the text; a thrown error's message is shown under the box.
   onSubmit: (text: string) => Promise<void>
   onCancel?: () => void
+  // A short line beside the buttons (the privacy note).
+  note?: string
 }
 
 /** A short text box with a character count. Enter saves; Shift+Enter adds a line, which the gateway folds into one line. */
-export function FactForm({ initial = '', max, label, submitLabel, onSubmit, onCancel }: Props) {
+export function FactForm({
+  initial = '',
+  max,
+  label,
+  submitLabel,
+  onSubmit,
+  onCancel,
+  note,
+}: Props) {
   const [text, setText] = useState(initial)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -57,12 +70,19 @@ export function FactForm({ initial = '', max, label, submitLabel, onSubmit, onCa
         {error}
       </p>
       <div className="fact-form__actions">
+        {note && <p className="fact-form__note">{note}</p>}
         {onCancel && (
-          <Button variant="secondary" onClick={onCancel}>
+          <Button pill variant="secondary" onClick={onCancel}>
             Cancel
           </Button>
         )}
-        <Button disabled={!clean || busy} onClick={() => void save()}>
+        <Button
+          pill
+          variant="primary"
+          disabled={!clean || busy}
+          loading={busy}
+          onClick={() => void save()}
+        >
           {submitLabel}
         </Button>
       </div>

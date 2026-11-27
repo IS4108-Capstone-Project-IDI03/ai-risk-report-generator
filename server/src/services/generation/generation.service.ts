@@ -166,11 +166,14 @@ function partStates(inputs: Inputs): States {
     if (id === '2') {
       const draft = summary.executiveSummary.draft
       // Section 2's other reason is worked out below, once the others are known.
-      const stale = summary.executiveSummary.staleSections[0]?.id
+      const stale = summary.executiveSummary.staleSections.map((s) => s.id)
       return {
         drafted: !!draft,
         draftedAt: draft ? new Date(draft.createdAt).toISOString() : null,
-        outOfDate: draft && idle && stale ? { why: 'section', section: stale } : null,
+        outOfDate:
+          draft && idle && stale.length
+            ? { why: 'section', section: stale[0], sections: stale }
+            : null,
         observations: null,
       }
     }

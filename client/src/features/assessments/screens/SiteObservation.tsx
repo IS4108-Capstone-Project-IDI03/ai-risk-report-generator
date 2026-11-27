@@ -1,10 +1,10 @@
-// New Observation: where, what was seen, then Save (CP-02, CP-22, CP-24). Two cards: the details
-// on the left (location, categories, severity, Cancel and Save) and the media on the right (note,
-// voice, photos, pages). The left card keeps its own height; the right is never shorter, and past
-// the window's bottom edge scrolls inside itself. Stacked on a phone, with Cancel and Save in the
-// bar at the bottom of the screen. The site's weather sits above the cards (CP-62). Split into
-// the Capture* components. Called by AssessmentApp.
-import { useEffect, useState } from 'react'
+// New Observation: where, what was seen, then Save (CP-02, CP-22, CP-24). The site's weather
+// (CP-62) in the header; one form card in the left half (location, what was seen as a note, voice,
+// photos or pages, then categories, severity, tags, Cancel and Save) that fits a laptop's window;
+// the checklist in the right half (CP-37), the Checklist tab's own cards, never shorter than the
+// form and scrolling inside itself past the window's bottom edge. One column on a phone, with Cancel and Save in the bar at the bottom of
+// the screen. Split into the Capture* components. Called by AssessmentApp.
+import { useEffect, useId, useState } from 'react'
 import { Button, Dialog, Icon } from '../../../design-system'
 import { ScreenHeader } from '../components/ScreenHeader'
 import { CaptureActions } from '../components/CaptureActions'
@@ -30,14 +30,16 @@ import { useNewObservationWalk } from '../newObservationWalk'
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import '../capture.css'
 
-// The one line under the title: what to do, and what happens to what is left blank.
+// The one line under a phone's top bar: what to do, and what happens to what is left blank.
 const HELPER =
   "Choose a location and add what you saw. Leave category and severity blank and they'll be suggested once you save."
 
 export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
   // A waiting photo or page, open full size.
   const [viewing, setViewing] = useState<ViewedPhoto | null>(null)
+  // The two halves: the checklist never ends above the form (useCaptureFit's --cap-room).
   const grid = useCaptureFit<HTMLDivElement>()
+  const sawId = useId()
   const split = v.captureSplit
   // Wide: the checklist stays beside the recording (CP-37); narrower, it opens as a sheet.
   const pane = useWideCapture() && v.canOpenChecklist
@@ -63,6 +65,10 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [unsaved])
+  // The site's weather (CP-62): advisory, so it never blocks Save, since an engineer may be
+  // recording at their desk. A slim card at the header's right end, so the form below fits the
+  // window; a phone has no header here, so it tops the form.
+  const weather = <SiteWeatherPanel reference={v.liveReference} layout="card" />
   return (
     <>
       <div className="cap-page cap-page--v2">
@@ -72,39 +78,59 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
         ) : (
           <ScreenHeader
             title="New Observation"
-            // For a site walk proposal, where it will be added, once a location is chosen.
+            // For a site walk proposal, where it will be added, once a location is chosen. A plain
+            // observation has no line: the form says what it needs (Location's *, the category
+            // (?) tip), so the whole form fits under the header on a laptop.
             detail={
               v.proposalCapture
                 ? v.locationLabel
                   ? 'Adds to the site walk at ' + v.locationLabel
                   : 'Pick a location, add what you saw, then add it'
-                : HELPER
+                : undefined
             }
             back={v.proposalCapture ? 'Site walk proposal' : 'Observations'}
             onBack={v.leaveCapture}
             // F-12: "Add an observation" presses Back (the phone bar's ← carries the same tag).
             backWalk="new-observation.back"
+            actions={weather}
           />
         )}
-        {/* The site's weather (CP-62): advisory, so it never blocks Save, since an engineer may
-            be recording at their desk. */}
-        <SiteWeatherPanel reference={v.liveReference} layout="card" />
-        {v.capture?.status === 'unavailable' && (
+        {v.captureFailed && (
           <div className="cap-top">
-            <CaptureSessionNotice
-              capture={v.capture}
-              reference={v.captureRef}
-              onRetry={v.retryCapture}
-            />
+            <CaptureSessionNotice capture={v.capture} onRetry={v.retryCapture} />
           </div>
         )}
-        <div className="cap-with-pane" data-pane={pane ? '' : undefined}>
-          <div ref={grid} className="cap-grid" data-split={split ? '' : undefined}>
-            {/* a. The details: where, which categories, how severe, then Cancel and Save. */}
-            <div className="cap-panel">
-              <section aria-label="Details" className="cap-panel-body">
+        <div ref={grid} className="cap-layout" data-pane={pane ? '' : undefined}>
+          <div className="cap-main">
+            {v.phone && weather}
+            <section aria-label="Details" className="cap-panel cap-form">
+              {/* a. Where, and what was seen. */}
+              <div className="cap-group">
                 <LocationPicker v={v} />
                 {v.canOpenChecklist && (!pane || v.fChecklistItem) && <ChecklistBar v={v} />}
+                <section aria-labelledby={sawId} className="cap-field cap-saw">
+                  <span id={sawId} className="cap-label">
+                    {'What you saw'}
+                  </span>
+                  <CaptureModeSwitcher v={v} />
+                  <div className="cap-media">
+                    {!!v.isNoteMode && (
+                      <CaptureNoteBox
+                        value={v.fNote}
+                        onChange={v.setFNote}
+                        phone={!!v.phone}
+                        reference={v.liveVoice ? v.captureRef : null}
+                        onBlur={setBlurred}
+                      />
+                    )}
+                    {!!v.isVoiceMode && <CaptureVoicePanel v={v} />}
+                    {!!v.isPhotoMode && <CapturePhotoPanel v={v} onView={setViewing} />}
+                    {!!v.isScanMode && <CaptureScanPanel v={v} onView={setViewing} />}
+                  </div>
+                </section>
+              </div>
+              {/* b. How to file it: all optional, suggested after Save when left blank. */}
+              <div className="cap-group">
                 <CategoryPicker
                   cats={v.fCats}
                   onToggle={v.toggleFCat}
@@ -131,28 +157,8 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
                   blurred={blurred}
                   disabled={v.fSaving}
                 />
-                {split && <CaptureActions v={v} pinned={false} />}
-              </section>
-            </div>
-            {/* b. The media: never shorter than the details, scrolling inside itself past the window. */}
-            <section aria-label="What you saw" className="cap-panel cap-panel--media">
-              <CaptureModeSwitcher v={v} />
-              <div className="cap-media">
-                {!!v.isNoteMode && (
-                  <>
-                    <CaptureNoteBox
-                      value={v.fNote}
-                      onChange={v.setFNote}
-                      phone={!!v.phone}
-                      reference={v.liveVoice ? v.captureRef : null}
-                      onBlur={setBlurred}
-                    />
-                  </>
-                )}
-                {!!v.isVoiceMode && <CaptureVoicePanel v={v} />}
-                {!!v.isPhotoMode && <CapturePhotoPanel v={v} onView={setViewing} />}
-                {!!v.isScanMode && <CaptureScanPanel v={v} onView={setViewing} />}
               </div>
+              {split && <CaptureActions v={v} pinned={false} />}
             </section>
           </div>
           {pane && <ChecklistPane v={v} />}
@@ -164,17 +170,16 @@ export function SiteObservation({ v }: { v: AssessmentWorkflow }) {
       {viewing && <PhotoDialog photo={viewing} onClose={() => setViewing(null)} />}
       {v.leaveOpen && (
         <Dialog
-          className="ds-dialog--v2"
           title="Leave without saving?"
           description={'Not saved: ' + v.unsavedLabel + '.'}
           width={480}
           onClose={v.closeLeave}
           footer={
             <>
-              <Button variant="pill" style={{ height: 44 }} onClick={v.closeLeave}>
+              <Button variant="pill" onClick={v.closeLeave}>
                 {'Stay'}
               </Button>
-              <Button variant="danger" pill style={{ height: 44 }} onClick={v.discardAndLeave}>
+              <Button variant="danger" pill onClick={v.discardAndLeave}>
                 {'Leave'}
               </Button>
             </>

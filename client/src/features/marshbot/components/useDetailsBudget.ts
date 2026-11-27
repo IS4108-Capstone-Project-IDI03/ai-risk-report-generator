@@ -40,14 +40,14 @@ export function useDetailsBudget(
     if (body.scrollHeight > body.clientHeight + 1) setReached({ id, step: step + 1 })
   })
 
-  // A taller or shorter window changes how much fits.
+  // A taller or shorter window changes how much fits. The window, not the body: the panel is as
+  // tall as its content, so watching the body would restart the budget each time a step shrank it.
   useEffect(() => {
-    const body = root.current?.parentElement
-    if (!enabled || !body || typeof ResizeObserver === 'undefined') return
-    const watch = new ResizeObserver(() => setResized((n) => n + 1))
-    watch.observe(body)
-    return () => watch.disconnect()
-  }, [root, enabled])
+    if (!enabled) return
+    const grow = () => setResized((n) => n + 1)
+    window.addEventListener('resize', grow)
+    return () => window.removeEventListener('resize', grow)
+  }, [enabled])
 
   return STEPS[step]
 }

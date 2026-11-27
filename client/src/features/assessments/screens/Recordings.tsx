@@ -16,13 +16,21 @@ export function Recordings({ v }: { v: AssessmentWorkflow }) {
   const recordings = v.recordingCollection
   return (
     <div className="ob">
-      <ScreenHeader title="All Recordings" back="Observations" onBack={v.goObservations} />
+      <ScreenHeader
+        title="All Recordings"
+        detail="Every voice recording saved with an observation, with its transcript."
+        back="Observations"
+        onBack={v.goObservations}
+      />
       {recordings.length === 0 ? (
-        <EmptyState
-          icon="mic"
-          title="No recordings yet"
-          description="Recordings appear here once they are saved with an observation."
-        />
+        // The empty list keeps the list's card, as the Observations tab's does.
+        <div className="ob-card ob-empty">
+          <EmptyState
+            icon="mic"
+            title="No recordings yet"
+            description="Recordings appear here once they are saved with an observation."
+          />
+        </div>
       ) : (
         <RecordingTable
           rows={recordings}

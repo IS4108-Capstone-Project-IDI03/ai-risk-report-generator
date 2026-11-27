@@ -368,6 +368,20 @@ describe('GET /api/usage/overview (EV-04)', () => {
     })
   })
 
+  it("shows a client's insights summary, which has no assessment, as its own group, not chat", async () => {
+    await people()
+    await seed([chat(alex._id), call({ feature: 'client-insights', reportId: undefined })])
+
+    const { body } = await overview('groupBy=assessment&split=feature&range=all')
+
+    expect(group(body.groups, 'chat')).toMatchObject({ label: 'Chatbot', calls: 1 })
+    expect(group(body.groups, 'client-insights')).toMatchObject({
+      label: 'Client insights summary',
+      calls: 1,
+      reference: null,
+    })
+  })
+
   it('shows knowledge base searches, which have no assessment, as their own group, not chat', async () => {
     await people()
     await seed([chat(alex._id), search(alex._id), search(jide._id)])

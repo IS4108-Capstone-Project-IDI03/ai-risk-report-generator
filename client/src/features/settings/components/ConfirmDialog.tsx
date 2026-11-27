@@ -33,7 +33,6 @@ export function ConfirmDialog({
   }
   return (
     <Dialog
-      className="ds-dialog--v2"
       title={title}
       description={body}
       width={440}

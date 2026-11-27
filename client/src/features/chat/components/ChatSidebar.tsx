@@ -1,9 +1,10 @@
-// The chat screen's sidebar (CB-01): MarshBot's name, a "New chat" row, a search box (CB-03)
-// and the "Chats" list.
+// The chat screen's sidebar (CB-01), laid out like the big chat apps' sidebars: MarshBot's name
+// and the collapse button, a prominent "New chat" row, a search box (CB-03), the chats grouped by
+// recency, and "My preferences" (CB-05) pinned to the foot like their settings row.
 // The logo and name start a new chat too, as in most chat apps.
 // Built from OpenUI's own sidebar parts, placed inside <AgentInterface.Sidebar> by
 // screens/KnowledgeAssistant.tsx. OpenUI's default sidebar hardcodes "New Chat" and "Threads"
-// with no label props, so this composes the same parts with our words.
+// with no label props, so this composes the same parts with our words. Styles: ../sidebar.css.
 import { useThreadList } from '@openuidev/react-headless'
 import { AgentInterface } from '@openuidev/react-ui'
 import { useState } from 'react'
@@ -11,12 +12,16 @@ import { Icon } from '../../../design-system'
 import marshbot from '../marshbot.svg'
 import { ChatSearch } from './ChatSearch'
 import { ChatThreadList } from './ChatThreadList'
+import { closeChatsDrawer } from '../chatsDrawer'
 import { PreferencesPanel } from './PreferencesPanel'
 
-/** The sidebar's contents: header, a New chat row, then the Chats heading and list. */
+/** The sidebar's contents: header, New chat, search, the grouped chats, then My preferences. */
 export function ChatSidebar() {
-  const startNewChat = useThreadList((s) => s.switchToNewThread)
-  const hasChats = useThreadList((s) => s.threads.length > 0)
+  const switchToNewThread = useThreadList((s) => s.switchToNewThread)
+  const startNewChat = () => {
+    switchToNewThread()
+    closeChatsDrawer()
+  }
   const [words, setWords] = useState('')
   const [preferencesOpen, setPreferencesOpen] = useState(false)
   return (
@@ -41,27 +46,29 @@ export function ChatSidebar() {
         <div className="openui-agent-sidebar-primary-actions">
           {/* The label names the button when the sidebar is collapsed to icons. */}
           <AgentInterface.SidebarItem
-            icon={<Icon name="square-pen" />}
+            className="chat-new"
+            icon={<Icon name="plus" />}
             aria-label="New chat"
             onClick={startNewChat}
           >
             New chat
           </AgentInterface.SidebarItem>
-          {/* CB-05: the engineer's remembered facts, in a light panel instead of a page. */}
-          <AgentInterface.SidebarItem
-            icon={<Icon name="settings" />}
-            aria-label="My preferences"
-            onClick={() => setPreferencesOpen(true)}
-          >
-            My preferences
-          </AgentInterface.SidebarItem>
         </div>
       </div>
       <AgentInterface.SidebarContent>
         <ChatSearch words={words} onChange={setWords} />
-        {(hasChats || words) && <h3 className="chat-sidebar-heading">Chats</h3>}
         <ChatThreadList searching={!!words} />
       </AgentInterface.SidebarContent>
+      {/* CB-05: the engineer's remembered facts, in a light panel instead of a page. */}
+      <div className="chat-sidebar-foot">
+        <AgentInterface.SidebarItem
+          icon={<Icon name="settings" />}
+          aria-label="My preferences"
+          onClick={() => setPreferencesOpen(true)}
+        >
+          My preferences
+        </AgentInterface.SidebarItem>
+      </div>
       {preferencesOpen && <PreferencesPanel onClose={() => setPreferencesOpen(false)} />}
     </>
   )

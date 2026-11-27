@@ -7,7 +7,9 @@
   width: 100%;
   height: 100%;
   position: relative;
-  overflow: hidden;
+  /* clip, not hidden: it cuts off the same, but is no scroll box, so a scrollIntoView inside
+     can't shift the whole app up by the header's height. */
+  overflow: clip;
   background: var(--surface-page);
 }
 /* The old page while it fades out (ScreenMotion.tsx). Its copy must not replay its entrances. */
@@ -48,18 +50,6 @@
 .user-footer small {
   color: var(--text-muted);
   font-size: 12px;
-}
-.user-avatar {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-pill);
-  background: rgb(0 15 71 / 0.08);
-  color: var(--marsh-navy);
-  font-size: 11px;
-  font-weight: 600;
 }
 /* On the sidebar's rail: the avatar, Sign out beneath it. */
 .ds-sidenav[data-collapsed] .user-footer {
@@ -166,7 +156,7 @@ main.om-scroll {
   background: var(--surface-nav);
 }
 .navigation-drawer .ds-dialog-close {
-  color: #fff;
+  color: var(--text-inverse);
   position: absolute;
   top: var(--space-6);
   right: var(--space-5);
@@ -178,29 +168,6 @@ main.om-scroll {
 .navigation-drawer nav {
   width: 100%;
   border-right: 0;
-}
-/* Overview boxes and section rows that open the tab they summarise. */
-.om-overview-box:hover {
-  background: var(--surface-hover);
-}
-.om-overview-box:focus-visible {
-  outline-offset: -2px;
-}
-/* The four boxes of the Overview and of the Observations tab: two to a row,
-   four once the content area is wide enough. Sized by the content area, not
-   the window, since the side navigation takes part of it. */
-.om-overview-wrap {
-  container-type: inline-size;
-}
-.om-overview-boxes {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-@container (min-width: 760px) {
-  .om-overview-boxes {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 /* Capture's location picker on wider screens: a dropdown as wide as the
    location bar it hangs from, scrolling within itself when the list is long.
@@ -334,10 +301,25 @@ main.om-scroll {
 /* ---- The assessment's tab bar (CP-22 round 1): the tabs are the emphasis ----
    Overrides the design system's Tabs, whose spacing and weights are inline, for
    this bar only; other screens keep the standard tabs. */
+/* The tabs run the full width of the TopBar, past its side padding (kit.css .ds-topbar). */
 .ws-tabs {
-  display: block !important;
-  margin: 0 calc(-1 * clamp(16px, 2vw, 28px));
-  padding: 0 clamp(16px, 2vw, 28px);
+  margin: 0 calc(-1 * var(--page-gutter));
+  padding: 0 var(--page-gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+@media (max-width: 767px) {
+  .ws-tabs {
+    margin-inline: -16px;
+    padding-inline: 16px;
+  }
+}
+/* Restore beside History, Details and Archive in the workspace's top bar. */
+.ws-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 .ws-tabs .ds-tabs {
   width: 100%;
@@ -385,5 +367,32 @@ main.om-scroll {
     flex: 1 0 auto;
     min-width: 56px;
     padding: 0 12px !important;
+  }
+}
+/* A tablet, or a laptop with the sidebar open: all seven tabs fit without scrolling, measured on
+   the tab row (900 px holds them with icons). Under that, 14 px labels without icons; under
+   632 px, icons with the chosen tab's label only. The phone's icon strip above stays as it is. */
+.ws-tabs {
+  container: ws-tabs / inline-size;
+}
+@media (min-width: 768px) {
+  @container ws-tabs (min-width: 632px) and (max-width: 899px) {
+    .ws-tabs [role='tab'] {
+      padding: 0 8px !important;
+      font-size: 14px !important;
+    }
+    /* The icon (Icon sets its display inline, hence !important). */
+    .ws-tabs [role='tab'] > span:first-child:not(.ds-tab-label) {
+      display: none !important;
+    }
+  }
+  @container ws-tabs (max-width: 631px) {
+    .ws-tabs [role='tab'] {
+      min-width: 44px;
+      padding: 0 12px !important;
+    }
+    .ws-tabs [role='tab']:not([aria-selected='true']) .ds-tab-label {
+      display: none;
+    }
   }
 }

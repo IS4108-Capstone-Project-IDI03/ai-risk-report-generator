@@ -2,9 +2,9 @@
 // first visit against its latest on one axis, for the measure chosen. A table,
 // so every value is also text: the track is the picture, the last column the
 // figures. Called by screens/InsightsTab; rows from ../insights.ts.
-import { Icon, SegmentedControl, useIsPhone } from '../../../design-system'
+import { Badge, SegmentedControl, useIsPhone } from '../../../design-system'
 import type { InsightSite } from '../api'
-import { changeRows, changeScale, MEASURES, type Measure } from '../insights'
+import { BADGE_TONE, changeRows, changeScale, MEASURES, type Measure } from '../insights'
 
 const pct = (share: number) => `${Math.min(1, Math.max(0, share)) * 100}%`
 // On a phone the three full names don't fit one row, so two are shortened;
@@ -35,21 +35,23 @@ export function VisitChange({
   const phone = useIsPhone()
   return (
     <>
-      <SegmentedControl
-        ariaLabel="Measure"
-        options={phone ? MEASURES.map((m) => ({ ...m, label: SHORT[m.value] })) : MEASURES}
-        value={measure}
-        onChange={onMeasure}
-      />
-      <div className="ci-legend" aria-hidden="true">
-        <span>
-          <span className="ci-dot" data-kind="first" />
-          {'First visit'}
-        </span>
-        <span>
-          <span className="ci-dot" data-kind="latest" />
-          {'Latest visit'}
-        </span>
+      <div className="ci-change-controls">
+        <SegmentedControl
+          ariaLabel="Measure"
+          options={phone ? MEASURES.map((m) => ({ ...m, label: SHORT[m.value] })) : MEASURES}
+          value={measure}
+          onChange={onMeasure}
+        />
+        <div className="ci-legend" aria-hidden="true">
+          <span>
+            <span className="ci-dot" data-kind="first" />
+            {'First visit'}
+          </span>
+          <span>
+            <span className="ci-dot" data-kind="latest" />
+            {'Latest visit'}
+          </span>
+        </div>
       </div>
       <table className="ci-change">
         <caption className="cl-sr">
@@ -75,7 +77,7 @@ export function VisitChange({
                 <span className="ci-change-name" dir="auto" title={row.name}>
                   {row.name}
                 </span>
-                {row.period && <span className="ci-sub">{row.period}</span>}
+                {row.period && <span className="ci-change-period">{row.period}</span>}
               </th>
               <td aria-hidden="true">
                 <span className="ci-track">
@@ -101,9 +103,10 @@ export function VisitChange({
                 <span className="ci-change-values" aria-hidden="true">
                   {row.values}
                 </span>
-                <span className="ci-reason" data-tone={row.chip.tone} aria-hidden="true">
-                  {CHIP_ICON[row.chip.tone] && <Icon name={CHIP_ICON[row.chip.tone]} size={12} />}
-                  {row.chip.text}
+                <span aria-hidden="true">
+                  <Badge tone={BADGE_TONE[row.chip.tone]} icon={CHIP_ICON[row.chip.tone]}>
+                    {row.chip.text}
+                  </Badge>
                 </span>
               </td>
             </tr>

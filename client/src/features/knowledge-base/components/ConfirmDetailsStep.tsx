@@ -5,7 +5,7 @@
 // create or change the match (AC5), so the page takes the refreshed document.
 // Used by screens/ReviewDocument.tsx.
 import { useState } from 'react'
-import { Button, Callout, IconRegistry } from '../../../design-system'
+import { Button, Callout, IconRegistry, Panel } from '../../../design-system'
 import type { KnowledgeDocument } from '../api'
 import { countryName, facilityName, sourceLabel } from '../display'
 import { useDetailsForm } from '../useDetailsForm'
@@ -37,11 +37,11 @@ function Form({
         onChange={change}
       />
       <div className="kb-review-form-actions">
-        <Button variant="primary" loading={busy} onClick={() => save(onSaved)}>
+        <Button pill variant="primary" loading={busy} onClick={() => save(onSaved)}>
           Save details
         </Button>
         {onCancel && (
-          <Button variant="secondary" disabled={busy} onClick={onCancel}>
+          <Button pill variant="secondary" disabled={busy} onClick={onCancel}>
             Cancel
           </Button>
         )}
@@ -65,25 +65,13 @@ export function ConfirmDetailsStep({
     onSaved(updated)
   }
   return (
-    <section
-      className="kb-step-panel"
-      aria-labelledby="kb-step-confirm"
-      data-walk="knowledge-review.confirm"
-    >
-      <h3 id="kb-step-confirm">Confirm details</h3>
+    <Panel title="Confirm details" data-walk="knowledge-review.confirm">
       {open ? (
-        <>
-          {d.unconfirmed.length > 0 && (
-            <p className="kb-step-note">
-              Some details could not be read from the file. Fill in the marked fields, then save.
-            </p>
-          )}
-          <Form
-            document={d}
-            onSaved={saved}
-            onCancel={d.unconfirmed.length === 0 ? () => setEditing(false) : undefined}
-          />
-        </>
+        <Form
+          document={d}
+          onSaved={saved}
+          onCancel={d.unconfirmed.length === 0 ? () => setEditing(false) : undefined}
+        />
       ) : (
         <div className="kb-summary">
           <p>
@@ -99,6 +87,7 @@ export function ConfirmDetailsStep({
               .join(' · ')}
           </p>
           <Button
+            pill
             variant="secondary"
             size="sm"
             iconLeft={IconRegistry.action.edit}
@@ -108,6 +97,6 @@ export function ConfirmDetailsStep({
           </Button>
         </div>
       )}
-    </section>
+    </Panel>
   )
 }

@@ -1,6 +1,7 @@
 // Tests for where a notification takes you (F-10 criterion 6, "What goes where"): one
 // function serves the bell and the Inbox. Each case listens for what the app listens for.
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { takeQuestion } from '../chat/askAgain'
 import { openSubject } from './openSubject'
 import type { Notification } from './api'
 import { knowledgeTab } from '../knowledge-base/openTab'
@@ -98,6 +99,19 @@ describe('openSubject', () => {
   it('opens MarshBot for a closed request, as before', () => {
     openSubject(note('knowledge_gap_request', { requestId: 'r1', status: 'filled' }))
     expect(window.location.pathname).toBe('/ask')
+  })
+
+  it('queues a filled request’s question for the chat box, for Ask again', () => {
+    openSubject(
+      note('knowledge_gap_request', {
+        requestId: 'r1',
+        status: 'filled',
+        question: 'OH2 density?',
+      }),
+    )
+    expect(window.location.pathname).toBe('/ask')
+    expect(takeQuestion()).toBe('OH2 density?')
+    expect(takeQuestion()).toBeNull()
   })
 
   it('does nothing for a notification with nowhere to go', () => {

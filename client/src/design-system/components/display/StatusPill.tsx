@@ -95,6 +95,48 @@ const STATUSES: Record<
     bg: 'transparent',
     bd: 'var(--graphite-300)',
   },
+  // A knowledge base document (KB-01, IN-05): in use, waiting on an admin, or taken out of use.
+  // Withdrawn is Archived's outline: kept, but out of use, which is not an error.
+  document_active: {
+    label: 'Active',
+    icon: 'circle-check',
+    fg: 'var(--green-600)',
+    bg: 'var(--green-50)',
+  },
+  needs_review: {
+    label: 'Needs review',
+    icon: 'triangle-alert',
+    fg: 'var(--amber-600)',
+    bg: 'var(--amber-50)',
+  },
+  withdrawn: {
+    label: 'Withdrawn',
+    icon: 'archive',
+    fg: 'var(--graphite-700)',
+    bg: 'transparent',
+    bd: 'var(--graphite-300)',
+  },
+  // A user account (F-03, F-08): signed in before, waiting on its invitation, or switched off.
+  // Active is the document's Active; Deactivated is Withdrawn's outline (kept, out of use).
+  account_active: {
+    label: 'Active',
+    icon: 'circle-check',
+    fg: 'var(--green-600)',
+    bg: 'var(--green-50)',
+  },
+  invitation_pending: {
+    label: 'Invitation pending',
+    icon: 'mail',
+    fg: 'var(--ink-600)',
+    bg: 'var(--ink-50)',
+  },
+  deactivated: {
+    label: 'Deactivated',
+    icon: 'user-x',
+    fg: 'var(--graphite-700)',
+    bg: 'transparent',
+    bd: 'var(--graphite-300)',
+  },
 }
 
 // "Ready for generation" and "ready_for_generation" are the same status.
@@ -125,7 +167,8 @@ export function StatusPill({ status }: StatusPillProps) {
       style={
         {
           color: s.fg,
-          background: s.bg,
+          // The longhand: jsdom fails to clone a `background: transparent` shorthand (Archived, Withdrawn).
+          backgroundColor: s.bg,
           boxShadow: s.bd ? `inset 0 0 0 1px ${s.bd}` : undefined,
           // The colour to use where a screen draws the status without its pill (a phone row).
           '--ds-pill-ink': s.ink ?? s.fg,

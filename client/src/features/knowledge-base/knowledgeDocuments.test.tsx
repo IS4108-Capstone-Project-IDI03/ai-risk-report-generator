@@ -7,6 +7,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { dateTime } from './display'
+import { choose, pick, pill, search, shown } from './filterTestHelpers'
+import { optionWords } from '../../design-system/components/forms/selectTestHelpers'
 
 const doc = {
   issuingBody: 'NFPA',
@@ -128,13 +130,11 @@ async function openKnowledgeBase() {
 }
 
 const group = (name: string) => screen.findByRole('rowgroup', { name })
-const filter = (label: string, value: string) =>
-  fireEvent.change(screen.getByLabelText(label), { target: { value } })
 
 // Opens a document's Edit details dialog, from its details (the open row).
 async function edit(title: string) {
   fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-  const details = screen.getByRole('region', { name: `Details of ${title}` })
+  const details = screen.getByRole('dialog', { name: title })
   fireEvent.click(within(details).getByRole('button', { name: 'Edit details' }))
   return screen.getByRole('dialog', { name: 'Edit details' })
 }
@@ -152,9 +152,10 @@ const line = (text: string) => (_: string, el: Element | null) =>
   el?.tagName === 'P' && el.textContent === text
 // The Needs review banner (IN-05).
 const reviewBanner = () => screen.findByRole('status', { name: 'Documents to review' })
-// The toolbar's count, whose numbers are set apart from its words.
-const count = (text: string) =>
-  screen.getByText((_, el) => el?.getAttribute('role') === 'status' && el.textContent === text)
+// The dialog on top: a confirmation opens over the document's details panel, which stays.
+const topDialog = () => screen.getAllByRole('dialog').at(-1)!
+// The table footer's count ("2 documents", "2 of 3 documents").
+const count = (text: string) => screen.getByText(text)
 
 beforeAll(() => {
   HTMLDialogElement.prototype.showModal = function () {
@@ -188,7 +189,7 @@ describe('Local standards', () => {
     mockGateway([LOCAL])
     await openKnowledgeBase()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${LOCAL.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${LOCAL.title}` })
+    const details = screen.getByRole('dialog', { name: LOCAL.title })
 
     expect(within(details).getByText('Local standard')).toBeInTheDocument()
     expect(within(details).getByText('Singapore Standards Council')).toBeInTheDocument()
@@ -199,7 +200,7 @@ describe('Local standards', () => {
     mockGateway([{ ...LOCAL, issuingBody: null }])
     await openKnowledgeBase()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${LOCAL.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${LOCAL.title}` })
+    const details = screen.getByRole('dialog', { name: LOCAL.title })
 
     expect(within(details).getByText('None')).toBeInTheDocument()
   })
@@ -210,12 +211,9 @@ describe('Local standards', () => {
     const dialog = await edit(NFPA.title)
     expect(within(dialog).queryByLabelText(/^Issuing body/)).not.toBeInTheDocument()
 
-    fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
-      target: { value: 'local_standard' },
-    })
-    const country = within(dialog).getByLabelText(/^Country/)
-    expect(within(country).queryByRole('option', { name: 'All countries' })).not.toBeInTheDocument()
-    expect(country).toHaveValue('SG')
+    pick(dialog, 'Source type', 'Local standard')
+    expect(shown(dialog, 'Country')).toBe('Singapore')
+    expect(optionWords('Country', dialog)).not.toContain('All countries')
     fireEvent.change(within(dialog).getByLabelText(/^Standard number/), {
       target: { value: 'CP 52' },
     })
@@ -261,13 +259,15 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(reports).getByText('Report date 12 Mar 2024')).toBeInTheDocument()
     expect(within(reports).queryByText('Malaysia')).not.toBeInTheDocument()
     expect(
-      within(reports).getByRole('link', { name: `View original of ${REPORT.title}` }),
+      within(reports).getByRole('link', {
+        name: `View original of ${REPORT.title}, opens in a new tab`,
+      }),
     ).toHaveAttribute('href', REPORT.fileUrl)
     expect(within(reports).queryByRole('button', { name: /Edit details/ })).not.toBeInTheDocument()
-    expect(count('Total 2 documents')).toBeInTheDocument()
+    expect(count('2 documents')).toBeInTheDocument()
 
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    const details = screen.getByRole('dialog', { name: REPORT.title })
     expect(within(details).getByText('Malaysia')).toBeInTheDocument()
     expect(within(details).getByText('Cold store')).toBeInTheDocument()
   })
@@ -286,16 +286,16 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     await group('FM standards')
 
-    filter('Country', 'all')
+    choose('Country', 'All countries')
     expect(screen.getByText(FM.title)).toBeInTheDocument()
     expect(screen.queryByText(NFPA.title)).not.toBeInTheDocument()
 
-    filter('Country', '')
-    filter('Facility type', 'Cold store')
+    choose('Country', 'Any country')
+    choose('Facility type', 'Cold store')
     expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
     expect(screen.getByText(NFPA.title)).toBeInTheDocument()
     expect(screen.getByText(REPORT.title)).toBeInTheDocument()
-    expect(count('Showing 2 of 3 documents')).toBeInTheDocument()
+    expect(count('2 of 3 documents')).toBeInTheDocument()
   })
 
   it('finds titles by fuzzy search: letters in order, any case, gaps allowed', async () => {
@@ -303,13 +303,13 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     await group('FM standards')
 
-    filter('Search titles', 'nfpa13')
+    search('nfpa13')
     expect(screen.getByText(NFPA.title)).toBeInTheDocument()
     expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
     expect(screen.queryByText(REPORT.title)).not.toBeInTheDocument()
-    expect(count('Showing 1 of 3 documents')).toBeInTheDocument()
+    expect(count('1 of 3 documents')).toBeInTheDocument()
 
-    filter('Search titles', 'COLD SURV')
+    search('COLD SURV')
     expect(screen.getByText(REPORT.title)).toBeInTheDocument()
     expect(screen.queryByText(NFPA.title)).not.toBeInTheDocument()
 
@@ -323,9 +323,9 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     await group('FM standards')
 
-    filter('Country', 'TH')
+    choose('Country', 'Thailand')
 
-    expect(screen.getByText('No documents match these filters')).toBeInTheDocument()
+    expect(screen.getByText('No documents match')).toBeInTheDocument()
     expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
     fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0])
     expect(screen.getByText(FM.title)).toBeInTheDocument()
@@ -337,15 +337,13 @@ describe('Knowledge base documents (KB-01)', () => {
     const dialog = await edit(REPORT.title)
     expect(within(dialog).getByLabelText(/^Title/)).toHaveValue(REPORT.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
+    pick(dialog, 'Country', 'Singapore')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     expect(
-      await within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).findByText(
-        'Singapore',
-      ),
+      await within(screen.getByRole('dialog', { name: REPORT.title })).findByText('Singapore'),
     ).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(puts).toEqual([
       {
         id: 'report',
@@ -365,7 +363,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
+    pick(dialog, 'Country', 'Singapore')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     expect(await screen.findByText(`Details saved for ${REPORT.title}.`)).toBeInTheDocument()
@@ -378,9 +376,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const dialog = await edit(NFPA.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
-      target: { value: 'fm_standard' },
-    })
+    pick(dialog, 'Source type', 'FM standard')
     fireEvent.change(within(dialog).getByLabelText(/^Edition/), { target: { value: '2022' } })
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
@@ -397,18 +393,14 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Facility type/), {
-      target: { value: 'Data centre' },
-    })
+    pick(dialog, 'Facility type', 'Data centre')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     expect(
       await within(dialog).findByText('Choose a facility type from the list.'),
     ).toBeInTheDocument()
     expect(
-      within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).getByText(
-        'Cold store',
-      ),
+      within(screen.getByRole('dialog', { name: REPORT.title })).getByText('Cold store'),
     ).toBeInTheDocument()
   })
 
@@ -448,7 +440,7 @@ describe('Knowledge base documents (KB-01)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
 
-    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    const details = screen.getByRole('dialog', { name: REPORT.title })
     expect(within(details).getByText('Marsh report')).toBeInTheDocument()
     // The file's size and upload time sit beside the actions; its name is left out,
     // since the title and View original already stand for the file (Jesper, 16 Oct).
@@ -494,7 +486,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
 
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    const details = screen.getByRole('dialog', { name: REPORT.title })
     // Hidden until asked for, as the assessment's Version history is.
     expect(within(details).queryByText('Sana Patel', { exact: false })).not.toBeInTheDocument()
 
@@ -513,14 +505,14 @@ describe('Knowledge base documents (KB-01)', () => {
     const puts = mockGateway([CORRECTED], (id, body) => json(200, { ...CORRECTED, ...body, id }))
     await openKnowledgeBase()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${REPORT.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${REPORT.title}` })
+    const details = screen.getByRole('dialog', { name: REPORT.title })
     fireEvent.click(within(details).getByRole('button', { name: 'Edit history' }))
     const history = screen.getByRole('dialog', { name: 'Edit history' })
 
     fireEvent.click(within(history).getAllByRole('button', { name: /^Restore/ })[1])
     expect(screen.queryByRole('dialog', { name: 'Edit history' })).not.toBeInTheDocument()
     const dialog = screen.getByRole('dialog', { name: 'Edit details' })
-    expect(within(dialog).getByLabelText(/^Country/)).toHaveValue('MY')
+    expect(shown(dialog, 'Country')).toBe('Malaysia')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     await screen.findByText(`Details saved for ${REPORT.title}.`)
@@ -532,15 +524,13 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const dialog = await edit(REPORT.title)
 
-    fireEvent.change(within(dialog).getByLabelText(/^Country/), { target: { value: 'SG' } })
+    pick(dialog, 'Country', 'Singapore')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(puts).toEqual([])
     expect(
-      within(screen.getByRole('region', { name: `Details of ${REPORT.title}` })).getByText(
-        'Malaysia',
-      ),
+      within(screen.getByRole('dialog', { name: REPORT.title })).getByText('Malaysia'),
     ).toBeInTheDocument()
   })
 
@@ -551,7 +541,7 @@ describe('Knowledge base documents (KB-01)', () => {
   }
   const open = async (title: string) => {
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-    return screen.getByRole('region', { name: `Details of ${title}` })
+    return screen.getByRole('dialog', { name: title })
   }
 
   it('withdraws an active document after confirming, and shows it as Withdrawn (AC12)', async () => {
@@ -565,12 +555,12 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
 
     expect(await within(await row(REPORT.title)).findByText('Withdrawn')).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(posts).toEqual(['report/withdraw'])
     expect(screen.getByText(`${REPORT.title} withdrawn.`)).toBeInTheDocument()
   })
 
-  it('names the file on View original when hovered, not in the details', async () => {
+  it('leaves the file name out of the details, where a long one would push the actions about', async () => {
     const long = 'a-very-long-file-name-'.repeat(8) + '.pdf'
     mockGateway([{ ...REPORT, fileName: long }])
     await openKnowledgeBase()
@@ -579,9 +569,9 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(details).queryByText(long)).not.toBeInTheDocument()
     expect(
       within(await row(REPORT.title)).getByRole('link', {
-        name: `View original of ${REPORT.title}`,
+        name: `View original of ${REPORT.title}, opens in a new tab`,
       }),
-    ).toHaveAttribute('title', long)
+    ).toBeInTheDocument()
   })
 
   it('draws the Withdraw confirm as the soft red, not solid', async () => {
@@ -625,10 +615,8 @@ describe('Knowledge base documents (KB-01)', () => {
 
     expect(await screen.findByText(`${REPORT.title} deleted.`)).toBeInTheDocument()
     expect(deletes).toEqual(['report'])
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('region', { name: `Details of ${REPORT.title}` }),
-    ).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('dialog')).toHaveLength(0)
+    expect(screen.queryByRole('dialog', { name: REPORT.title })).not.toBeInTheDocument()
     expect(screen.queryByText(REPORT.title, { selector: 'strong' })).not.toBeInTheDocument()
   })
 
@@ -655,20 +643,17 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(details).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 
-  it('draws Delete as red text with a soft red edge and no fill, apart from Withdraw', async () => {
+  it('draws Delete in red and the quiet Withdraw beside it, on a row apart from the others', async () => {
     mockGateway([REPORT])
     await openKnowledgeBase()
     const details = await open(REPORT.title)
 
     const remove = within(details).getByRole('button', { name: 'Delete' })
-    expect(remove.style.background).toBe('transparent')
+    const withdraw = within(details).getByRole('button', { name: 'Withdraw' })
     expect(remove.style.color).toBe('var(--action-danger)')
-    // A soft red edge, so it doesn't vanish into the panel.
-    expect(remove.style.border).toContain('solid')
-    expect(remove.style.border).not.toContain('transparent')
-    expect(within(details).getByRole('button', { name: 'Withdraw' }).style.background).not.toBe(
-      'transparent',
-    )
+    expect(withdraw.style.color).toBe('var(--text-body)')
+    expect(remove.parentElement).toHaveClass('kb-actions-risk')
+    expect(withdraw.parentElement).toHaveClass('kb-actions-risk')
   })
 
   describe('a document a report cites (IN-12)', () => {
@@ -684,11 +669,10 @@ describe('Knowledge base documents (KB-01)', () => {
       await openKnowledgeBase()
       const dialog = await openCited()
 
-      const remove = within(
-        screen.getByRole('region', { name: `Details of ${CITED.title}` }),
-      ).getByRole('button', { name: 'Delete (cited by a report)' })
-      expect(remove.style.color).toBe('var(--text-muted)')
-      expect(remove.style.border).toContain('var(--border-default)')
+      const remove = within(screen.getByRole('dialog', { name: CITED.title })).getByRole('button', {
+        name: 'Delete (cited by a report)',
+      })
+      expect(remove.style.color).toBe('var(--text-body)')
       expect(dialog).toHaveTextContent("A report cites this document, so it can't be deleted.")
       expect(within(dialog).queryByLabelText('Document title')).not.toBeInTheDocument()
       expect(deletes).toEqual([])
@@ -713,7 +697,7 @@ describe('Knowledge base documents (KB-01)', () => {
       expect(dialog).toHaveTextContent('It is already withdrawn.')
       expect(within(dialog).queryByRole('button', { name: 'Withdraw instead' })).toBeNull()
       fireEvent.click(within(dialog).getAllByRole('button', { name: 'Close' }).at(-1)!)
-      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.getAllByRole('dialog')).toHaveLength(1)
     })
   })
 
@@ -723,9 +707,9 @@ describe('Knowledge base documents (KB-01)', () => {
     const details = await open(REPORT.title)
 
     fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+    fireEvent.click(within(topDialog()).getByRole('button', { name: 'Cancel' }))
 
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(posts).toEqual([])
     expect(within(await row(REPORT.title)).getByText('Active')).toBeInTheDocument()
   })
@@ -736,7 +720,7 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const details = await open(REPORT.title)
     fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
-    const dialog = screen.getByRole('dialog')
+    const dialog = topDialog()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
 
@@ -751,12 +735,12 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const details = await open(REPORT.title)
     fireEvent.click(within(details).getByRole('button', { name: 'Withdraw' }))
-    const dialog = screen.getByRole('dialog')
+    const dialog = topDialog()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'The gateway could not be reached, so nothing changed. Try again.',
+      "Can't reach the server, so nothing changed. Try again.",
     )
   })
 
@@ -773,7 +757,7 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(details).getByRole('button', { name: 'Reinstate' })).toBeInTheDocument()
     expect(
       within(await row(REPORT.title)).getByRole('link', {
-        name: `View original of ${REPORT.title}`,
+        name: `View original of ${REPORT.title}, opens in a new tab`,
       }),
     ).toBeInTheDocument()
   })
@@ -788,7 +772,10 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     const details = await open(REPORT.title)
 
-    expect(within(details).getByRole('button', { name: 'Reinstate' })).toBeDisabled()
+    expect(within(details).getByRole('button', { name: 'Reinstate' })).toHaveAttribute(
+      'aria-disabled',
+      'true',
+    )
     expect(within(details).queryByText(/Withdraw the 2025 edition first/)).not.toBeInTheDocument()
   })
 
@@ -815,7 +802,7 @@ describe('Knowledge base documents (KB-01)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reinstate' }))
 
     expect(await within(await row(REPORT.title)).findByText('Active')).toBeInTheDocument()
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     expect(posts).toEqual(['report/reinstate'])
     expect(screen.getByText(`${REPORT.title} reinstated.`)).toBeInTheDocument()
   })
@@ -828,9 +815,9 @@ describe('Knowledge base documents (KB-01)', () => {
     const details = await open(REPORT.title)
 
     fireEvent.click(within(details).getByRole('button', { name: 'Reinstate' }))
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Reinstate' }))
+    fireEvent.click(within(topDialog()).getByRole('button', { name: 'Reinstate' }))
     fireEvent.click(await within(details).findByRole('button', { name: 'Withdraw' }))
-    const dialog = screen.getByRole('dialog')
+    const dialog = topDialog()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw' }))
 
     expect(await within(details).findByRole('button', { name: 'Reinstate' })).toBeEnabled()
@@ -844,7 +831,7 @@ describe('Knowledge base documents (KB-01)', () => {
     const details = await open(REPORT.title)
 
     fireEvent.click(within(details).getByRole('button', { name: 'Reinstate' }))
-    const dialog = screen.getByRole('dialog')
+    const dialog = topDialog()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Reinstate' }))
 
     const alert = await within(dialog).findByRole('alert')
@@ -858,17 +845,17 @@ describe('Knowledge base documents (KB-01)', () => {
     await openKnowledgeBase()
     await group('FM standards')
 
-    filter('Status', 'withdrawn')
+    choose('Status', 'Withdrawn')
     expect(screen.getByText(REPORT.title)).toBeInTheDocument()
     expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
-    expect(count('Showing 1 of 2 documents')).toBeInTheDocument()
+    expect(count('1 of 2 documents')).toBeInTheDocument()
 
-    filter('Status', 'active')
+    choose('Status', 'Active')
     expect(screen.getByText(FM.title)).toBeInTheDocument()
     expect(screen.queryByText(REPORT.title)).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }))
-    expect(screen.getByLabelText('Status')).toHaveValue('')
+    expect(pill('Status')).toHaveAccessibleName('Status')
     expect(screen.getByText(REPORT.title)).toBeInTheDocument()
   })
 })
@@ -904,14 +891,9 @@ describe('Knowledge base needs review (IN-05)', () => {
 
     const banner = await reviewBanner()
     expect(within(banner).getByText('2 documents need review')).toBeInTheDocument()
-    // The names, then the action on a line of its own.
+    // The names, then the action.
     expect(
       within(banner).getByText(line(`${PARTLY.title} and ${UNREAD.title}`)),
-    ).toBeInTheDocument()
-    expect(
-      within(banner).getByText(
-        'Fill in their unconfirmed details, so new reports can refer to them.',
-      ),
     ).toBeInTheDocument()
     expect(within(await row(PARTLY.title)).getByText('Needs review')).toBeInTheDocument()
     expect(within(await row(UNREAD.title)).getByText('Needs review')).toBeInTheDocument()
@@ -925,11 +907,11 @@ describe('Knowledge base needs review (IN-05)', () => {
     await openKnowledgeBase()
     await row(FM.title)
 
-    filter('Status', 'active')
+    choose('Status', 'Active')
     expect(screen.getByText(FM.title)).toBeInTheDocument()
     expect(screen.queryByText(PARTLY.title)).not.toBeInTheDocument()
 
-    filter('Status', 'needs_review')
+    choose('Status', 'Needs review')
     expect(screen.getByText(PARTLY.title)).toBeInTheDocument()
     expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
   })
@@ -939,9 +921,7 @@ describe('Knowledge base needs review (IN-05)', () => {
     await openKnowledgeBase()
     const banner = await reviewBanner()
     expect(within(banner).getByText(`${PARTLY.title} needs review`)).toBeInTheDocument()
-    expect(
-      within(banner).getByText('Fill in its unconfirmed details, so new reports can refer to it.'),
-    ).toBeInTheDocument()
+    expect(within(banner).getByText('Unconfirmed details')).toBeInTheDocument()
     // Review goes to the document's Review page (IN-07), not the Edit dialog.
     fireEvent.click(within(banner).getByRole('button', { name: 'Review' }))
     expect(window.location.pathname).toBe(`/admin/knowledge-base/review/${PARTLY.id}`)
@@ -968,7 +948,7 @@ describe('Knowledge base needs review (IN-05)', () => {
     expect(banner).not.toHaveTextContent('Standard 4')
 
     fireEvent.click(within(banner).getByRole('button', { name: 'Show them' }))
-    expect(screen.getByLabelText('Status')).toHaveValue('needs_review')
+    expect(pill('Status')).toHaveAccessibleName('Status: Needs review')
     expect(screen.queryByText(FM.title)).not.toBeInTheDocument()
   })
 
@@ -1025,7 +1005,7 @@ describe('Knowledge base needs review (IN-05)', () => {
     const unread = await row(UNREAD.title)
     expect(within(unread).getByText('Needs review')).toBeInTheDocument()
     fireEvent.click(within(unread).getByRole('button', { name: new RegExp(`^${UNREAD.title}`) }))
-    const details = screen.getByRole('region', { name: `Details of ${UNREAD.title}` })
+    const details = screen.getByRole('dialog', { name: UNREAD.title })
     const flags = within(details).getAllByText('Unconfirmed')
     expect(flags.length).toBeGreaterThan(1)
     for (const flag of flags) expect(flag.querySelector('[role="presentation"]')).toBeTruthy()
@@ -1048,15 +1028,13 @@ describe('Knowledge base needs review (IN-05)', () => {
     await openKnowledgeBase()
     const dialog = await openReview(UNREAD.title)
 
-    expect(within(dialog).getByLabelText(/^Source type/)).toHaveValue('')
+    expect(shown(dialog, 'Source type')).toBe('Choose a source type')
     expect(within(dialog).getByText('Unconfirmed — fill this in')).toBeInTheDocument()
 
     // Choosing a source type reveals the rest, each Unconfirmed one empty and marked.
-    fireEvent.change(within(dialog).getByLabelText(/^Source type/), {
-      target: { value: 'nfpa_standard' },
-    })
+    pick(dialog, 'Source type', 'NFPA standard')
     expect(within(dialog).getByLabelText(/^Title/)).toHaveValue('')
-    expect(within(dialog).getByLabelText(/^Country/)).toHaveValue('')
+    expect(shown(dialog, 'Country')).toBe('Choose a country')
     expect(within(dialog).getAllByText('Unconfirmed — fill this in').length).toBeGreaterThan(1)
 
     // A standard's facility type is not silently "all": it must be chosen.
@@ -1085,9 +1063,7 @@ describe('Knowledge base needs review (IN-05)', () => {
 
     fireEvent.change(within(dialog).getByLabelText(/^Edition/), { target: { value: '2023' } })
     expect(within(dialog).getAllByText('Unconfirmed — fill this in')).toHaveLength(1)
-    fireEvent.change(within(dialog).getByLabelText(/^Facility type/), {
-      target: { value: 'Cold store' },
-    })
+    pick(dialog, 'Facility type', 'Cold store')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save details' }))
 
     // No match to decide on, so it goes back to the list with a toast.
@@ -1103,7 +1079,7 @@ describe('Source tier (RT-04)', () => {
     mockGateway([d])
     await openKnowledgeBase()
     fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${FM.title}`) }))
-    return screen.getByRole('region', { name: `Details of ${FM.title}` })
+    return screen.getByRole('dialog', { name: FM.title })
   }
 
   it('shows a tier set by an admin, a suggested one, and Unranked', async () => {
@@ -1139,7 +1115,7 @@ describe('Source tier (RT-04)', () => {
     const again = mockGateway([{ ...FM, tier: null }], () => json(200, { ...FM }))
     await openKnowledgeBase()
     const d2 = await edit(FM.title)
-    fireEvent.change(within(d2).getByLabelText('Tier'), { target: { value: 'marsh_precedent' } })
+    pick(d2, 'Tier', 'Marsh precedent')
     fireEvent.click(within(d2).getByRole('button', { name: 'Save details' }))
     await vi.waitFor(() => expect(again).toHaveLength(1))
     expect(again[0].body.tier).toBe('marsh_precedent')

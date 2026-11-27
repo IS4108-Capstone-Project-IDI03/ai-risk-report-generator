@@ -4,7 +4,7 @@
 // Used by CitationPanel. Above the text, the part of the original page a table, formula or
 // picture was read from (KB-02); the text, its formulas and highlight come from PassageBody.
 import type { ReactNode } from 'react'
-import { Badge, Callout, Icon, IconRegistry } from '../../../design-system'
+import { Badge, Callout, Fact, FactList, Icon, IconRegistry } from '../../../design-system'
 import { calendarDate } from '../../knowledge-base/display'
 import { Tip } from '../../help/Tip'
 import { CitedImage } from '../../sources/CitedImage'
@@ -59,27 +59,15 @@ export function PassageDetails(props: Props) {
         {manual && <Badge tone="neutral">Manual entry</Badge>}
       </div>
       <h3>{title ?? (doc ? doc.title : 'Document details loading')}</h3>
-      <dl className="rv-meta">
-        {doc?.kind === 'standard' && doc.edition && (
-          <>
-            <dt>Edition</dt>
-            <dd>{doc.edition}</dd>
-          </>
-        )}
+      {/* The v2 fact list, as the knowledge base's document panel shows a document's details. */}
+      <FactList>
+        {doc?.kind === 'standard' && doc.edition && <Fact label="Edition">{doc.edition}</Fact>}
         {doc?.kind === 'report' && doc.date && (
-          <>
-            <dt>Report date</dt>
-            <dd>{calendarDate(doc.date)}</dd>
-          </>
+          <Fact label="Report date">{calendarDate(doc.date)}</Fact>
         )}
         {/* A manual clause has no page (IN-18). */}
-        {!manual && (
-          <>
-            <dt>{many ? 'Pages' : 'Page'}</dt>
-            <dd>{range ?? 'Not recorded'}</dd>
-          </>
-        )}
-      </dl>
+        {!manual && <Fact label={many ? 'Pages' : 'Page'}>{range ?? 'Not recorded'}</Fact>}
+      </FactList>
       {doc?.newerEdition && (
         <Callout tone="warning">
           Newer edition:{' '}

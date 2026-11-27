@@ -1,6 +1,6 @@
 // The location navigator (CP-22, built on CP-16's locations): Block → Level →
 // Area. Picking one filters the list, so a big site needs no long scroll. A
-// panel beside the list on a laptop, a button opening a sheet on a phone. Rendered by screens/Observations.tsx.
+// panel beside the list where the tab is wide enough, else a button opening a sheet. Rendered by screens/Observations.tsx.
 import { useState } from 'react'
 import { Dialog, Icon } from '../../../design-system'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -17,10 +17,14 @@ type Props = {
   walk?: string
 }
 
-// Returns the panel, or on a phone the button and its sheet.
-export function LocationNavigator({ v, view }: Omit<Props, 'onPick'>) {
+// Returns the panel, or on a phone or a narrow tab (`narrow`) the button and its sheet.
+export function LocationNavigator({
+  v,
+  view,
+  narrow = false,
+}: Omit<Props, 'onPick'> & { narrow?: boolean }) {
   const [open, setOpen] = useState(false)
-  if (!v.phone)
+  if (!v.phone && !narrow)
     return (
       <nav className="ob-card ob-nav" aria-label="Locations">
         <Tree v={v} view={view} onPick={view.pick} walk="observations.locations" />

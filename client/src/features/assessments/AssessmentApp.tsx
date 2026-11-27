@@ -1,16 +1,14 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
-  BackButton,
   Button,
-  clampedTitle,
   Dialog,
-  EmptyState,
   IconRegistry,
   NavDrawer,
   PhoneBar,
   SideNav,
   Tabs,
   Toaster,
+  TopBar,
 } from '../../design-system'
 import type { Session } from '../auth/api'
 import { can } from '../auth/access'
@@ -33,21 +31,18 @@ import { DetailsPanel } from '../marshbot/components/DetailsPanel'
 import './workflow.css'
 import { Dashboard } from './screens/Dashboard'
 import { NewAssessment } from '../new-assessment/screens/NewAssessment'
-import { NewAssessmentButton } from '../new-assessment/components/NewAssessmentButton'
 import { SiteObservation } from './screens/SiteObservation'
 import { Overview } from './screens/Overview'
 import { Checklist } from './screens/Checklist'
 import { Observations } from './screens/Observations'
-import { Generation } from './screens/Generation'
 import { DraftingSteps } from './screens/DraftingSteps'
 import { ReviewWorkspace } from './screens/ReviewWorkspace'
-import { Review } from './screens/Review'
 import { ReportExport } from './screens/ReportExport'
-import { ValidationExport } from './screens/ValidationExport'
 import { ComparisonTab } from './comparison/ComparisonTab'
 import { Photos } from './screens/Photos'
 import { Scans } from './screens/Scans'
 import { Recordings } from './screens/Recordings'
+import { WorkspaceState } from './components/WorkspaceState'
 import { UserAccounts } from '../accounts/UserAccounts'
 import { Settings } from '../settings/Settings'
 import { ClientList } from '../clients/ClientList'
@@ -80,7 +75,10 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
         : item,
     ),
   }))
-  const captureOnPhone = v.isField && v.phone && !v.routeBlocked
+  // The open assessment's reference once it is on the work list. Until then the workspace and
+  // capture show WorkspaceState (loading, failed or not on the list) instead of their screens.
+  const reference = v.workspaceGate ? null : v.liveReference
+  const captureOnPhone = v.isField && v.phone && !v.routeBlocked && !!reference
   // The assessment's Details panel (AS-06 board 06), from the header or MarshBot's client card.
   const [detailsOpen, setDetailsOpen] = useState(false)
   const openDetails = v.liveRecord ? () => setDetailsOpen(true) : undefined
@@ -134,6 +132,28 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
     .filter((_, i) => i !== 1)
     .join('|')
   const depth = v.isClient ? 1 : v.isCreate || v.isAssessment || v.isField ? 2 : 0
+  // Desktop has no phone bar, so the bell and activity sit in each page's own top bar.
+  const desktopBell = !v.showTopBar && (
+    <>
+      <ActivityButton />
+      <NotificationBell />
+    </>
+  )
+  // Screens that draw their own TopBar; the shell draws it for the rest (the assessment
+  // workspace and capture, the chat).
+  const selfHeaded =
+    !v.routeBlocked &&
+    (v.isClient ||
+      v.isClients ||
+      v.isCalendar ||
+      v.isDashboard ||
+      v.isInbox ||
+      v.isSettings ||
+      v.isKnowledge ||
+      v.isUsage ||
+      v.isUsers ||
+      v.isCreate)
+  const inWorkspace = (!!v.isAssessment || !!v.isField) && !v.routeBlocked && !!reference
   return (
     <>
       <ScreenMotion screenKey={screenKey} depth={depth} main={scroller} />
@@ -198,202 +218,76 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
               )}
 
               {/* Capture keeps the workspace's header and tabs. On a phone the
-                  top bar stands in for them, leaving the screen to the form. A
-                  client's page heads itself with the client's name (CP-23). */}
-              {!captureOnPhone &&
-                !(v.isClient && !v.routeBlocked) &&
-                !(v.isClients && !v.routeBlocked) &&
-                // The Calendar heads itself with the kit TopBar (CP-60).
-                !(v.isCalendar && !v.routeBlocked) &&
-                !(v.isDashboard && !v.routeBlocked) &&
-                // The Inbox heads itself with the kit TopBar (F-10).
-                !(v.isInbox && !v.routeBlocked) &&
-                // Settings heads itself with the kit TopBar, like the Assessments list.
-                !(v.isSettings && !v.routeBlocked) &&
-                // New Assessment heads itself with the kit TopBar and its Create (CP-23).
-                !(v.isCreate && !v.routeBlocked) && (
-                  <div
-                    style={{
-                      flex: '0 0 auto',
-                      background: 'var(--surface-card)',
-                      borderBottom: '1px solid var(--border-default)',
-                      // 16 px above, as the TopBar has, so a title sits at one height on every page.
-                      padding: '16px clamp(16px,2vw,28px) 0',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        flexWrap: 'wrap',
-                        gap: '12px 20px',
-                        paddingBottom: '16px',
-                      }}
-                    >
-                      {/* Opened from a client's page: Back returns there, on the tab it
-                          was opened from (CP-29); from the calendar, to the calendar
-                          (CP-60). Leaving the document editor asks first. */}
-                      {!!v.backTo && !v.routeBlocked && (
-                        <BackButton
-                          label={v.backTo.label}
-                          onClick={() => guardLeave(v.backTo!.onClick)}
-                        />
-                      )}
-                      <div
-                        style={{
-                          minWidth: '0',
-                          // On a phone the title takes the row, less Back's width when
-                          // there is one, so the actions wrap under it and never squeeze it.
-                          flex: !v.showTopBar
-                            ? '1'
-                            : v.backTo
-                              ? '1 0 calc(100% - 72px)'
-                              : '1 0 100%',
-                        }}
-                      >
-                        {!!v.eyebrow && (
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '10px',
-                              marginBottom: '2px',
-                            }}
-                          >
-                            {/* The eyebrow, title and helper below match the design system's TopBar
-                                (kit.css .ds-topbar-*, v2 section 4), so every page title in the app
-                                is the same 28 px navy, whichever header draws it. */}
-                            <span
-                              style={{
-                                fontSize: '11px',
-                                lineHeight: '1.2',
-                                fontWeight: '700',
-                                letterSpacing: '0.08em',
-                                textTransform: 'uppercase',
-                                color: 'var(--graphite-600)',
-                              }}
-                            >
-                              {v.eyebrow}
-                            </span>
-                          </div>
-                        )}
-                        <h1
-                          // A very long site name stops at 2 lines (AS-06 round 9): without the
-                          // clamp it ran to 4 or 5 and pushed the tabs and the screen down. The
-                          // full name stays on hover, only while it is cut short.
-                          onPointerEnter={clampedTitle(
-                            typeof v.title === 'string' && !v.routeBlocked ? v.title : undefined,
-                          )}
-                          style={{
-                            margin: '0',
-                            // 22 px on a phone, as the TopBar's title is there.
-                            fontSize: v.showTopBar ? '22px' : '28px',
-                            lineHeight: '1.2',
-                            fontWeight: '700',
-                            letterSpacing: '-0.01em',
-                            color: 'var(--marsh-navy)',
-                            overflowWrap: 'anywhere',
-                            textWrap: 'pretty',
-                            display: '-webkit-box',
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: 'vertical',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {v.routeBlocked ? 'Access restricted' : v.title}
-                        </h1>
-                        {!v.routeBlocked && !!v.meta && (
-                          <div
-                            style={{
-                              marginTop: '2px',
-                              fontSize: '14px',
-                              lineHeight: '1.4',
-                              color: 'var(--graphite-600)',
-                            }}
-                          >
-                            {v.meta}
-                          </div>
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          flex: '0 1 auto',
-                          display: 'flex',
-                          alignItems: 'center',
-                          flexWrap: 'wrap',
-                          gap: '8px',
-                          paddingTop: '6px',
-                        }}
-                      >
-                        {v.isClients && !v.routeBlocked && v.canEdit && (
-                          <NewAssessmentButton onStart={v.goCreate} />
-                        )}
+                  top bar stands in for them, leaving the screen to the form. */}
+              {!captureOnPhone && !selfHeaded && (
+                <TopBar
+                  // On a phone the title takes the row, so the actions wrap under it.
+                  stack={inWorkspace}
+                  // Opened from a client's page: Back returns there, on the tab it was opened
+                  // from (CP-29); from the calendar, to the calendar (CP-60). Leaving the
+                  // document editor asks first.
+                  back={
+                    v.backTo && !v.routeBlocked
+                      ? { label: v.backTo.label, onClick: () => guardLeave(v.backTo!.onClick) }
+                      : undefined
+                  }
+                  eyebrow={v.phone ? undefined : v.eyebrow}
+                  title={
+                    v.routeBlocked
+                      ? 'Access restricted'
+                      : v.workspaceGate === 'missing'
+                        ? 'Assessment not found'
+                        : v.title
+                  }
+                  helper={v.routeBlocked ? undefined : v.meta || undefined}
+                  action={
+                    inWorkspace ? (
+                      <span className="ws-actions">
                         {/* Restore stays visible: it is the one thing to do with an
-                        archived assessment. Capturing starts from the
-                        Observations tab's own buttons (CP-22). */}
-                        {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
-                          <>
-                            {v.canRestore && (
-                              <Button
-                                variant="secondary"
-                                iconLeft={IconRegistry.action.reinstate}
-                                onClick={v.restoreAssessment}
-                                disabled={v.archiveBusy}
-                              >
-                                {'Restore'}
-                              </Button>
-                            )}
-                            {/* Version history and Archive are for the whole assessment,
-                            so they sit here on every tab and on New Observation
-                            (CP-22 round 1). Leaving the document editor or a
-                            capture for history asks first (RV-08). */}
-                            <AssessmentActions
-                              onHistory={() => guardLeave(v.showVersionHistory)}
-                              onDetails={openDetails}
-                              onArchive={v.canArchive ? v.openArchive : undefined}
-                              archiveBlocked={v.archiveBlocked}
-                            />
-                          </>
+                            archived assessment. */}
+                        {v.canRestore && (
+                          <Button
+                            pill
+                            variant="secondary"
+                            iconLeft={IconRegistry.action.reinstate}
+                            onClick={v.restoreAssessment}
+                            disabled={v.archiveBusy}
+                          >
+                            {'Restore'}
+                          </Button>
                         )}
-                        {/* Desktop has no top bar, so the bell lives in the page
-                        header. On phones the navy bar carries it instead, so
-                        this copy is suppressed to avoid a second one. */}
-                        {!v.showTopBar && !v.routeBlocked && (
-                          <>
-                            <ActivityButton />
-                            <NotificationBell />
-                          </>
-                        )}
+                        {/* Version history, Details and Archive are for the whole assessment,
+                            so they sit here on every tab and on New Observation (CP-22
+                            round 1). Leaving the document editor or a capture asks first (RV-08). */}
+                        <AssessmentActions
+                          onHistory={() => guardLeave(v.showVersionHistory)}
+                          onDetails={openDetails}
+                          onArchive={v.canArchive ? v.openArchive : undefined}
+                          archiveBlocked={v.archiveBlocked}
+                        />
+                      </span>
+                    ) : undefined
+                  }
+                  bell={!v.routeBlocked && desktopBell}
+                  tabs={
+                    inWorkspace ? (
+                      <div className="om-hidebar ws-tabs">
+                        {/* From capture, a tab leaves it for that tab. */}
+                        <Tabs
+                          items={v.tabItems}
+                          value={v.tabValue}
+                          onChange={
+                            v.isField
+                              ? v.leaveCaptureTo
+                              : (tab: string) => leave(tab === v.tabValue, () => v.setTab(tab))
+                          }
+                          compact
+                        ></Tabs>
                       </div>
-                    </div>
-                    {(!!v.isAssessment || v.isField) && !v.routeBlocked && (
-                      <>
-                        <div
-                          className="om-hidebar ws-tabs"
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '10px',
-                            overflowX: 'auto',
-                            scrollbarWidth: 'none',
-                          }}
-                        >
-                          {/* From capture, a tab leaves it for that tab. */}
-                          <Tabs
-                            items={v.tabItems}
-                            value={v.tabValue}
-                            onChange={
-                              v.isField
-                                ? v.leaveCaptureTo
-                                : (tab: string) => leave(tab === v.tabValue, () => v.setTab(tab))
-                            }
-                            compact
-                          ></Tabs>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
+                    ) : undefined
+                  }
+                />
+              )}
 
               <main
                 ref={scroller}
@@ -417,32 +311,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                             ? 'Risk engineering'
                             : 'Administration'
                         }
-                        // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={
-                          !v.showTopBar && (
-                            <>
-                              <ActivityButton />
-                              <NotificationBell />
-                            </>
-                          )
-                        }
+                        bell={desktopBell}
                       />
                     )}
 
-                    {v.isDashboard && (
-                      <Dashboard
-                        v={v}
-                        // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={
-                          !v.showTopBar && (
-                            <>
-                              <ActivityButton />
-                              <NotificationBell />
-                            </>
-                          )
-                        }
-                      />
-                    )}
+                    {v.isDashboard && <Dashboard v={v} bell={desktopBell} />}
 
                     {v.isCreate && (
                       <NewAssessment
@@ -452,34 +325,27 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                         onCreated={v.newAssessment.onCreated}
                         onView={v.newAssessment.onView}
                         onLeave={v.cancelForm}
-                        bell={
-                          !v.showTopBar && (
-                            <>
-                              <ActivityButton />
-                              <NotificationBell />
-                            </>
-                          )
-                        }
+                        bell={desktopBell}
                       />
                     )}
 
-                    {v.isField && <SiteObservation v={v} />}
+                    {v.isField && !!reference && <SiteObservation v={v} />}
 
-                    {v.isUsers && <UserAccounts narrow={v.stackTable} currentUserId={v.userId} />}
+                    {(v.isAssessment || v.isField) && !!v.workspaceGate && <WorkspaceState v={v} />}
+
+                    {v.isUsers && (
+                      <UserAccounts
+                        narrow={v.stackTable}
+                        currentUserId={v.userId}
+                        bell={desktopBell}
+                      />
+                    )}
 
                     {v.isClients && (
                       <ClientList
                         {...v.clientList}
                         onStart={v.canEdit ? v.goCreate : undefined}
-                        // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={
-                          !v.showTopBar && (
-                            <>
-                              <ActivityButton />
-                              <NotificationBell />
-                            </>
-                          )
-                        }
+                        bell={desktopBell}
                       />
                     )}
 
@@ -487,36 +353,15 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       <Calendar
                         {...v.calendar}
                         onStart={v.canEdit ? v.calendar.onStart : undefined}
-                        // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={
-                          !v.showTopBar && (
-                            <>
-                              <ActivityButton />
-                              <NotificationBell />
-                            </>
-                          )
-                        }
+                        bell={desktopBell}
                       />
                     )}
 
-                    {v.isClient && (
-                      <ClientPage
-                        {...v.clientPage}
-                        // Desktop has no top bar, so the bell sits in the page's own header.
-                        bell={
-                          !v.showTopBar && (
-                            <>
-                              <ActivityButton />
-                              <NotificationBell />
-                            </>
-                          )
-                        }
-                      />
-                    )}
+                    {v.isClient && <ClientPage {...v.clientPage} bell={desktopBell} />}
 
                     {v.isKnowledge && (
                       <KnowledgeBase
-                        narrow={v.stackTable}
+                        bell={desktopBell}
                         notify={v.notify}
                         canManage={can('knowledge:manage', session)}
                       />
@@ -524,14 +369,11 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
 
                     {v.isUsage && (
                       <Suspense fallback={null}>
-                        <UsageCosts isAdmin={v.isAdmin} />
+                        <UsageCosts isAdmin={v.isAdmin} bell={desktopBell} />
                       </Suspense>
                     )}
 
-                    {v.isSettings && (
-                      // Desktop has no top bar, so the bell sits in the page's own header.
-                      <Settings bell={!v.showTopBar && <NotificationBell />} />
-                    )}
+                    {v.isSettings && <Settings bell={desktopBell} />}
 
                     {v.isChat && (
                       <Suspense fallback={null}>
@@ -539,120 +381,99 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
                       </Suspense>
                     )}
 
-                    {v.isOverview && (
-                      <Overview v={v} openDetails={() => setDetailsOpen(true)} goTo={setGoTo} />
+                    {v.isOverview && reference && (
+                      <Overview
+                        v={v}
+                        reference={reference}
+                        openDetails={() => setDetailsOpen(true)}
+                        goTo={setGoTo}
+                      />
                     )}
 
-                    {v.isChecklist &&
-                      (v.liveReference ? (
-                        <Checklist
-                          reference={v.liveReference}
-                          canGenerate={v.canDraftSections}
-                          answering={v.checklistTabAnswering}
-                          onViewObservation={v.showObservation}
-                          area={goTo?.params?.area}
-                          item={goTo?.params?.item}
-                          archived={v.archivedOpen}
-                        />
-                      ) : (
-                        <div style={{ padding: '24px' }}>
-                          <EmptyState
-                            icon="list-checks"
-                            title="No checklist for the sample assessment"
-                            description="Checklists are generated for saved assessments. Open one from the dashboard to generate its checklist."
-                          />
-                        </div>
-                      ))}
+                    {v.isChecklist && reference && (
+                      <Checklist
+                        reference={reference}
+                        canGenerate={v.canDraftSections}
+                        answering={v.checklistTabAnswering}
+                        onViewObservation={v.showObservation}
+                        area={goTo?.params?.area}
+                        item={goTo?.params?.item}
+                        archived={v.archivedOpen}
+                      />
+                    )}
 
-                    {v.isObservations && <Observations v={v} media={goTo?.params?.media} />}
+                    {v.isObservations && reference && (
+                      <Observations v={v} media={goTo?.params?.media} />
+                    )}
 
-                    {v.isPhotos && <Photos v={v} />}
+                    {v.isPhotos && reference && <Photos v={v} />}
 
-                    {v.isScans && <Scans v={v} />}
+                    {v.isScans && reference && <Scans v={v} />}
 
-                    {v.isRecordings && <Recordings v={v} />}
+                    {v.isRecordings && reference && <Recordings v={v} />}
 
-                    {v.isGenerate &&
-                      (v.liveReference ? (
-                        <DraftingSteps
-                          reference={v.liveReference}
-                          onReview={v.goReview}
-                          // A step 2 task opens its section in Review, as a MarshBot link does.
-                          onOpenSection={(section) => {
+                    {v.isGenerate && reference && (
+                      <DraftingSteps
+                        reference={reference}
+                        onReview={v.goReview}
+                        // A step 2 task opens its section in Review, as a MarshBot link does.
+                        onOpenSection={(section) => {
+                          v.setTab('review')
+                          setGoTo({ tab: 'review', params: { section } })
+                        }}
+                        onObservations={v.goObservations}
+                        archived={v.archivedOpen}
+                      />
+                    )}
+
+                    {v.isReview && reference && (
+                      <ReviewWorkspace
+                        reference={reference}
+                        assessment={v.liveRecord}
+                        canReview={v.canDraftSections}
+                        canComment={v.canComment}
+                        me={{ id: session.user.id, name: session.user.name }}
+                        onGenerate={() => v.setTab('generate')}
+                        historyRequest={v.reviewHistory}
+                        openSection={goTo?.params?.section}
+                        canAsk={v.canAsk}
+                        archived={v.archivedOpen}
+                        // Writing guidance's Go to observation (AS-08), past an
+                        // unsaved document's leave guard as the tabs are.
+                        onViewObservation={(id) =>
+                          guardLeave(() => (id ? v.showObservation(id) : v.setTab('observations')))
+                        }
+                      />
+                    )}
+
+                    {v.isComparison && reference && (
+                      <ComparisonTab
+                        reference={reference}
+                        // An observation or a section opens past an unsaved document's leave
+                        // guard, as the tabs do.
+                        onViewObservation={(id) => guardLeave(() => v.showObservation(id))}
+                        onOpenSection={(section) =>
+                          guardLeave(() => {
                             v.setTab('review')
                             setGoTo({ tab: 'review', params: { section } })
-                          }}
-                          onObservations={v.goObservations}
-                          archived={v.archivedOpen}
-                        />
-                      ) : (
-                        <Generation v={v} />
-                      ))}
+                          })
+                        }
+                      />
+                    )}
 
-                    {v.isReview &&
-                      (v.liveReference ? (
-                        <ReviewWorkspace
-                          reference={v.liveReference}
-                          assessment={v.liveRecord}
-                          canReview={v.canDraftSections}
-                          canComment={v.canComment}
-                          me={{ id: session.user.id, name: session.user.name }}
-                          wrapStyle={v.reviewWrapStyle}
-                          railStyle={v.reviewRailStyle}
-                          panelStyle={v.reviewEvidenceStyle}
-                          onGenerate={() => v.setTab('generate')}
-                          historyRequest={v.reviewHistory}
-                          openSection={goTo?.params?.section}
-                          canAsk={v.canAsk}
-                          archived={v.archivedOpen}
-                          // Writing guidance's Go to observation (AS-08), past an
-                          // unsaved document's leave guard as the tabs are.
-                          onViewObservation={(id) =>
-                            guardLeave(() =>
-                              id ? v.showObservation(id) : v.setTab('observations'),
-                            )
-                          }
-                        />
-                      ) : (
-                        <Review v={v} />
-                      ))}
-
-                    {v.isComparison &&
-                      (v.liveReference ? (
-                        <ComparisonTab
-                          reference={v.liveReference}
-                          // An observation or a section opens past an unsaved document's leave
-                          // guard, as the tabs do.
-                          onViewObservation={(id) => guardLeave(() => v.showObservation(id))}
-                          onOpenSection={(section) =>
-                            guardLeave(() => {
-                              v.setTab('review')
-                              setGoTo({ tab: 'review', params: { section } })
-                            })
-                          }
-                        />
-                      ) : (
-                        <div style={{ padding: '24px' }}>
-                          <EmptyState
-                            icon="git-compare"
-                            title="Comparison is unavailable with sample data"
-                            description="A comparison needs saved reports from the gateway. Open a saved assessment from the dashboard to compare it with the previous report for its site."
-                          />
-                        </div>
-                      ))}
-
-                    {v.isExport &&
-                      (v.liveReference ? (
-                        <ReportExport
-                          reference={v.liveReference}
-                          assessment={v.liveRecord}
-                          canExport={v.canExportReport}
-                          onReview={() => v.setTab('review')}
-                          onGenerate={() => v.setTab('generate')}
-                        />
-                      ) : (
-                        <ValidationExport v={v} />
-                      ))}
+                    {v.isExport && reference && (
+                      <ReportExport
+                        reference={reference}
+                        assessment={v.liveRecord}
+                        canExport={v.canExportReport}
+                        // A blocker opens its own section in Review, as Generation's tasks do.
+                        onReview={(section) => {
+                          v.setTab('review')
+                          if (section) setGoTo({ tab: 'review', params: { section } })
+                        }}
+                        onGenerate={() => v.setTab('generate')}
+                      />
+                    )}
                   </>
                 )}
               </main>
@@ -660,24 +481,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
           </div>
 
           <Dialog
-            open={v.stopOpen}
-            title="Stop generation?"
-            description={v.stopDescription}
-            footer={v.stopFooter}
-            onClose={v.closeStop}
-            width={480}
-          ></Dialog>
-          <Dialog
-            open={v.exportOpen}
-            title={v.exportDialogTitle}
-            description={v.exportDialogBody}
-            footer={v.exportFooter}
-            onClose={v.closeExport}
-            width={520}
-          ></Dialog>
-          <Dialog
             open={v.archiveOpen}
-            className="ds-dialog--v2"
             title="Archive this assessment?"
             description="It moves off your work list and stops taking new observations. Everything is kept, and you can find it by filtering Stage to Archived."
             footer={
@@ -699,7 +503,7 @@ export function AssessmentApp({ v, session }: { v: AssessmentWorkflow; session: 
             onClose={v.closeArchive}
             width={440}
           ></Dialog>
-          {v.isAssessment && (
+          {v.isAssessment && !!reference && (
             <DetailsPanel v={v} open={detailsOpen} onClose={() => setDetailsOpen(false)} />
           )}
           {/* Sonner's toaster (CP-23); callers use `toast` from the design system. */}

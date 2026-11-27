@@ -2,10 +2,10 @@
 // how far it has got, drawn by what can honestly be measured. Pressing it opens
 // the job's own place. Called by BackgroundWorkList.
 import { useState } from 'react'
-import { Button, Icon, ProgressBar, RowMark, SegmentBar, toast } from '../../../design-system'
+import { FailedLine, ProgressBar, RowMark, SegmentBar, toast } from '../../../design-system'
 import { retryWork, type BackgroundWorkRow } from '../api'
 import { openWork } from '../openWork'
-import { countWords, stageWords, timedWords } from '../words'
+import { countWords, plainReason, stageWords, timedWords } from '../words'
 
 export function BackgroundWorkItem({
   row,
@@ -24,7 +24,7 @@ export function BackgroundWorkItem({
     retryWork(retry)
       .then(onRetried)
       .catch(() =>
-        toast.error('Could not try again', {
+        toast.error("Couldn't try again", {
           description: 'Open it to see what happened, or try again in a minute.',
         }),
       )
@@ -44,24 +44,14 @@ export function BackgroundWorkItem({
         <Progress row={row} />
       </button>
       {row.state === 'failed' && (
+        // A few plain words, never the gateway's own sentence; the whole reason is on the
+        // job's own page, which the row opens. The shared failed line with its Try again pill.
         <div className="bgw-row__failed">
-          {/* One line, so several failures don't flood the popover; the whole
-              reason is its tooltip, and on the job's own page. */}
-          <p className="bgw-row__error" title={row.error}>
-            <Icon name="circle-alert" size={14} />
-            <span className="bgw-row__reason">{row.error}</span>
-          </p>
-          {row.retry && (
-            <Button
-              variant="secondary"
-              size="xs"
-              iconLeft="refresh-cw"
-              loading={retrying}
-              onClick={() => tryAgain(row.retry!)}
-            >
-              {'Try again'}
-            </Button>
-          )}
+          <FailedLine
+            message={<span className="bgw-row__reason">{plainReason(row.error)}</span>}
+            busy={retrying}
+            onAction={row.retry ? () => tryAgain(row.retry!) : undefined}
+          />
         </div>
       )}
     </li>

@@ -381,6 +381,71 @@ div.ds-step-head:focus:not(:focus-visible) {
 .ds-srow-reason[data-in] {
   animation: ds-step-drop var(--duration-base) var(--ease-out) both;
 }
+/* A navigation row's grey line under the name: state words and small badges, wrapping. */
+.ds-srow-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-top: 3px;
+  color: var(--graphite-600);
+  font: 400 12px/16px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Navigation row (the report outline): the section row as a button ---- */
+.ds-srow.ds-srow-nav {
+  width: 100%;
+  min-height: 48px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  align-items: start;
+  -webkit-tap-highlight-color: transparent;
+}
+/* The tile and a one-line name sit on one centre line; a longer name or a note grows down. An
+   empty mark column takes no gap, so a narrow outline keeps the room for the name. */
+.ds-srow.ds-srow-nav {
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  column-gap: 0;
+}
+.ds-srow-nav .ds-srow-name {
+  padding-top: 4px;
+}
+.ds-srow-nav .ds-srow-end {
+  padding-top: 6px;
+}
+.ds-srow-nav .ds-srow-end:not(:empty) {
+  margin-left: 10px;
+}
+@media (hover: hover) {
+  .ds-srow-nav:hover {
+    background: var(--hover-bg);
+  }
+}
+.ds-srow-nav:active {
+  background: var(--graphite-100);
+}
+.ds-srow-nav:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: -2px;
+}
+.ds-srow-nav[aria-current='true'] {
+  background: var(--ink-50);
+}
+.ds-srow-nav[aria-current='true'] .ds-srow-num {
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
+}
+.ds-srow-nav[aria-current='true'] .ds-srow-title {
+  color: var(--marsh-navy);
+  font-weight: 600;
+}
 
 /* The flagged row (one look): tinted row, tinted number tile, one coloured mark, a short reason.
    Amber when something is missing or out of date, red when drafting failed. */

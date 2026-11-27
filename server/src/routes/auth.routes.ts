@@ -78,8 +78,17 @@ router.post('/reset', async (req, res) => {
     res.status(400).json({ error: 'Token and new password are required.' })
     return
   }
+  // The same rule as an invitation and Change password; without it a reset took "password".
+  const parsed = newPasswordSchema.safeParse(password)
+  if (!parsed.success) {
+    res.status(400).json({
+      error: 'The password is not strong enough.',
+      fields: { password: parsed.error.issues[0].message },
+    })
+    return
+  }
   try {
-    await resetPassword(token, password)
+    await resetPassword(token, parsed.data)
     res.status(200).json({ message: 'Password updated. Sign in with your new password.' })
   } catch (error: unknown) {
     if (error instanceof InvalidResetTokenError) {

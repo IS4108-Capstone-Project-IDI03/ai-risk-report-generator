@@ -22,7 +22,8 @@ function Radio({
     <label
       style={{
         display: 'flex',
-        alignItems: description ? 'flex-start' : 'center',
+        // v2: the box is centred on the row, a second line of description included.
+        alignItems: 'center',
         gap: 'var(--space-4)',
         fontFamily: 'var(--font-sans)',
         fontSize: 'var(--text-body-size)',
@@ -47,7 +48,6 @@ function Radio({
             justifyContent: 'center',
             width: 16,
             height: 16,
-            marginTop: description ? 3 : 0,
             flex: '0 0 auto',
             borderRadius: 'var(--radius-pill)',
             border: '1px solid ' + (checked ? 'var(--action-primary)' : 'var(--border-strong)'),

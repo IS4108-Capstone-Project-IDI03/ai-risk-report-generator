@@ -1,7 +1,7 @@
 // How knowledge documents' details read on screen (IN-01, KB-01). Used by the
 // recent uploads list (KnowledgeBase.tsx) and the documents list
 // (KnowledgeDocuments.tsx).
-import { JURISDICTIONS } from '../assessments/demo-data'
+import { JURISDICTIONS } from '../assessments/options'
 import type { DocumentMatch, KnowledgeDocument, MatchKind, SourceType } from './api'
 
 // What an Unconfirmed detail (null, IN-05) reads as; components/DetailText.tsx
@@ -94,4 +94,14 @@ export function dateTime(iso: string): string {
   const date = new Date(iso)
   const time = date.toTimeString().slice(0, 5)
   return `${date.getDate()} ${date.toLocaleString('en-GB', { month: 'short' }).slice(0, 3)} ${time}`
+}
+
+/** Returns a document's second line: "NFPA 13 · 2022 Edition", or a past report's date. */
+export function editionLine(d: KnowledgeDocument): string {
+  // "NFPA 13", or just the issuing body while the number is unknown.
+  const standard = [d.issuingBody, d.standardNumber].filter(Boolean).join(' ')
+  if (d.edition) return [standard, `${d.edition} Edition`].filter(Boolean).join(' · ')
+  return d.sourceType === 'marsh_report'
+    ? `Report date ${calendarDate(d.effectiveDate)}`
+    : 'Edition unconfirmed'
 }

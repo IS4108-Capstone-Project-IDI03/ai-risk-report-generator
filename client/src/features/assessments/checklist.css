@@ -1,33 +1,97 @@
-/* The checklist (CP-37), drawn with design-system v2 tokens: quiet surfaces, 1 px borders,
-   round 32 px icon buttons, green = ticked, red = differs, neutral = not seen. */
-.cl-note {
-  margin: 0 0 var(--space-6);
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
+/* The checklist (CP-37), drawn with design-system v2: the tab's title on the grey page, each
+   report section a white card of rows (the MarshBot "To Do" card's look), round state marks
+   (green = ticked, red = differs, grey = not seen) and row menus that show on hover or focus.
+   Used by the Checklist tab, the site-walk pane and the phone sheet. */
+
+/* ---- The tab: title line, then the cards ---- */
+.ck-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 24px var(--page-gutter) 40px;
+}
+.cl-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px 16px;
+}
+.cl-top-title {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+/* The same title as the Observations tab's "All Observations" (observations.css .ob-title). */
+.cl-title,
+.cl-build h2 {
+  margin: 0;
+  color: var(--marsh-navy);
+  font: 700 24px/1.2 var(--font-sans);
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.cl-meta {
+  margin: 4px 0 0;
+  font-size: 13px;
+  line-height: 18px;
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.cl-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cl-note {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--text-muted);
+  text-wrap: pretty;
 }
 .cl-error {
   margin: 0;
   color: var(--red-600);
 }
+
+/* ---- A report section: its title and count, then its rows. A white card of its own wherever
+   the list sits on the grey page (.cl-cards: the tab and New Observation's checklist column), so
+   both read as the same checklist; flat in the phone sheet, which is already a surface. ---- */
 .cl-section {
-  margin: 0 0 var(--space-8);
+  margin: 0 0 24px;
 }
 .cl-head {
   display: flex;
-  align-items: baseline;
-  gap: var(--space-4);
-  margin: 0 0 var(--space-4);
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 36px;
+  padding: 0 0 8px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--border-subtle);
 }
-.cl-head h3 {
+.cl-cards .cl-section {
+  margin-bottom: 16px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+}
+.cl-cards .cl-head {
+  min-height: 52px;
+  padding: 12px 16px;
+}
+.cl-head h3,
+.cl-form-title {
   margin: 0;
-  font-size: var(--text-body-size);
-  font-weight: var(--weight-bold);
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
   color: var(--marsh-navy);
 }
 .cl-count {
-  font-size: var(--text-caption-size);
-  font-weight: var(--weight-medium);
+  flex: none;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -36,22 +100,69 @@
   margin: 0;
   padding: 0;
 }
+/* v2: a row's leading marker (here the state ring) is centred on the row's height, however many
+   lines its words take. */
 .cl-row {
   display: flex;
-  align-items: flex-start;
-  gap: var(--space-4);
-  margin: 0 0 var(--space-2);
-  padding: var(--space-2);
-  border-radius: var(--radius-field);
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 10px 4px;
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
-.cl-row:hover,
+.cl-row + .cl-row {
+  border-top: 1px solid var(--border-subtle);
+}
+.cl-row {
+  border-radius: var(--radius-field);
+}
+.cl-cards .cl-row {
+  padding: 10px 12px 10px 16px;
+  border-radius: 0;
+}
+/* The card has no overflow clip (its menus open past it), so the last row rounds itself. */
+.cl-cards .cl-section > .cl-rows:last-child > .cl-row:last-child,
+.cl-cards .cl-show-more {
+  border-radius: 0 0 calc(var(--radius-card) - 1px) calc(var(--radius-card) - 1px);
+}
+@media (hover: hover) and (pointer: fine) {
+  .cl-row:hover {
+    background: var(--surface-hover);
+  }
+}
 .cl-row:focus-within {
   background: var(--surface-hover);
 }
-.cl-row-flash {
+.cl-row-flash,
+.cl-row-flash:hover {
   background: var(--surface-selected);
 }
+/* "Show 4 more": the card's last row, quiet until hovered. */
+.cl-show-more {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--border-subtle);
+  font: 600 13px/1 var(--font-sans);
+  color: var(--marsh-navy);
+  cursor: pointer;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.cl-cards .cl-show-more {
+  padding: 0 16px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cl-show-more:hover {
+    background: var(--surface-hover);
+  }
+}
+
+/* ---- The question ---- */
 .cl-row-text,
 .cl-edit {
   flex: 1 1 auto;
@@ -59,12 +170,18 @@
   /* One set of metrics, so the editor sits exactly where the text was. */
   box-sizing: border-box;
   margin: 0;
-  /* (box height - line height) / 2 puts the first line's middle level with the box's middle. */
+  /* (mark height - line height) / 2: a one-line row is exactly the mark's height. */
   padding: calc((var(--control-height-sm) - var(--text-body-lh)) / 2) 0;
   font: inherit;
   font-size: var(--text-body-size);
   line-height: var(--text-body-lh);
   color: var(--text-primary);
+  text-wrap: pretty;
+}
+/* A readable line on a wide screen; the row menus stay at the row's right end. */
+.cl-row-text {
+  max-width: 80ch;
+  margin-right: auto;
 }
 .cl-fade {
   animation: cl-fade-in var(--duration-base) var(--ease-out);
@@ -85,7 +202,7 @@
   min-width: 0;
 }
 .cl-edit-wrap .cl-note {
-  margin: var(--space-2) 0 0;
+  margin: 8px 0 0;
 }
 /* The editor: no box at rest, only a thin focus underline. */
 .cl-edit {
@@ -99,47 +216,235 @@
   outline: none;
 }
 .cl-suffix {
-  margin-left: var(--space-4);
-  font-size: var(--text-caption-size);
+  margin-left: 8px;
+  font-size: 13px;
   color: var(--text-muted);
 }
 /* The quiet "Important" star before the question, on the first line. */
 .cl-important {
-  margin-right: var(--space-3);
+  margin-right: 6px;
   vertical-align: -2px;
 }
 .cl-strong {
   font-weight: var(--weight-semibold);
 }
-/* "from <standard or past report>": one muted line, ellipsis on wide screens (full title on hover),
-   free to wrap on a phone. */
+/* The line under the question: "View observation", then "from <standard or past report>". */
+.cl-sub {
+  display: flex;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin-top: 2px;
+  min-width: 0;
+}
+.cl-obs-link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  background: none;
+  border: 0;
+  border-radius: var(--radius-xs);
+  font: 600 13px/18px var(--font-sans);
+  color: var(--marsh-navy);
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  .cl-obs-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+}
+/* Ellipsis on wide screens (full title on hover), free to wrap on a phone. */
 .cl-source {
   display: block;
+  min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
+  font-size: 13px;
+  line-height: 18px;
   color: var(--text-muted);
 }
 @media (max-width: 767px) {
+  .cl-sub {
+    flex-wrap: wrap;
+  }
   .cl-source {
     white-space: normal;
   }
 }
-/* Add form: the word counter and the section dropdown. */
+
+/* ---- The state mark: a 22 px ring inside a 32 px button (44 px under a finger), so the tap
+   area stays full size while the mark stays small, like a Reminders circle ---- */
+.cl-state {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height-sm);
+  height: var(--control-height-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+.cl-state::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  transform: translate(-50%, -50%);
+  border: 1.5px solid var(--graphite-400);
+  border-radius: var(--radius-pill);
+  background: var(--surface-card);
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+/* The tick or cross sits on the ring. */
+.cl-state > * {
+  position: relative;
+}
+button.cl-state:active {
+  transform: scale(0.92);
+}
+.cl-state:focus-visible,
+.cl-link:focus-visible,
+.cl-show-more:focus-visible,
+.cl-obs-link:focus-visible,
+.cl-pick-btn:focus-visible,
+.cl-add-btn:focus-visible,
+.cl-obs:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.cl-show-more:focus-visible {
+  outline-offset: -2px;
+}
+.cl-state[data-mark='confirmed'] {
+  color: var(--green-600);
+}
+.cl-state[data-mark='confirmed']::before {
+  border-color: var(--green-600);
+  background: var(--green-50);
+}
+.cl-state[data-mark='differs'] {
+  color: var(--red-600);
+}
+.cl-state[data-mark='differs']::before {
+  border-color: var(--red-600);
+  background: var(--red-50);
+}
+.cl-state[data-mark='not_seen'],
+.cl-state[data-mark='not_applicable'] {
+  color: var(--text-muted);
+}
+.cl-state[data-mark='not_seen']::before,
+.cl-state[data-mark='not_applicable']::before {
+  border-color: var(--graphite-400);
+  background: var(--surface-active);
+}
+@media (hover: hover) and (pointer: fine) {
+  button.cl-state[data-mark='none']:hover::before {
+    border-color: var(--graphite-600);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cl-state,
+  .cl-state::before {
+    transition: none;
+  }
+}
+.cl-state[disabled],
+span.cl-state {
+  cursor: default;
+}
+
+/* A touch tablet keeps its row layout but takes the phone's 44 px marks and row menus (v2 section 2). */
+@media (pointer: coarse) {
+  .cl-state {
+    width: 44px;
+    height: 44px;
+  }
+  .cl-row .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .cl-row-text,
+  .cl-edit {
+    padding-block: calc((44px - var(--text-body-lh)) / 2);
+  }
+}
+
+/* ---- Row menus: round 32 px icon buttons, shown on hover or focus where a pointer can hover ---- */
+.cl-row .ds-icon-button,
+.cl-chosen .ds-icon-button {
+  border-radius: var(--radius-pill) !important;
+  color: var(--text-secondary);
+}
+.cl-link-menu,
+.cl-more {
+  flex: 0 0 auto;
+}
+@media (hover: hover) and (pointer: fine) and (min-width: 768px) {
+  .cl-link-menu,
+  .cl-more {
+    opacity: 0;
+    transition: opacity var(--duration-fast);
+  }
+  .cl-row:hover :is(.cl-link-menu, .cl-more),
+  .cl-row:focus-within :is(.cl-link-menu, .cl-more),
+  .cl-row:has([aria-expanded='true']) :is(.cl-link-menu, .cl-more) {
+    opacity: 1;
+  }
+}
+.cl-link {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-left: 8px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--marsh-navy);
+  cursor: pointer;
+}
+
+/* ---- Add item: the v2 dashed add row (kit.css .ds-add-row), then its form as a card ---- */
+.cl-add-btn {
+  margin-top: 4px;
+}
+.cl-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cl-cards .cl-add-form {
+  padding: 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+}
 .cl-count-words {
-  margin: calc(-1 * var(--space-3)) 0 0;
-  font-size: var(--text-caption-size);
-  line-height: var(--text-caption-lh);
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 16px;
   color: var(--text-muted);
   font-variant-numeric: tabular-nums;
 }
 .cl-field-label {
-  margin-bottom: calc(-1 * var(--space-3));
-  font-size: var(--text-small-size);
-  font-weight: var(--weight-medium);
-  color: var(--text-secondary);
+  margin-bottom: -4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--graphite-700);
 }
 .cl-section-btn {
   align-self: flex-start;
@@ -151,21 +456,21 @@
   white-space: nowrap;
 }
 .cl-section-pop {
-  width: min(320px, calc(100vw - 2 * var(--space-4)));
+  width: min(320px, calc(100vw - 32px));
 }
 .cl-section-opt {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: 12px;
   width: 100%;
   min-height: var(--control-height-sm);
-  padding: var(--space-2) var(--space-4);
+  padding: 6px 12px;
   background: none;
   border: 0;
   border-radius: var(--radius-field);
   font: inherit;
-  font-size: var(--text-small-size);
+  font-size: 14px;
   color: var(--text-primary);
   text-align: left;
   cursor: pointer;
@@ -178,121 +483,49 @@
   outline: 2px solid var(--border-focus);
   outline-offset: -2px;
 }
-.cl-state {
-  flex: 0 0 auto;
+.cl-actions,
+.cl-build-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---- Answer dialog: Add photo as a secondary pill around its hidden file input ---- */
+.cl-photo-btn {
+  position: relative;
+  align-self: flex-start;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: var(--control-height-sm);
-  height: var(--control-height-sm);
-  padding: 0;
-  background: none;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 16px;
+  background: var(--graphite-100);
+  border-radius: var(--radius-pill);
+  font: 600 14px/1 var(--font-sans);
+  color: var(--marsh-navy);
   cursor: pointer;
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-md);
-  color: var(--text-secondary);
-  transition: var(--transition-control);
+  transition: background-color var(--duration-fast) var(--ease-standard);
 }
-.cl-state:focus-visible,
-.cl-link:focus-visible,
-.cl-pick-btn:focus-visible,
-.cl-add-btn:focus-visible,
-.cl-obs:focus-visible {
+@media (hover: hover) and (pointer: fine) {
+  .cl-photo-btn:hover {
+    background: var(--graphite-200);
+  }
+}
+.cl-photo-btn:focus-within {
   outline: 2px solid var(--border-focus);
   outline-offset: 2px;
 }
-.cl-state[data-mark='confirmed'] {
-  color: var(--green-600);
-  border-color: var(--green-600);
-  background: var(--green-50);
-}
-.cl-state[data-mark='differs'] {
-  color: var(--red-600);
-  border-color: var(--red-600);
-  background: var(--red-50);
-}
-.cl-state[data-mark='not_seen'],
-.cl-state[data-mark='not_applicable'] {
-  color: var(--text-muted);
-  border-color: var(--graphite-400);
-  background: var(--surface-active);
-}
-.cl-state[disabled],
-span.cl-state {
-  cursor: default;
-}
-/* Round 32 px icon buttons, the design system's row-action style. */
-.cl-row .ds-icon-button,
-.cl-chosen .ds-icon-button {
-  border-radius: var(--radius-pill) !important;
-  color: var(--text-secondary);
-}
-.cl-link-menu,
-.cl-more {
-  flex: 0 0 auto;
-}
-.cl-more {
-  opacity: 0;
-  transition: opacity var(--duration-fast);
-}
-.cl-row:hover .cl-more,
-.cl-row:focus-within .cl-more,
-.cl-row:has([aria-expanded='true']) .cl-more {
-  opacity: 1;
-}
-@media (hover: none) {
-  .cl-more {
-    opacity: 1;
+@media (max-width: 767px) {
+  .cl-photo-btn {
+    min-height: 44px;
   }
 }
-.cl-link {
-  background: none;
-  border: none;
-  padding: 0;
-  margin-left: var(--space-4);
-  font: inherit;
-  font-size: var(--text-caption-size);
-  color: var(--text-link);
-  cursor: pointer;
-  text-decoration: underline;
-}
-/* "Add item": a dashed button across the list column. */
-.cl-add-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
-  width: 100%;
-  min-height: var(--control-height-md);
-  padding: 0 var(--space-6);
-  background: none;
-  border: 1px dashed var(--graphite-400);
-  border-radius: var(--radius-field);
-  font: inherit;
-  font-size: var(--text-small-size);
-  font-weight: var(--weight-medium);
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: var(--transition-control);
-}
-.cl-add-btn:hover {
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-.cl-add-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  max-width: 560px;
-}
-.cl-actions {
-  display: flex;
-  gap: var(--space-5);
-}
-/* The link picker's list: one line of note, then where and how severe. */
+
+/* ---- The link picker's list: one line of note, then where and how severe ---- */
 .cl-obs-list {
   list-style: none;
-  margin: var(--space-4) 0 0;
+  margin: 12px 0 0;
   padding: 0;
   max-height: 320px;
   overflow-y: auto;
@@ -300,10 +533,10 @@ span.cl-state {
 .cl-obs {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 2px;
   width: 100%;
   min-height: var(--control-height-md);
-  padding: var(--space-4) var(--space-5);
+  padding: 10px 12px;
   background: none;
   border: 0;
   border-radius: var(--radius-field);
@@ -319,85 +552,87 @@ span.cl-state {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  font-size: var(--text-small-size);
+  font-size: 14px;
   color: var(--text-primary);
 }
 .cl-obs-meta {
-  font-size: var(--text-caption-size);
+  font-size: 13px;
   color: var(--text-muted);
 }
-/* Build view: three plain sections. The dropdown is quiet; what is chosen is the focus. */
+
+/* ---- Build view: the title, then each choice a card, then Generate ---- */
 .cl-build {
   display: flex;
   flex-direction: column;
-  gap: var(--space-8);
-  max-width: 640px;
+  gap: 16px;
 }
-.cl-build h2 {
-  margin: 0;
-  font-size: var(--text-h2-size);
-  line-height: var(--text-h2-lh);
-  font-weight: var(--weight-bold);
-  color: var(--marsh-navy);
+.cl-build > section {
+  padding: 16px 20px 20px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
 }
 .cl-build h3 {
-  margin: 0 0 var(--space-4);
-  font-size: var(--text-body-size);
-  font-weight: var(--weight-bold);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 12px;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 700;
   color: var(--marsh-navy);
 }
 .cl-build .cl-note {
   margin: 0;
 }
 .cl-build-actions {
-  display: flex;
-  gap: var(--space-5);
-  align-items: center;
+  margin-top: 4px;
 }
+/* A quiet dropdown: the v2 filter pill (grey fill, no border). */
 .cl-pick-btn {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 6px;
   min-height: var(--control-height-sm);
-  padding: 0 var(--space-5);
-  background: none;
-  border: 1px solid var(--border-default);
+  padding: 0 14px;
+  background: var(--graphite-100);
+  border: 0;
   border-radius: var(--radius-pill);
   font: inherit;
-  font-size: var(--text-caption-size);
-  font-weight: var(--weight-medium);
-  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--graphite-700);
   cursor: pointer;
   transition: var(--transition-control);
 }
 .cl-pick-btn:hover:not(:disabled) {
-  background: var(--surface-hover);
+  background: var(--graphite-200);
   color: var(--text-primary);
 }
 .cl-pick-pop {
-  padding: var(--space-4);
+  padding: 12px;
   /* Wide enough for a standard's full name; never wider than the screen. */
-  width: min(440px, calc(100vw - 2 * var(--space-4)));
+  width: min(440px, calc(100vw - 32px));
   box-sizing: border-box;
 }
 .cl-pick-opts {
   max-height: 260px;
   overflow-y: auto;
-  margin: var(--space-4) 0 0;
+  margin: 12px 0 0;
   padding: 0;
   list-style: none;
 }
 .cl-pick-opts li label {
   min-height: var(--control-height-sm);
-  padding: var(--space-2) 0;
+  padding: 4px 0;
 }
 .cl-chosen {
   list-style: none;
-  margin: var(--space-5) 0 0;
+  margin: 12px 0 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 8px;
 }
 .cl-chosen:empty {
   display: none;
@@ -405,33 +640,88 @@ span.cl-state {
 .cl-chosen li {
   display: flex;
   align-items: center;
-  gap: var(--space-5);
+  gap: 12px;
   min-height: var(--control-height-md);
-  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5);
-  background: var(--surface-card);
-  border: 1px solid var(--border-default);
+  padding: 4px 4px 4px 14px;
+  background: var(--graphite-50);
+  border: 1px solid var(--border-subtle);
   border-radius: var(--radius-field);
-  font-size: var(--text-body-size);
-  font-weight: var(--weight-medium);
+  font-size: 14px;
+  font-weight: 500;
   color: var(--text-primary);
 }
 .cl-chosen li span {
   flex: 1 1 auto;
   min-width: 0;
 }
+
+/* ---- Phone: 44 px marks and targets, rows on the 16 px gutter ---- */
 @media (max-width: 767px) {
+  .ck-page {
+    gap: 16px;
+    padding: 16px 16px 32px;
+  }
+  .cl-title,
+  .cl-build h2 {
+    font-size: 22px;
+  }
+  .cl-top-actions {
+    flex-wrap: wrap;
+  }
+  /* The two menus share one column at the right (⋯ above the link menu), so the question keeps
+     its width beside 44 px targets. The pair, or ⋯ alone, is centred on the row's full height like
+     the ring (v2 section 2): without the alignments below, ⋯ sat in the row's top half. */
+  .cl-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    padding: 6px 0;
+  }
+  .cl-cards .cl-row {
+    padding: 6px 4px 6px 12px;
+  }
+  .cl-state {
+    grid-area: 1 / 1 / span 2;
+  }
+  .cl-row-text,
+  .cl-edit-wrap {
+    grid-area: 1 / 2 / span 2;
+  }
+  .cl-more {
+    grid-area: 1 / 3;
+    align-self: end;
+  }
+  .cl-link-menu {
+    grid-area: 2 / 3;
+    align-self: start;
+  }
+  .cl-row:not(:has(> .cl-link-menu)) > .cl-more {
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
   .cl-state {
     width: 44px;
     height: 44px;
+  }
+  .cl-row .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
   }
   .cl-row-text,
   .cl-edit {
     padding-top: calc((44px - var(--text-body-lh)) / 2);
     padding-bottom: calc((44px - var(--text-body-lh)) / 2);
   }
+  .cl-obs-link {
+    min-height: 32px;
+  }
+  .cl-build > section,
+  .cl-cards .cl-add-form {
+    padding: 16px;
+  }
   .cl-pick-btn,
-  .cl-obs,
-  .cl-add-btn {
+  .cl-obs {
     min-height: 44px;
   }
   .cl-pick-opts li label {

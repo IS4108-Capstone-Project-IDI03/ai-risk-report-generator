@@ -4,10 +4,10 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
+import { Avatar } from '../../design-system'
 import { signIn } from '../../test/session'
 import type { ClientDocument } from './api'
 import { clientFacts } from './clientFacts'
-import { ClientAvatar } from './components/ClientAvatar'
 
 // CP-23: the client page's Documents tab (AC13, AC14) and the Clients table.
 
@@ -398,10 +398,10 @@ describe('Client page header and facts (CP-23)', () => {
   })
 
   it('takes one whole character per word for the initials, skipping words without letters', () => {
-    const { container } = render(<ClientAvatar name="🌿 Green Co" />)
+    const { container } = render(<Avatar kind="client" name="🌿 Green Co" />)
     expect(container).toHaveTextContent(/^GC$/)
     cleanup()
-    render(<ClientAvatar name="Émile 🌿Zest" />)
+    render(<Avatar kind="client" name="Émile 🌿Zest" />)
     expect(document.body).toHaveTextContent(/^É🌿$/)
   })
 })

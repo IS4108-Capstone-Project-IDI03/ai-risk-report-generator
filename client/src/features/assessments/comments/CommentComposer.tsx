@@ -1,7 +1,7 @@
 // Writing a comment (RV-03): a new thread's first comment, a reply, or an
 // edit. Ctrl+Enter (Cmd+Enter) posts; Escape cancels. Inside a DictationScope
 // it can be dictated into (CP-27).
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button, Textarea } from '../../../design-system'
 import { DictateButton } from '../dictation/DictateButton'
 import { useDictationReference } from '../dictation/scope'
@@ -33,6 +33,12 @@ export function CommentComposer({
   const reference = useDictationReference()
   // Holds the text box, for dictation to find: the shared Textarea takes no ref.
   const box = useRef<HTMLDivElement>(null)
+  // Focused once the margin has placed the card level with its text, and without
+  // scrolling: the native autoFocus fired while the new card still sat at the top
+  // of the margin, so the page jumped to Section 1.
+  useEffect(() => {
+    if (autoFocus) box.current?.querySelector('textarea')?.focus({ preventScroll: true })
+  }, [autoFocus])
 
   const submit = async () => {
     const text = body.trim()
@@ -52,7 +58,6 @@ export function CommentComposer({
         placeholder={placeholder}
         rows={2}
         value={body}
-        autoFocus={autoFocus}
         disabled={busy}
         onChange={(event) => setBody(event.target.value)}
         onKeyDown={(event) => {
@@ -81,7 +86,7 @@ export function CommentComposer({
           />
         )}
         {onCancel && (
-          <Button variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
+          <Button pill variant="ghost" size="sm" disabled={busy} onClick={onCancel}>
             Cancel
           </Button>
         )}

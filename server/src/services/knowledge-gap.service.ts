@@ -3,6 +3,7 @@
 // Called by routes/knowledge-gap.routes.ts. Calls notification.service.ts.
 import { isValidObjectId, Types } from 'mongoose'
 import { z } from 'zod'
+import { config } from '../config'
 import { KnowledgeDocumentModel } from '../models/knowledge-document.model'
 import {
   KnowledgeGapRequestModel,
@@ -252,7 +253,9 @@ export async function fillRequest(
       day: 'numeric',
       month: 'short',
       year: 'numeric',
-      timeZone: 'UTC',
+      // The day where the team works (REPORT_TIME_ZONE): in UTC a document added after
+      // midnight in Singapore read as uploaded the day before.
+      timeZone: config.reportTimeZone,
     })
     return [d.title, d.edition && `Edition ${d.edition}`, `uploaded ${uploaded}`]
       .filter(Boolean)

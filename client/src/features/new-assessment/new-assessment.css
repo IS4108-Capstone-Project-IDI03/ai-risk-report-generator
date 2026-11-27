@@ -46,13 +46,6 @@
   border: 1px solid var(--graphite-200);
   border-radius: var(--radius-card);
 }
-.na-card-head {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  min-width: 0;
-}
-.na-card-head h2,
 .na-reading h2,
 .na-found h2 {
   margin: 0;
@@ -67,37 +60,7 @@
   gap: 8px;
   margin-left: auto;
 }
-.na-tile {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-tile);
-  background: var(--ink-50);
-  color: var(--report-navy);
-}
-.na-tile--empty {
-  background: var(--graphite-100);
-}
-.na-count {
-  display: inline-grid;
-  place-items: center;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 6px;
-  box-sizing: border-box;
-  border-radius: var(--radius-pill);
-  background: var(--ink-100);
-  color: var(--ink-600);
-  font: 700 12px/1 var(--font-sans);
-  font-variant-numeric: tabular-nums;
-}
 /* The Rejected pill's count: red, not the neutral grey. */
-.na-count--red {
-  background: var(--red-50);
-  color: var(--red-600);
-}
 .na-text-btn {
   color: var(--marsh-navy) !important;
   font-weight: 600 !important;
@@ -343,8 +306,6 @@
 }
 .na-docs-empty {
   margin: 4px 0 12px;
-  color: var(--graphite-600);
-  font-size: 13px;
 }
 /* Five rows show, the rest scroll under a fade (board 08). A tag menu opened low in
    the list extends the scroll area rather than being cut off. */
@@ -356,7 +317,7 @@
   mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
 }
 /* The popover floats above every card below it, not only its own. */
-.na-card:has(.na-docs-anchor) {
+:is(.na-card, .na-client):has(.na-docs-anchor) {
   position: relative;
   z-index: 25;
 }
@@ -444,7 +405,7 @@
   box-sizing: border-box;
   border: 1.5px solid var(--graphite-400);
   border-radius: 5px;
-  color: #fff;
+  color: var(--text-inverse);
 }
 .is-checked .na-pick-box {
   border-color: var(--marsh-navy);
@@ -573,7 +534,7 @@
   gap: 8px;
 }
 .na-contact,
-.na-contact-add {
+.na-contact-grid > .ds-add-row {
   min-width: 0;
   min-height: 52px;
   box-sizing: border-box;
@@ -617,46 +578,14 @@
   color: var(--graphite-600);
   font-size: 12px;
 }
-.na-avatar {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--report-navy);
-  color: #fff;
-  font: 700 11px/1 var(--font-sans);
-}
 .na-contact.is-editing {
   gap: 6px;
   padding: 6px;
-  border-color: var(--border-focus);
 }
-.na-contact-input {
+/* The two DS inputs share the cell's width. */
+.na-contact.is-editing > label {
   flex: 1;
   min-width: 0;
-  height: 38px;
-  padding: 0 10px;
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-field);
-  color: var(--graphite-900);
-  font: 400 14px/1 var(--font-sans);
-}
-.na-contact-input:focus {
-  outline: 2px solid var(--border-focus);
-  outline-offset: -1px;
-}
-.na-contact-add {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border: 1.5px dashed var(--graphite-300);
-  background: transparent;
-  color: var(--marsh-navy);
-  font: 600 14px/1 var(--font-sans);
-  cursor: pointer;
 }
 
 /* ---- Adding documents: the large start and the slim row ---- */
@@ -1049,7 +978,7 @@
 }
 .na-done-tick {
   fill: none;
-  stroke: #fff;
+  stroke: var(--text-inverse);
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -1121,9 +1050,6 @@
   .na-pick:hover:not(.is-checked) {
     border-color: var(--graphite-400);
   }
-  .na-contact-add:hover {
-    background: var(--graphite-50);
-  }
   .na-suggest button:hover {
     text-decoration: underline;
   }
@@ -1138,6 +1064,56 @@
 @media (max-width: 959px) {
   .na-reading-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* A narrow tablet (the sidebar open at 768 px leaves the form about 480 px): three fields to a row
+   cut "Singapore" and the dates ("26/11/20"). The client's and site's names take their own rows,
+   Jurisdiction and Facility type share one, the dates go two to a row and each contact takes a row. */
+@media (min-width: 768px) and (max-width: 899px) {
+  .na-grid--2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .na-site-row,
+  .na-grid--3 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .na-site-row > :first-child {
+    grid-column: 1 / -1;
+  }
+  /* A contact's Name and Role need the row's width too. */
+  .na-contact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* Documents and Rejected open under their row of pills, as wide as it: kept on a button's edge
+     they opened under the open sidebar. (Popover sets the anchor and the surface's size inline,
+     hence !important.) */
+  .na-client .ds-panel-bar:has(.na-rejected-btn) .ds-panel-actions {
+    position: relative;
+  }
+  .na-client .ds-panel-bar:has(.na-rejected-btn) .na-docs-anchor {
+    position: static !important;
+  }
+  .na-client .ds-panel-bar:has(.na-rejected-btn) :is(.na-docs-menu, .na-rejected-menu) {
+    left: 0 !important;
+    right: 0 !important;
+    width: auto !important; /* over the tablet's 560 px below */
+    min-width: 0 !important;
+    max-width: none !important;
+  }
+  /* In that narrower popover a document's tag gives up width so its name isn't cut to "Reque…". */
+  .na-doc {
+    grid-template-columns: 32px minmax(0, 1fr) minmax(120px, 160px) auto;
+  }
+  /* While reading, "Drop more files here" keeps one line and its buttons share the row under it. */
+  .na-drop--slim {
+    flex-wrap: wrap;
+  }
+  .na-drop--slim .na-drop-actions {
+    width: 100%;
+  }
+  .na-drop--slim .na-drop-actions > * {
+    flex: 1;
   }
 }
 
@@ -1191,6 +1167,16 @@
   .na-type {
     flex: 1 0 100%;
     margin-left: 0;
+  }
+  /* The bin goes up beside "Assessment N": on the type control's row it pushed the row wider
+     than the card at 375 px. */
+  .na-assessment-head {
+    position: relative;
+  }
+  .na-remove {
+    position: absolute;
+    top: -6px;
+    right: 0;
   }
   .na-type-control {
     flex: 1;
@@ -1261,10 +1247,6 @@
     width: 100%;
     min-height: 48px;
   }
-  .na-drop:not(.na-drop--slim) .na-drop-actions > :first-child {
-    background: var(--marsh-navy) !important;
-    color: #fff !important;
-  }
   /* Reading fits one screen: no drop row, one line per found group (board 24 B). */
   .na-reading-page > .na-drop--slim,
   .na-found .ds-new-badge {
@@ -1315,12 +1297,11 @@
 @media (pointer: coarse) {
   /* 16 px so iOS doesn't zoom into a focused field (the controls set 14 inline). */
   .na input,
-  .na select,
   .na textarea,
   .na .ds-datepicker-mask {
     font-size: 16px !important;
   }
-  .na :is(button[title], .na-docs-btn, .na-contact-text) {
+  .na :is(button[title], .na-docs-btn, .na-contact-text, .na-text-btn) {
     min-height: 44px;
   }
   .na button[title] {
@@ -1329,14 +1310,11 @@
 }
 
 /* ---- A phone with a Rejected pill: the two pills share a row below "Client",
-   44 px tall, no chevrons (Sprint 4 fixes AC26). Without the pill nothing changes. ---- */
-@media (max-width: 559px) {
-  .na-card-head:has(.na-rejected-btn) {
-    flex-wrap: wrap;
-  }
-  .na-card-head:has(.na-rejected-btn) .na-card-actions {
+   44 px tall, no chevrons (Sprint 4 fixes AC26). Without the pill nothing changes. So does a
+   narrow tablet (768-899 px, sidebar open), where beside the pills "Client" broke to "Cli ent". ---- */
+@media (max-width: 559px), (min-width: 768px) and (max-width: 899px) {
+  .na-client .ds-panel-bar:has(.na-rejected-btn) .ds-panel-actions {
     flex: 1 0 100%;
-    margin-left: 0;
   }
   /* A recorded client: the name and Change stay on the first row, the pills below. */
   .na-client-chosen:has(.na-rejected-btn) .na-card-actions {
@@ -1353,25 +1331,25 @@
     order: 2;
     flex: 1 1 calc(50% - 6px);
   }
-  .na-card:has(.na-rejected-btn) .na-docs-anchor {
+  :is(.na-card, .na-client):has(.na-rejected-btn) .na-docs-anchor {
     flex: 1 1 0;
     min-width: 0;
   }
   .na-client-chosen:has(.na-rejected-btn) .na-docs-anchor {
     flex-basis: calc(50% - 6px);
   }
-  .na-card:has(.na-rejected-btn) .na-docs-anchor > span {
+  :is(.na-card, .na-client):has(.na-rejected-btn) .na-docs-anchor > span {
     flex: 1;
     min-width: 0;
   }
-  .na-card:has(.na-rejected-btn) .na-docs-btn {
+  :is(.na-card, .na-client):has(.na-rejected-btn) .na-docs-btn {
     flex: 1;
     justify-content: center;
     height: 44px;
     min-width: 0;
   }
   /* Icon sets its display inline, hence !important. */
-  .na-card:has(.na-rejected-btn) .na-docs-chev {
+  :is(.na-card, .na-client):has(.na-rejected-btn) .na-docs-chev {
     display: none !important;
   }
 }
@@ -1461,8 +1439,7 @@
   }
 }
 /* 10. A field's border turns red over 120 ms. */
-.na-field input,
-.na-field select {
+.na-field input {
   transition: border-color var(--duration-fast) var(--ease-out);
 }
 /* 11. A failed file's error line fades in, sliding down 3 px under its name. */
@@ -1485,8 +1462,7 @@
 @media (prefers-reduced-motion: reduce) {
   .na-block,
   .na-pick,
-  .na-field input,
-  .na-field select {
+  .na-field input {
     transition: none;
   }
   /* The block only fades; the space closes when it is removed (Block.tsx). */

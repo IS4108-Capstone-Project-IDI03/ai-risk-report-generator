@@ -3,8 +3,9 @@
 // walk and name it (round 3). Opened from the Observations tab. Calls useWalk (keeps and sends) and
 // useWalkRecorder (microphone, camera).
 import { useCallback, useEffect, useState } from 'react'
-import { BackButton, Button, Icon, toast } from '../../../design-system'
+import { Button, Callout, EmptyState, Icon, toast } from '../../../design-system'
 import { CameraView } from '../components/CameraView'
+import { RecordingBar } from '../components/RecordingBar'
 import { RecordingHelp } from '../components/RecordingHelp'
 import { NoteComposer } from '../components/NoteComposer'
 import { PhotoStrip } from '../components/PhotoStrip'
@@ -160,11 +161,11 @@ export function SiteWalkRecording({
             </span>
             <h1>Walk finished</h1>
             <p className="sw-note">
-              We’ll let you know when it’s ready. You can keep working in the meantime.
+              We’ll let you know when it’s ready, and you can keep working in the meantime.
             </p>
-            <button type="button" className="sw-button sw-button--primary" onClick={onClose}>
+            <Button variant="create" onClick={onClose}>
               Done
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -174,9 +175,19 @@ export function SiteWalkRecording({
   if (!w.walk)
     return (
       <div className="sw sw-recording">
+        <RecordingBar back={back} onBack={onClose} />
         <div className="sw-finished" role={w.problem ? 'alert' : 'status'}>
-          <p className="sw-note">{w.problem ?? 'Starting the site walk…'}</p>
-          {w.problem && <BackButton label={'Back to ' + back} onClick={onClose} />}
+          <EmptyState
+            icon={w.problem ? 'circle-alert' : 'loader'}
+            title={w.problem ?? 'Starting the site walk…'}
+            action={
+              w.problem && (
+                <Button variant="create" iconLeft="rotate-ccw" onClick={w.restart}>
+                  Retry
+                </Button>
+              )
+            }
+          />
         </div>
       </div>
     )
@@ -190,27 +201,17 @@ export function SiteWalkRecording({
     !busy && !rec.opening && (w.items.length > 0 || rec.phase !== 'idle' || note.trim().length > 0)
   return (
     <div className="sw sw-recording">
-      <header className="sw-bar">
-        <div className="sw-bar-start">
-          <BackButton label={'Back to ' + back} onClick={onClose} />
-        </div>
-        <h1>Site Walk</h1>
-        <div className="sw-bar-end">
-          <RecordingHelp />
-        </div>
-      </header>
+      <RecordingBar back={back} onBack={onClose} help={<RecordingHelp />} />
 
       {/* Locked while finishing: a recording started now would run on unsent. */}
       <div className="sw-recording-body" inert={busy}>
-        {w.problem && (
-          <div className="sw-alert sw-alert--problem" role="alert">
-            <p>{w.problem}</p>
-          </div>
-        )}
-        {micProblem && (
-          <div className="sw-alert sw-alert--problem" role="alert">
-            <p>{micProblem}</p>
-          </div>
+        {[w.problem, micProblem].map(
+          (problem) =>
+            problem && (
+              <div key={problem} role="alert" className="sw-problem">
+                <Callout tone="danger">{problem}</Callout>
+              </div>
+            ),
         )}
         <div className="sw-rec-main">
           <RecordPanel

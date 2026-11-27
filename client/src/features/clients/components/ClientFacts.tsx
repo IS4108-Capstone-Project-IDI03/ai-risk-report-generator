@@ -1,27 +1,16 @@
-// The side panel of facts on the client page (CP-23, board 06):
-// jurisdictions, facility types, first, last and next survey, next report due
-// and site contacts. Called by screens/ClientRecord. A column beside the tab
-// from 1280 px, folded above (tablet) or below (phone) the content under that
-// (client-record.css). Contacts show three until Show all.
+// The facts on the client page (CP-23, board 06): jurisdictions, facility
+// types, first, last and next survey, next report due and site contacts, as the
+// design system's FactList. Called by screens/ClientRecord: a card beside the
+// tab from 1280 px, folded above it on a tablet (client-record.css), and the
+// Client details SidePanel (a phone sheet). Contacts show three until Show all.
 import { useState } from 'react'
-import { Button, Chip, ReportDue } from '../../../design-system'
+import { Avatar, Button, Chip, Fact, FactList, ReportDue } from '../../../design-system'
 import type { ClientPage, ClientPageSite } from '../api'
 import { distinct, type ClientFacts as Facts } from '../clientFacts'
 import { country, day } from '../formatClient'
-import { initials } from './ClientAvatar'
 
 // Contacts shown before Show all.
 const FEW = 3
-
-// One label and its value.
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="cl-fact">
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  )
-}
 
 export function ClientFacts({
   facts,
@@ -36,7 +25,8 @@ export function ClientFacts({
   // The listed sites, which the jurisdictions and facility types come from.
   sites: ClientPageSite[]
   contacts?: NonNullable<ClientPage['contacts']>
-  // The Client details sheet (phone): only the five sections of board 22.
+  // The Client details panel (a phone sheet): only the five sections of board 22, two to a row
+  // like the assessment's Details.
   sheet?: boolean
 }) {
   const [allContacts, setAllContacts] = useState(false)
@@ -49,10 +39,14 @@ export function ClientFacts({
       aria-label={sheet ? 'Client details' : 'Client facts'}
       data-walk={sheet ? undefined : 'client.facts'}
     >
-      <dl>
-        {division && <Fact label="Division">{division}</Fact>}
+      <FactList columns={sheet ? 2 : 1}>
+        {division && (
+          <Fact label="Division" wide={sheet}>
+            {division}
+          </Fact>
+        )}
         {jurisdictions.length > 0 && (
-          <Fact label="Jurisdictions">
+          <Fact label="Jurisdictions" wide={sheet}>
             <span className="cl-chips">
               {jurisdictions.map((j) => (
                 <Chip key={j} kind="jurisdiction">
@@ -63,7 +57,7 @@ export function ClientFacts({
           </Fact>
         )}
         {facilities.length > 0 && (
-          <Fact label="Facility types">
+          <Fact label="Facility types" wide={sheet}>
             <span className="cl-chips">
               {facilities.map((f) => (
                 <Chip key={f} kind="facility">
@@ -83,13 +77,11 @@ export function ClientFacts({
           <ReportDue date={facts.nextDue?.date} />
         </Fact>
         {contacts.length > 0 && (
-          <Fact label="Site contacts">
+          <Fact label="Site contacts" wide={sheet}>
             <ul className="cl-contacts">
               {(allContacts ? contacts : contacts.slice(0, FEW)).map((c, i) => (
                 <li key={i} title={`At ${c.site}`}>
-                  <span className="cl-contact-dot" aria-hidden="true">
-                    {initials(c.name)}
-                  </span>
+                  <Avatar name={c.name} size={24} />
                   <span>
                     {c.name}
                     {c.role && <span className="cl-muted">{` · ${c.role}`}</span>}
@@ -104,7 +96,7 @@ export function ClientFacts({
             )}
           </Fact>
         )}
-      </dl>
+      </FactList>
     </aside>
   )
 }

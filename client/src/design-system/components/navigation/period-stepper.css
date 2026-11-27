@@ -1,0 +1,23 @@
+/* Period stepper (PeriodStepper.tsx): shaded round chevrons each side of the period, 16 / 700
+   navy with tabular numbers; the middle is 200 px wide so the arrows don't move. Tokens only. */
+.ds-period {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.ds-period-middle {
+  display: flex;
+  flex: 0 1 200px;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+.ds-period-label {
+  min-width: 0;
+  color: var(--marsh-navy);
+  font: 700 16px/1.2 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  white-space: nowrap;
+}

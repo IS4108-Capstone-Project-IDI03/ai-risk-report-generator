@@ -2,9 +2,8 @@
 // beside their search: Location, Category and Severity as on the Observations
 // tab, and one about the item itself (a recording's or page's transcription,
 // a photo's description). All in the browser, on the rows already listed.
-import { IconRegistry } from '../../design-system'
+import { IconRegistry, type Choice } from '../../design-system'
 import { hasCategory } from './categories'
-import type { Choice } from './components/ChoiceMenu'
 import { asChoices, catIcons, sevIcons } from './filterChoices'
 import { matchesPlace, placeFilter } from './observationFilters'
 import type { Observation, ObservationPage } from './types'
@@ -37,9 +36,7 @@ const UNDESCRIBED = 'Not described'
 
 const byStatus = { transcribed: TRANSCRIBED, transcribing: TRANSCRIBING, failed: FAILED }
 export const recordingStates = (status: keyof typeof byStatus) => [byStatus[status]]
-// A demo page written by hand has no status, only the engineer's text.
 export const pageStates = (p: ObservationPage) => {
-  if (p.status === null) return p.correction ? [TRANSCRIBED, CORRECTED] : []
   const states = [byStatus[p.status]]
   if (p.status === 'transcribed' && p.correction) states.push(CORRECTED)
   if (p.status === 'transcribed' && !p.correction && p.uncertain.length) states.push(UNSURE)

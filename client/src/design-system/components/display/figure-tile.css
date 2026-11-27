@@ -1,0 +1,117 @@
+/* Figure tile (FigureTile.tsx): white tile, radius 14, a 32 px IconTile, the count 22 / 700
+   navy over its label 12 / 600. Pressed = ink tint with a navy ring. Tokens only (v2). */
+/* Tops aligned, so a row of tiles keeps every count on one line even when a label wraps. */
+.ds-figure {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 64px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--graphite-200);
+  border-radius: 14px;
+  background: var(--surface-card);
+  color: inherit;
+  font-family: var(--font-sans);
+  text-align: left;
+}
+button.ds-figure {
+  cursor: pointer;
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+@media (hover: hover) {
+  button.ds-figure:hover {
+    background: var(--graphite-50);
+  }
+}
+button.ds-figure:active {
+  transform: scale(0.98);
+}
+button.ds-figure[aria-pressed='true'] {
+  border-color: var(--marsh-navy);
+  background: var(--ink-50);
+  box-shadow: inset 0 0 0 1px var(--marsh-navy);
+}
+button.ds-figure:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+.ds-figure-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.ds-figure-value {
+  color: var(--marsh-navy);
+  font: 700 22px/26px var(--font-sans);
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+.ds-figure-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--graphite-700);
+  font: 600 12px/16px var(--font-sans);
+}
+/* A (?) is a 32 px button: pull it in so the label line keeps its 16 px height. */
+.ds-figure-label > :not(:first-child) {
+  margin-block: -8px;
+}
+.ds-figure-note {
+  color: var(--graphite-600);
+  font: 400 12px/16px var(--font-sans);
+}
+@media (pointer: coarse) {
+  .ds-figure {
+    min-height: 64px;
+  }
+}
+
+/* A row of figure tiles (Usage and costs, the Comparison tab). Each tile is as wide as its
+   content, never under --figure-min, and the row starts at the left: two tiles don't stretch
+   across a wide window. `ds-figure-grid--fill` (the Comparison tab's outcomes) instead fills the
+   row: --figure-cols even tiles while each keeps --figure-min, fewer and wider columns when they
+   don't fit. Equal heights. On a phone, two to a row, and an odd last tile takes the whole row
+   instead of sitting alone at half width. */
+.ds-figure-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(min(100%, var(--figure-min, 200px)), max-content)
+  );
+  gap: var(--figure-gap, 12px);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ds-figure-grid--fill {
+  --figure-track: max(
+    var(--figure-min, 200px),
+    (100% - (var(--figure-cols, 3) - 1) * var(--figure-gap, 12px)) / var(--figure-cols, 3)
+  );
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, var(--figure-track)), 1fr));
+}
+.ds-figure-grid > * {
+  display: flex;
+  min-width: 0;
+}
+@media (max-width: 599px) {
+  .ds-figure-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .ds-figure-grid > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  button.ds-figure:active {
+    transform: none;
+  }
+}

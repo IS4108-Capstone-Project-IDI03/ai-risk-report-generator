@@ -6,7 +6,7 @@
 // for another try (AC18), as the knowledge base's StatusChangeDialog does.
 // Opened by screens/Observations.tsx; the saves are in useAssessmentWorkflow.tsx.
 import { useRef, useState } from 'react'
-import { Callout, Dialog, Textarea } from '../../../design-system'
+import { Button, Callout, Dialog, Textarea } from '../../../design-system'
 import { DictateButton } from '../dictation/DictateButton'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
 import { useSave } from './useSave'
@@ -32,26 +32,21 @@ export function TranscriptDialog({ v, dialog }: Props) {
       onClose={busy ? undefined : v.closeObsDialog}
       footer={
         <>
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={v.closeObsDialog}
-          >
+          <Button variant="pill" disabled={busy} onClick={v.closeObsDialog}>
             {'Cancel'}
-          </button>
-          <button
-            type="button"
-            className="cap-btn cap-btn--primary"
+          </Button>
+          <Button
+            pill
+            variant="primary"
             disabled={busy || !text.trim()}
             onClick={() => run(() => v.saveTranscript(text))}
           >
             {'Save'}
-          </button>
+          </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="cap-stack cap-stack--roomy">
         {!!problem && (
           <div role="alert">
             <Callout tone="warning" title="Not saved">
@@ -80,8 +75,7 @@ export function TranscriptDialog({ v, dialog }: Props) {
   )
 }
 
-// Corrects a handwritten page's text (CP-20), or writes it for a demo page
-// that was never transcribed. The gateway keeps what the model wrote, and
+// Corrects a handwritten page's text (CP-20). The gateway keeps what the model wrote, and
 // drafting uses the correction. The page's photo is shown to check against.
 export function PageTextDialog({ v, dialog }: Props) {
   const page = dialog.page!
@@ -98,26 +92,21 @@ export function PageTextDialog({ v, dialog }: Props) {
       onClose={busy ? undefined : v.closeObsDialog}
       footer={
         <>
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={v.closeObsDialog}
-          >
+          <Button variant="pill" disabled={busy} onClick={v.closeObsDialog}>
             {'Cancel'}
-          </button>
-          <button
-            type="button"
-            className="cap-btn cap-btn--primary"
+          </Button>
+          <Button
+            pill
+            variant="primary"
             disabled={busy || !text.trim()}
             onClick={() => run(() => v.savePageText(text))}
           >
             {'Save'}
-          </button>
+          </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="cap-stack cap-stack--roomy">
         {!!problem && (
           <div role="alert">
             <Callout tone="warning" title="Not saved">
@@ -175,26 +164,21 @@ export function TranscribeAgainDialog({ v, dialog }: Props) {
       onClose={busy ? undefined : v.closeObsDialog}
       footer={
         <>
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={v.closeObsDialog}
-          >
+          <Button variant="pill" disabled={busy} onClick={v.closeObsDialog}>
             {'Cancel'}
-          </button>
-          <button
-            type="button"
-            className="cap-btn cap-btn--primary"
+          </Button>
+          <Button
+            pill
+            variant="primary"
             disabled={busy}
             onClick={() => run(v.confirmTranscribeAgain)}
           >
             {'Transcribe again'}
-          </button>
+          </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="cap-stack">
         {!!problem && (
           <div role="alert">
             <Callout tone="warning" title="Not transcribed again">
@@ -225,26 +209,16 @@ export function DeleteDialog({ v }: Props) {
       onClose={busy ? undefined : v.closeObsDialog}
       footer={
         <>
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={v.closeObsDialog}
-          >
+          <Button variant="pill" disabled={busy} onClick={v.closeObsDialog}>
             {'Cancel'}
-          </button>
-          <button
-            type="button"
-            className="cap-btn cap-btn--danger"
-            disabled={busy}
-            onClick={() => run(v.confirmDelete)}
-          >
+          </Button>
+          <Button pill variant="danger" disabled={busy} onClick={() => run(v.confirmDelete)}>
             {'Delete'}
-          </button>
+          </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="cap-stack">
         {!!problem && (
           <div role="alert">
             <Callout tone="warning" title="Observation not deleted">
@@ -276,26 +250,16 @@ export function RemoveMediaDialog({ v, dialog }: Props) {
       onClose={busy ? undefined : v.closeObsDialog}
       footer={
         <>
-          <button
-            type="button"
-            className="cap-btn cap-btn--secondary"
-            disabled={busy}
-            onClick={v.closeObsDialog}
-          >
+          <Button variant="pill" disabled={busy} onClick={v.closeObsDialog}>
             {'Cancel'}
-          </button>
-          <button
-            type="button"
-            className="cap-btn cap-btn--danger"
-            disabled={busy}
-            onClick={() => run(v.confirmRemoveMedia)}
-          >
+          </Button>
+          <Button pill variant="danger" disabled={busy} onClick={() => run(v.confirmRemoveMedia)}>
             {`Remove ${noun}`}
-          </button>
+          </Button>
         </>
       }
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      <div className="cap-stack">
         {!!problem && (
           <div role="alert">
             <Callout tone="warning" title={`The ${noun} was not removed`}>

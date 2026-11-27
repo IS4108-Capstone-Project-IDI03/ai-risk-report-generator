@@ -5,9 +5,11 @@ import { listWalks, type SiteWalk } from './api'
 
 export const POLL_MS = 10_000
 
-// Returns the walks not yet created (newest first) and a way to reload them.
+// Returns the walks (newest first), whether the first read has answered, and a way to reload them.
 export function useSiteWalks(reference: string) {
   const [walks, setWalks] = useState<SiteWalk[]>([])
+  // Without this, the list flashed "No site walk proposals yet" before the first read landed.
+  const [loaded, setLoaded] = useState(false)
   const [version, setVersion] = useState(0)
   const reload = useCallback(() => setVersion((v) => v + 1), [])
   const busy = walks.some((w) => w.status === 'transcribing' || w.status === 'proposing')
@@ -18,6 +20,7 @@ export function useSiteWalks(reference: string) {
       .then(setWalks)
       // The banner is a convenience; a failed check keeps the last list.
       .catch(() => {})
+      .finally(() => !ctrl.signal.aborted && setLoaded(true))
     return () => ctrl.abort()
   }, [reference, version])
 
@@ -27,5 +30,5 @@ export function useSiteWalks(reference: string) {
     return () => clearInterval(id)
   }, [busy, reload])
 
-  return { walks, reload }
+  return { walks, loaded, reload }
 }

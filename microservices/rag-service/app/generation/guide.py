@@ -15,7 +15,7 @@ from app.generation import ask as asking
 from app.generation.generator import PLACEHOLDER_RULE, TEMPLATE
 
 # Bump on every prompt or check change; the trace of each answer records it.
-PROMPT_VERSION = "as08-v1"
+PROMPT_VERSION = "as08-v2"  # v2: labels only in brackets
 
 # What the engineer enters for Sections 4 and 5 rather than the draft (GN-03), as `sections.json`
 # notes it: the template's definition of those sections says so.
@@ -53,6 +53,7 @@ How to write
   standard has a passage on fire alarm monitoring." A Missing line cites nothing. At most two.
 - Every statement cites at least one label it was given. Never write a sentence you cannot cite,
   and never answer from your own knowledge.
+- {asking.LABELS_RULE}
 - Refer to this system as "it", never "I", "me", "my" or "we".
 - State facts only: what the template defines and what a standard says. Never tell the engineer
   what to write, and never recommend, advise or suggest what anyone should do.

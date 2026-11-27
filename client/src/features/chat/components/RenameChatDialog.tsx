@@ -21,10 +21,15 @@ export function RenameChatDialog({ title, onSave, onClose }: Props) {
       onClose={onClose}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button pill variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button disabled={!name.trim()} onClick={() => onSave(name.trim())}>
+          <Button
+            pill
+            variant="primary"
+            disabled={!name.trim()}
+            onClick={() => onSave(name.trim())}
+          >
             Save
           </Button>
         </>

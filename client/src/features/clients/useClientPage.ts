@@ -30,7 +30,7 @@ export function useClientPage(id: string | null) {
             message:
               error instanceof GatewayError && error.status !== null
                 ? error.message
-                : 'The gateway could not be reached. Check your connection and try again.',
+                : "Can't reach the server. Check your connection and try again.",
           },
         })
       },

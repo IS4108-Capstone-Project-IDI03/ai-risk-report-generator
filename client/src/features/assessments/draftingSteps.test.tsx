@@ -7,7 +7,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as boards from './generation/fixtures'
 import type { GenerationDto } from './generation/types'
-import { headerWords, sectionList } from './generation/words'
+import { headerWords, outOfDateReason, sectionList } from './generation/words'
 import { DraftingSteps } from './screens/DraftingSteps'
 
 const REF = 'RPT-2026-0039'
@@ -372,6 +372,16 @@ describe('the words', () => {
     [['6', '7', '8', '10', '11', '12'], 'Sections 6 to 8 and Sections 10 to 12'],
   ])('writes %j as "%s"', (ids, words) => {
     expect(sectionList(ids)).toBe(words)
+  })
+
+  // Every changed section is named, as the Export tab lists them.
+  it('names every section that put Section 2 out of date', () => {
+    expect(outOfDateReason({ why: 'section', section: '7', sections: ['7', '11'] })).toBe(
+      'Needs redrafting because Sections 7 and 11 changed',
+    )
+    expect(outOfDateReason({ why: 'section', section: '7' })).toBe(
+      'Needs redrafting because Section 7 changed',
+    )
   })
 
   // The three cases with no board, worded in the same voice.

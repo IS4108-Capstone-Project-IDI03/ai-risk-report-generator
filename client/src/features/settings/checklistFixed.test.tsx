@@ -7,6 +7,7 @@ import { Toaster } from '../../design-system'
 import type { FixedItem, FixedItems, Settings as SettingsData } from './api'
 import { Settings } from './Settings'
 import { TIER_IDS } from './tiers'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 
 const settings = (canEditGlobal: boolean): SettingsData => ({
   canEditGlobal,
@@ -69,7 +70,7 @@ describe('Settings > Checklist (CP-37)', () => {
     const panel = await openChecklist()
     expect(await within(panel).findByText('Is the roof fire rated?')).toBeInTheDocument()
     expect(within(panel).queryByText('Hot work permits?')).toBeNull()
-    fireEvent.change(within(panel).getByLabelText('Site type'), { target: { value: 'Factory' } })
+    chooseOption('Site type', 'Factory', panel)
     expect(within(panel).getByText('Hot work permits?')).toBeInTheDocument()
     cleanup()
     mock(true, [])
@@ -91,7 +92,7 @@ describe('Settings > Checklist (CP-37)', () => {
     fireEvent.change(within(panel).getByLabelText('New question'), {
       target: { value: 'Are dock doors sealed?' },
     })
-    fireEvent.change(within(panel).getByLabelText('Report section (optional)'), {
+    fireEvent.change(within(panel).getByLabelText('Report section'), {
       target: { value: '7' },
     })
     fireEvent.click(within(panel).getByRole('button', { name: 'Add item' }))

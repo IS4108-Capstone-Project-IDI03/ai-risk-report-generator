@@ -11,7 +11,16 @@ import { plural } from '../reviewDisplay'
 const COUNT = new Intl.NumberFormat('en-GB')
 
 /** Returns the part's row; `showCount` puts its observation count where the mark goes. */
-export function DraftingPartRow({ part, showCount }: { part: GenerationPart; showCount: boolean }) {
+export function DraftingPartRow({
+  part,
+  showCount,
+  tip = true,
+}: {
+  part: GenerationPart
+  showCount: boolean
+  // The out-of-date (?) is drawn on the first such row only, not repeated down the card.
+  tip?: boolean
+}) {
   const row = { number: part.id, name: part.title }
   // a. Work under way comes first: it is what is happening now.
   if (part.job === 'drafting')
@@ -46,7 +55,7 @@ export function DraftingPartRow({ part, showCount }: { part: GenerationPart; sho
         reason={
           <>
             {outOfDateReason(part.outOfDate)}
-            <Tip id="generation.out-of-date" align="right" />
+            {tip && <Tip id="generation.out-of-date" align="right" />}
           </>
         }
         mark={<RowMark kind="stale" label="Out of date" />}

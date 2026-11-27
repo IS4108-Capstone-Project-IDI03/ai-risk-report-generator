@@ -6,12 +6,13 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Button,
-  Callout,
   EmptyState,
   Icon,
+  ListCard,
   TableFooter,
   TopBar,
   toast,
+  useIsPhone,
 } from '../../../design-system'
 import { ReassignDialog } from '../../assignment/components/ReassignDialog'
 import { NewAssessmentButton } from '../../new-assessment/components/NewAssessmentButton'
@@ -21,6 +22,7 @@ import { useReloadOnOutsideChange } from '../../notifications/useNotificationCou
 import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import { ClientGroup } from '../components/ClientGroup'
 import { WorkRow, type AssignControls, type WorkRowData } from '../components/WorkRow'
+import { WorkSkeleton } from '../components/WorkSkeleton'
 import { WorkToolbar } from '../components/WorkToolbar'
 import { useCompact } from '../useCompact'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -38,7 +40,12 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`
 
 export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.ReactNode }) {
   const grouped = v.workByClient
+  // Grey rows until the gateway's first answer.
+  const loading = v.calendar.loading
+  // The list could not be read: the rows give way to the error and its Try again.
+  const failed = v.listOffline
   const compact = useCompact()
+  const phone = useIsPhone()
   // F-12: the list has loaded once the gateway has answered (or failed). Nothing is offered
   // while there is no row to point at: no practice assessment and nothing matching.
   useWalkthroughScreen('assessments', !v.calendar.loading, !v.practiceRow && v.noResults)
@@ -76,10 +83,14 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
       <TopBar
         eyebrow="RISK ENGINEERING"
         title="Assessments"
+        // A phone's title shares its row with Focus and New assessment, so the line would wrap to
+        // three: the groups say it already.
         helper={
-          v.canAssign
-            ? 'Every assessment across the team, grouped by client and site.'
-            : 'Every assessment you are working on, grouped by client and site.'
+          phone
+            ? undefined
+            : v.canAssign
+              ? 'Every assessment across the team, grouped by client and site.'
+              : 'Every assessment you are working on, grouped by client and site.'
         }
         bell={bell}
         action={
@@ -96,17 +107,7 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
         }
       />
       <div className="at-content">
-        {v.listOffline && (
-          <div role="status">
-            <Callout tone="warning" title="Showing sample assessments">
-              {
-                'The gateway could not be reached, so saved assessments are not listed. Start the gateway, then return to the dashboard.'
-              }
-            </Callout>
-          </div>
-        )}
-        <div className="at-card">
-          <WorkToolbar v={v} compact={compact} />
+        <ListCard bleed toolbar={<WorkToolbar v={v} compact={compact} />}>
           <div
             className="at-list"
             data-grouped={grouped || undefined}
@@ -134,7 +135,23 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
               </span>
               <span />
             </div>
-            {pinned &&
+            {loading && <WorkSkeleton />}
+            {failed && (
+              <div className="at-empty" role="alert">
+                <EmptyState
+                  icon="cloud-off"
+                  title="Can’t load assessments"
+                  description="Check your connection, then try again."
+                  action={
+                    <Button variant="secondary" pill iconLeft="refresh-cw" onClick={v.retryList}>
+                      {'Try again'}
+                    </Button>
+                  }
+                />
+              </div>
+            )}
+            {!loading &&
+              pinned &&
               (grouped ? (
                 <ClientGroup
                   key={'practice-' + pinned.id}
@@ -160,36 +177,37 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
                   first
                 />
               ))}
-            {grouped
-              ? v.workGroups.flatMap((client, i) =>
-                  client.sites.map((site, j) => (
-                    <ClientGroup
-                      key={client.key + site.key}
-                      client={client}
-                      site={site}
+            {!loading &&
+              (grouped
+                ? v.workGroups.flatMap((client, i) =>
+                    client.sites.map((site, j) => (
+                      <ClientGroup
+                        key={client.key + site.key}
+                        client={client}
+                        site={site}
+                        onOpen={v.onRow}
+                        onArchive={archiveOf}
+                        assign={assign}
+                        first={!pinned && i === 0 && j === 0}
+                        walkRow={walkRow}
+                        walkOther={otherRow}
+                      />
+                    )),
+                  )
+                : v.filteredRows.map((r, i) => (
+                    <WorkRow
+                      key={r.id}
+                      r={r}
+                      grouped={false}
                       onOpen={v.onRow}
-                      onArchive={archiveOf}
+                      onArchive={archiveOf(r)}
                       assign={assign}
-                      first={!pinned && i === 0 && j === 0}
-                      walkRow={walkRow}
-                      walkOther={otherRow}
+                      first={!pinned && i === 0}
+                      walkAction={r.id === walkRow}
+                      walkOther={r.id === otherRow}
                     />
-                  )),
-                )
-              : v.filteredRows.map((r, i) => (
-                  <WorkRow
-                    key={r.id}
-                    r={r}
-                    grouped={false}
-                    onOpen={v.onRow}
-                    onArchive={archiveOf(r)}
-                    assign={assign}
-                    first={!pinned && i === 0}
-                    walkAction={r.id === walkRow}
-                    walkOther={r.id === otherRow}
-                  />
-                ))}
-            {!!v.noResults && (
+                  )))}
+            {!loading && !failed && !!v.noResults && (
               <div className="at-empty">
                 {v.noAssessments ? (
                   <EmptyState
@@ -222,13 +240,15 @@ export function Dashboard({ v, bell }: { v: AssessmentWorkflow; bell?: React.Rea
               </div>
             )}
           </div>
-          <TableFooter
-            late={v.lateCount ? plural(v.lateCount, 'report') + ' late' : undefined}
-            onLateClick={() => v.setDateFilter('overdue')}
-          >
-            {plural(v.filteredRows.length, 'assessment')}
-          </TableFooter>
-        </div>
+          {!loading && !failed && (
+            <TableFooter
+              late={v.lateCount ? plural(v.lateCount, 'report') + ' late' : undefined}
+              onLateClick={() => v.setDateFilter('overdue')}
+            >
+              {plural(v.filteredRows.length, 'assessment')}
+            </TableFooter>
+          )}
+        </ListCard>
       </div>
       {held && (
         <ReassignDialog

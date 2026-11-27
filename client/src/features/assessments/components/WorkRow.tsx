@@ -7,10 +7,9 @@ import {
   AssessmentTypeTile,
   Chip,
   Icon,
-  IconButton,
+  IconAction,
   ReportDue,
   StatusPill,
-  Tooltip,
 } from '../../../design-system'
 import { PriorityMark } from '../../marshbot/PriorityMark'
 import { rowStage, STATUS_LABEL } from '../format'
@@ -55,8 +54,11 @@ export function WorkRow({
   const practice = !!r.record?.practice
   // The walkthrough's tag for the button it points at (assessment-list.css keeps it visible).
   const actionTag = walkAction ? 'assessments.row-action' : undefined
-  // Finished work shows its due date alone, never "late".
-  const finished = r.status === STATUS_LABEL.finalised || r.status === STATUS_LABEL.archived
+  // Finished work (finalised, archived or exported) shows its due date alone, never "late".
+  const finished =
+    r.status === STATUS_LABEL.finalised ||
+    r.status === STATUS_LABEL.archived ||
+    r.stage === 'exported'
   const changed = assign?.changed === r.id
   // A saved assessment still in progress whose site visit is today shows the site's weather
   // (CP-62), so the engineer sees rain before setting off.
@@ -139,20 +141,13 @@ export function WorkRow({
           />
         )}
         {!!onArchive && !practice && (
-          <Tooltip label="Archive" placement="top">
-            <IconButton
-              icon="archive"
-              size="sm"
-              label={'Archive ' + r.id}
-              title={undefined}
-              style={{ borderRadius: 999 }}
-              data-walk={assign ? undefined : actionTag}
-              onClick={(e) => {
-                e.stopPropagation()
-                onArchive()
-              }}
-            />
-          </Tooltip>
+          <IconAction
+            icon="archive"
+            label={'Archive ' + r.id}
+            tooltip="Archive"
+            data-walk={assign ? undefined : actionTag}
+            onClick={onArchive}
+          />
         )}
         <Icon name="chevron-right" size={16} color="var(--graphite-600)" />
       </span>
@@ -178,13 +173,10 @@ function ReassignAction({
     return (
       // The wrapper keeps a press on the icon from opening the row (the icon swallows its own click).
       <span style={{ display: 'inline-flex' }} onClick={(e) => e.stopPropagation()}>
-        <IconButton
+        <IconAction
           icon="arrow-left-right"
-          size="sm"
           label={'Reassign ' + reference}
-          title={undefined}
           data-walk={walk}
-          style={{ borderRadius: 999, color: 'var(--graphite-400)' }}
           disabledReason={{
             title: "Can't reassign yet",
             text: 'This assessment is archived. Restore it first.',
@@ -193,19 +185,12 @@ function ReassignAction({
       </span>
     )
   return (
-    <Tooltip label="Reassign" placement="top">
-      <IconButton
-        icon="arrow-left-right"
-        size="sm"
-        label={'Reassign ' + reference}
-        title={undefined}
-        data-walk={walk}
-        style={{ borderRadius: 999, color: 'var(--ink-600)' }}
-        onClick={(e) => {
-          e.stopPropagation()
-          onClick()
-        }}
-      />
-    </Tooltip>
+    <IconAction
+      icon="arrow-left-right"
+      label={'Reassign ' + reference}
+      tooltip="Reassign"
+      data-walk={walk}
+      onClick={onClick}
+    />
   )
 }

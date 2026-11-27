@@ -4,9 +4,16 @@
 // panel, not here. On a phone: no avatar, a round + and a ⋯ that opens the More sheet.
 // Called by screens/ClientRecord. Calls TopBar, Button, Sheet.
 import { useState, type ReactNode } from 'react'
-import { Button, IconButton, Sheet, Tooltip, TopBar, useIsPhone } from '../../../design-system'
+import {
+  Avatar,
+  Button,
+  IconButton,
+  Sheet,
+  Tooltip,
+  TopBar,
+  useIsPhone,
+} from '../../../design-system'
 import { useCompact } from '../../assessments/useCompact'
-import { ClientAvatar } from './ClientAvatar'
 
 // Rename or Remove: whether the engineer may, and if not why, and what opens it.
 export type HeaderAction = { allowed: boolean; reason: string | null; open: () => void }
@@ -93,7 +100,11 @@ export function ClientHeader({
                   label="New assessment"
                   size="lg"
                   onClick={onNewAssessment}
-                  style={{ background: 'var(--marsh-navy)', color: '#fff', borderRadius: 999 }}
+                  style={{
+                    background: 'var(--marsh-navy)',
+                    color: 'var(--text-inverse)',
+                    borderRadius: 999,
+                  }}
                 />
               )}
               <IconButton
@@ -142,18 +153,34 @@ export function ClientHeader({
   return (
     <TopBar
       back={back}
-      lead={<ClientAvatar name={name} />}
+      lead={<Avatar kind="client" name={name} size={44} />}
       eyebrow="Clients"
       title={<span title={name}>{name}</span>}
       action={
         <span className="cl-header-actions">
           {rename && pill(rename, 'Rename client', 'pencil', "Can't rename yet")}
           {remove && pill(remove, 'Remove client', 'trash-2', "Can't remove yet", true)}
-          {onNewAssessment && (
-            <Button variant="primary" pill iconLeft="plus" onClick={onNewAssessment}>
-              {'New assessment'}
-            </Button>
-          )}
+          {onNewAssessment &&
+            (tablet ? (
+              // Round on a narrow tablet too: labelled, it left the name a few letters beside the open sidebar.
+              <Tooltip label="New assessment">
+                <IconButton
+                  icon="plus"
+                  label="New assessment"
+                  title={undefined}
+                  onClick={onNewAssessment}
+                  style={{
+                    background: 'var(--marsh-navy)',
+                    color: 'var(--text-inverse)',
+                    borderRadius: 999,
+                  }}
+                />
+              </Tooltip>
+            ) : (
+              <Button variant="primary" pill iconLeft="plus" onClick={onNewAssessment}>
+                {'New assessment'}
+              </Button>
+            ))}
         </span>
       }
       bell={bell}

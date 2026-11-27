@@ -1,4 +1,4 @@
-import { AIDraftBlock, Badge, Button, Callout } from '../../../design-system'
+import { AIDraftBlock, Badge, Button, Callout, Icon } from '../../../design-system'
 import type { SectionVersion, Summary } from '../api'
 import { asDrafted, hasWritten, signature, summaryContent } from '../documentContent'
 import { formatDayTime } from '../format'
@@ -23,6 +23,7 @@ export function ExecutiveSummary({
   fullWidth = false,
   showCitations = true,
   document = null,
+  page = false,
 }: {
   summary: Summary['executiveSummary'] | null
   error: string | null
@@ -33,6 +34,8 @@ export function ExecutiveSummary({
   showCitations?: boolean
   // Its newest version from the document editor (RV-08), shown in Review.
   document?: SectionVersion | null
+  // Review's look: the summary as one page of the report, as Sections 4 to 12 are (review.css).
+  page?: boolean
 }) {
   if (error)
     return (
@@ -81,7 +84,7 @@ export function ExecutiveSummary({
         <p style={{ margin: '0 0 12px' }}>
           Every section is ready. Draft it on the Generation tab.
         </p>
-        <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
+        <Button pill variant="secondary" size="sm" iconLeft="sparkles" onClick={onGenerate}>
           Go to Generation
         </Button>
       </Callout>
@@ -110,8 +113,7 @@ export function ExecutiveSummary({
   return (
     <>
       <p className="rv-provenance">
-        Drafted {formatDayTime(new Date(draft.provenance.generated_at))} · {draft.provenance.model}{' '}
-        ({draft.provenance.effort} effort) · prompt {draft.provenance.prompt_version}
+        Drafted {formatDayTime(new Date(draft.provenance.generated_at))}
       </p>
       {saved}
       {staleSections.length > 0 && (
@@ -120,63 +122,133 @@ export function ExecutiveSummary({
           Redraft it on the Generation tab.
         </Callout>
       )}
-      <AIDraftBlock
-        heading={narrative.heading}
-        status={asDraftedNow ? (unsupported ? 'flagged' : 'draft') : 'edited'}
-        // No status badge or confidence meter: it is all AI drafted, and a weak
-        // statement carries its own Unsupported flag (Miya, 15 Oct).
-        quiet
-        evidenceCount={new Set(narrative.statements.flatMap((s) => s.citations)).size}
-        fullWidth={fullWidth}
-      >
-        {narrativeBlocks && !asDraftedNow ? (
-          <WrittenBlocks
-            blocks={narrativeBlocks}
-            cite={showCitations ? sectionTag : undefined}
-            flagged={(key) => statementAt(key)?.supported === false}
-          />
-        ) : (
-          narrative.statements.map((s, i) => (
-            <p key={i} className={'rv-statement' + (s.supported ? '' : ' is-unsupported')}>
-              <span className="rv-statement-text">{s.text}</span>{' '}
-              {/* `S:7` is Section 7, as rag-service's draft_summary labels it. */}
-              {showCitations && (
-                <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
-                  {s.citations.map((c) => (
-                    <Badge key={c} tone="neutral">
-                      {`Section ${c.replace(/^S:/, '')}`}
-                    </Badge>
-                  ))}
-                </span>
+      {page ? (
+        // One page: the narrative under its heading (on the AI tint while it is as drafted), then
+        // the template's other parts, each a quiet row until the engineer writes it.
+        <div className="rv-page">
+          <section className="rv-sub">
+            <div className="rv-sub-head">
+              <h3 className="rv-sub-heading">{narrative.heading}</h3>
+            </div>
+            <div className={'rv-sub-body' + (asDraftedNow ? ' rv-sub-ai' : '')}>
+              {narrativeBlocks && !asDraftedNow ? (
+                <WrittenBlocks
+                  blocks={narrativeBlocks}
+                  cite={showCitations ? sectionTag : undefined}
+                  flagged={(key) => statementAt(key)?.supported === false}
+                />
+              ) : (
+                narrative.statements.map((s, i) => (
+                  <p key={i} className={'rv-statement' + (s.supported ? '' : ' is-unsupported')}>
+                    <span className="rv-statement-text">{s.text}</span>{' '}
+                    {/* `S:7` is Section 7, as rag-service's draft_summary labels it. */}
+                    {showCitations && (
+                      <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
+                        {s.citations.map((c) => (
+                          <Badge key={c} tone="neutral">
+                            {`Section ${c.replace(/^S:/, '')}`}
+                          </Badge>
+                        ))}
+                      </span>
+                    )}
+                    {!s.supported && (
+                      <span className="rv-flag">
+                        <Badge tone="moderate" icon="triangle-alert">
+                          Unsupported
+                        </Badge>
+                      </span>
+                    )}
+                  </p>
+                ))
               )}
-              {!s.supported && (
-                <span className="rv-flag">
-                  <Badge tone="moderate" icon="triangle-alert">
-                    Unsupported
-                  </Badge>
-                </span>
-              )}
-            </p>
-          ))
-        )}
-      </AIDraftBlock>
-      {others.map((sub, i) => {
-        const written = edited?.subsections[i + 1]?.blocks ?? []
-        return hasWritten(written) ? (
-          <div key={sub.heading} className="rv-written-section">
-            <strong>{sub.heading}</strong>
-            <WrittenBlocks blocks={written} cite={showCitations ? sectionTag : undefined} />
-          </div>
-        ) : (
-          <div key={sub.heading} className="rv-subsection-note">
-            <strong>{sub.heading}</strong>
-            <p className="rv-muted">
-              Left for the engineer to write: the evidence says nothing of earlier surveys or
-              planned work.
-            </p>
-          </div>
-        )
-      })}
+            </div>
+          </section>
+          {others.map((sub, i) => {
+            const written = edited?.subsections[i + 1]?.blocks ?? []
+            return hasWritten(written) ? (
+              <section key={sub.heading} className="rv-sub">
+                <div className="rv-sub-head">
+                  <h3 className="rv-sub-heading">{sub.heading}</h3>
+                </div>
+                <div className="rv-sub-body">
+                  <WrittenBlocks blocks={written} cite={showCitations ? sectionTag : undefined} />
+                </div>
+              </section>
+            ) : (
+              <section key={sub.heading} className="rv-sub is-empty">
+                <h3 className="rv-sub-heading">{sub.heading}</h3>
+                <p className="rv-sub-note">
+                  <Icon name="info" size={14} />
+                  <span>
+                    Left for the engineer to write: the evidence says nothing of earlier surveys or
+                    planned work.
+                  </span>
+                </p>
+              </section>
+            )
+          })}
+        </div>
+      ) : (
+        <>
+          <AIDraftBlock
+            heading={narrative.heading}
+            status={asDraftedNow ? (unsupported ? 'flagged' : 'draft') : 'edited'}
+            // No status badge or confidence meter: it is all AI drafted, and a weak
+            // statement carries its own Unsupported flag (Miya, 15 Oct).
+            quiet
+            evidenceCount={new Set(narrative.statements.flatMap((s) => s.citations)).size}
+            fullWidth={fullWidth}
+          >
+            {narrativeBlocks && !asDraftedNow ? (
+              <WrittenBlocks
+                blocks={narrativeBlocks}
+                cite={showCitations ? sectionTag : undefined}
+                flagged={(key) => statementAt(key)?.supported === false}
+              />
+            ) : (
+              narrative.statements.map((s, i) => (
+                <p key={i} className={'rv-statement' + (s.supported ? '' : ' is-unsupported')}>
+                  <span className="rv-statement-text">{s.text}</span>{' '}
+                  {/* `S:7` is Section 7, as rag-service's draft_summary labels it. */}
+                  {showCitations && (
+                    <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {s.citations.map((c) => (
+                        <Badge key={c} tone="neutral">
+                          {`Section ${c.replace(/^S:/, '')}`}
+                        </Badge>
+                      ))}
+                    </span>
+                  )}
+                  {!s.supported && (
+                    <span className="rv-flag">
+                      <Badge tone="moderate" icon="triangle-alert">
+                        Unsupported
+                      </Badge>
+                    </span>
+                  )}
+                </p>
+              ))
+            )}
+          </AIDraftBlock>
+          {others.map((sub, i) => {
+            const written = edited?.subsections[i + 1]?.blocks ?? []
+            return hasWritten(written) ? (
+              <div key={sub.heading} className="rv-written-section">
+                <strong>{sub.heading}</strong>
+                <WrittenBlocks blocks={written} cite={showCitations ? sectionTag : undefined} />
+              </div>
+            ) : (
+              <div key={sub.heading} className="rv-subsection-note">
+                <strong>{sub.heading}</strong>
+                <p className="rv-muted">
+                  Left for the engineer to write: the evidence says nothing of earlier surveys or
+                  planned work.
+                </p>
+              </div>
+            )
+          })}
+        </>
+      )}
     </>
   )
 }

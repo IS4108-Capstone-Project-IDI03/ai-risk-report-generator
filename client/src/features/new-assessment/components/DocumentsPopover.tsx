@@ -4,7 +4,15 @@
 // added here are tagged to the whole client and uploaded only on Create.
 // Used by ClientCard.tsx. Calls DocumentRow.tsx and the form's actions.
 import { useRef, useState } from 'react'
-import { AddRow, Icon, Popover, toast, useIsPhone } from '../../../design-system'
+import {
+  AddRow,
+  CountPill,
+  EmptyNote,
+  Icon,
+  Popover,
+  toast,
+  useIsPhone,
+} from '../../../design-system'
 import { plural } from '../../clients/formatClient'
 import { tagOptions } from '../form'
 import { ACCEPT, refusedType } from '../reading'
@@ -57,7 +65,7 @@ export function DocumentsPopover({ f }: { f: NewAssessmentForm }) {
         >
           <Icon name="paperclip" size={16} />
           <span className="na-docs-word">{'Documents'}</span>
-          {!!docs.length && <span className="na-count">{docs.length}</span>}
+          {!!docs.length && <CountPill tone="ink">{docs.length}</CountPill>}
           <Icon name="chevron-down" size={16} className="na-docs-chev" />
         </button>
       }
@@ -67,10 +75,12 @@ export function DocumentsPopover({ f }: { f: NewAssessmentForm }) {
         {!phone && (
           <h3>
             {'Client documents'}
-            {!!docs.length && <span className="na-count">{docs.length}</span>}
+            {!!docs.length && <CountPill tone="ink">{docs.length}</CountPill>}
           </h3>
         )}
-        {!docs.length && <p className="na-docs-empty">{'No documents added yet'}</p>}
+        {!docs.length && (
+          <EmptyNote className="na-docs-empty">{'No documents added yet'}</EmptyNote>
+        )}
         {!!docs.length && (
           <ul className="na-doc-list">
             {docs.map((d, at) => (

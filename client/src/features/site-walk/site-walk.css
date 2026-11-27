@@ -20,7 +20,7 @@
   z-index: 40;
   display: flex;
   flex-direction: column;
-  background: var(--surface-card);
+  background: var(--graphite-50);
   color: var(--text-primary);
   font: 400 15px/1.45 var(--sw-font);
   -webkit-font-smoothing: antialiased;
@@ -45,14 +45,16 @@
   padding: 8px max(clamp(16px, 2vw, 28px), env(safe-area-inset-right)) 8px
     max(clamp(16px, 2vw, 28px), env(safe-area-inset-left));
   padding-top: max(8px, env(safe-area-inset-top));
-  border-bottom: 1px solid var(--sw-line);
+  border-bottom: 1px solid var(--graphite-200);
+  background: var(--surface-card);
 }
+/* The title is the sub-screen title of every Observations screen (screen-header.css .sh-title). */
 .sw-bar h1,
 .sw-bar h2 {
   margin: 0;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: var(--marsh-navy);
 }
 .sw-bar > :last-child {
@@ -101,9 +103,6 @@
 .sw-button--tinted {
   background: var(--sw-fill);
 }
-.sw-button--danger {
-  color: var(--red-600);
-}
 .sw-button--wide {
   width: 100%;
   min-height: 50px;
@@ -121,30 +120,6 @@
   font-size: 14px;
   text-wrap: pretty;
 }
-.sw-alert {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  border-radius: 14px;
-  background: var(--sw-fill);
-  color: var(--text-body);
-}
-.sw-alert p {
-  margin: 0;
-  text-wrap: pretty;
-}
-.sw-alert--problem {
-  background: var(--red-50);
-  color: var(--red-600);
-}
-/* A tinted pill would vanish into the pink alert, so its button is white. */
-.sw-alert--problem .sw-button {
-  background: var(--surface-card);
-  color: var(--marsh-navy);
-  box-shadow: var(--sw-shadow-sm);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .sw *,
   .sw *::before,

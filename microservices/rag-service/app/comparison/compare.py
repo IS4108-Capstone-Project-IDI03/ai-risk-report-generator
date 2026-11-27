@@ -6,13 +6,14 @@ Nothing is saved here, and nothing here reaches a report.
 Called by routes.py's /comparison/compare. Calls privacy.py (mask, fail closed) and
 llm.complete under LLM_PROVIDER. What comes back is only tidied and checked here: labels the
 model was not given are dropped, an item it left out or gave twice is answered once, and a
-reason or a missing line that breaks the content rules (ask.content_problem) or holds a
-placeholder that could not be restored is left out. The rules that decide an outcome (silence
-is never a fix, a severity change is Worse or Improved, sources that disagree leave it to the
-engineer) and every figure's difference are worked out by the gateway
-(report-comparison-rules.ts), never asked of the model.
+reason or a missing line that breaks the content rules (ask.content_problem), names one of
+the labels, or holds a placeholder that could not be restored is left out. The rules that
+decide an outcome (silence is never a fix, a severity change is Worse or Improved, sources
+that disagree leave it to the engineer) and every figure's difference are worked out by the
+gateway (report-comparison-rules.ts), never asked of the model.
 """
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -25,7 +26,7 @@ from app.privacy import session as privacy_session
 
 # Must match the ai_calls feature list in server/src/models/ai-call.model.ts.
 FEATURE = "report-comparison"
-PROMPT_VERSION = "rv13-v1"
+PROMPT_VERSION = "rv13-v2"
 # Previous items per model call: every call is given all the current evidence, so a long
 # report is compared in parts and each answer stays short enough to finish.
 BATCH = 40
@@ -97,8 +98,9 @@ convert a unit.
 
 Rules for reason and missing: state facts only. Never give advice or a recommendation, and \
 never say what anyone should, must or needs to do. Never write "I" or "we". Never give a \
-confidence, a probability or a percentage of certainty. Plain sentences: no lists, markdown \
-or emoji.
+confidence, a probability or a percentage of certainty. Never name a label (P1, O2, F1, \
+R1): the engineer never sees them, so describe the evidence in words ("the afternoon \
+observation in the valve room"). Plain sentences: no lists, markdown or emoji.
 {PLACEHOLDER_RULE}"""
 
 
@@ -124,13 +126,22 @@ def _labels(cited: list[str], known: set[str]) -> list[str]:
     return [label for label in dict.fromkeys(found) if label in known]
 
 
+# One of the labels the model is given (P1, O12, F3, R2). The engineer never sees them, so a
+# line naming one would read as nonsense ("in O8") on the Comparison tab.
+_LABEL = re.compile(r"\b[POFR]\d+\b")
+
+
 def _sentence(masking, text: str | None, dropped: list[str]) -> str | None:
     """A reason or missing line with real names back, or None when it breaks the rules."""
     if not text or not text.strip():
         return None
     restored, unknown = masking.unmask(strip_emoji(text))
     restored = restored.strip()
-    problem = "placeholder" if unknown else content_problem(restored)
+    problem = (
+        "placeholder"
+        if unknown
+        else content_problem(restored) or ("label" if _LABEL.search(restored) else None)
+    )
     if problem:
         dropped.append(problem)
         return None

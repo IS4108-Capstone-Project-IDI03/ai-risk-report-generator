@@ -434,15 +434,22 @@ def _gap(obs: dict, starts: dict[int, float], at: float) -> float:
 
 
 def _attach_photos(observations: list[dict], photos: list[dict], recordings) -> None:
-    """Attach each timed photo to one of the 3 observations spoken nearest it (AC8)."""
+    """Attach each timed photo to one of the 3 observations spoken nearest it (AC8), and each
+    photo with no time to the observation its description fits best."""
     timed = [o for o in observations if o["start"] is not None]
     starts = _walk_starts(recordings)
     pending = []  # (photo number, photo, its candidates) for the classifier to choose among
     for n, photo in enumerate(photos, 1):
-        if photo["offset_sec"] is None or photo["recording_seq"] not in starts or not timed:
-            continue  # a typed walk's photo, or one from an unknown recording, has no time
-        at = starts[photo["recording_seq"]] + photo["offset_sec"]
-        near = sorted(timed, key=lambda o: _gap(o, starts, at))[:3]
+        if photo["offset_sec"] is not None and photo["recording_seq"] in starts and timed:
+            at = starts[photo["recording_seq"]] + photo["offset_sec"]
+            near = sorted(timed, key=lambda o: _gap(o, starts, at))[:3]
+        elif photo["description"] and observations:
+            # No time to go by (a typed walk, a photo added before the first recording, or one
+            # whose recording was removed): every observation is a candidate. Without this the
+            # photo reached no observation, so Create all silently left it out.
+            near = observations
+        else:
+            continue  # no time and no description: nothing to match it by
         if len(near) == 1:
             near[0]["photo_ids"].append(photo["id"])
         else:

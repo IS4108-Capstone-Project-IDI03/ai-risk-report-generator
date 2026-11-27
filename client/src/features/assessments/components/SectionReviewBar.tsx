@@ -1,4 +1,4 @@
-import { Button, Callout, IconRegistry } from '../../../design-system'
+import { Button, Callout, IconRegistry, SegmentedControl } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import type { ReviewSection } from '../api'
 import { formatDayTime } from '../format'
@@ -42,14 +42,18 @@ export function SectionReviewBar({
     <div className="rv-review-bar">
       {view === 'saved' && (
         <div className="rv-review-row">
-          <p className="rv-review-counts">
-            <span className="rv-label">Findings</span>{' '}
-            <span>{findings.total ? findingCountsLabel(findings) : 'None in this draft'}</span>
-          </p>
-          {canReview && <Tip id="review.findings" />}
+          {/* The counts and their (?) stay together when the buttons wrap under them. */}
+          <div className="rv-review-what">
+            <p className="rv-review-counts">
+              <span className="rv-label">Findings</span>{' '}
+              <span>{findings.total ? findingCountsLabel(findings) : 'None in this draft'}</span>
+            </p>
+            {canReview && <Tip id="review.findings" />}
+          </div>
           {canReview && (
             <div className="rv-review-actions" data-walk="review.actions">
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft={IconRegistry.action.accept}
@@ -61,6 +65,7 @@ export function SectionReviewBar({
                 {`Bulk accept (${findings.pending})`}
               </Button>
               <Button
+                pill
                 variant="secondary"
                 size="sm"
                 iconLeft={IconRegistry.action.regenerate}
@@ -73,9 +78,10 @@ export function SectionReviewBar({
               >
                 {regenerating ? 'Regenerating' : 'Regenerate'}
               </Button>
+              {/* Its (?) stays beside Regenerate when the row wraps. */}
+              <Tip id="review.regenerate" align="right" />
             </div>
           )}
-          {canReview && <Tip id="review.regenerate" align="right" />}
         </div>
       )}
       {regenerateProblem && (
@@ -100,27 +106,19 @@ export function SectionReviewBar({
             it leaves the saved draft as it is.
           </p>
           <div className="rv-review-row rv-replacement-row">
-            <div className="rv-segmented" role="group" aria-label="Draft shown">
-              <Button
-                variant={view === 'saved' ? 'tonal' : 'ghost'}
-                size="sm"
-                aria-pressed={view === 'saved'}
-                onClick={() => onView('saved')}
-              >
-                Saved draft
-              </Button>
-              <Button
-                variant={view === 'replacement' ? 'tonal' : 'ghost'}
-                size="sm"
-                aria-pressed={view === 'replacement'}
-                onClick={() => onView('replacement')}
-              >
-                Replacement
-              </Button>
-            </div>
+            <SegmentedControl
+              ariaLabel="Draft shown"
+              value={view}
+              onChange={onView}
+              options={[
+                { value: 'saved', label: 'Saved draft' },
+                { value: 'replacement', label: 'Replacement' },
+              ]}
+            />
             {canReview && (
               <div className="rv-review-actions">
                 <Button
+                  pill
                   variant="danger-tonal"
                   size="sm"
                   iconLeft={IconRegistry.action.discard}
@@ -131,6 +129,7 @@ export function SectionReviewBar({
                   Discard replacement
                 </Button>
                 <Button
+                  pill
                   variant="primary"
                   size="sm"
                   iconLeft={IconRegistry.action.accept}

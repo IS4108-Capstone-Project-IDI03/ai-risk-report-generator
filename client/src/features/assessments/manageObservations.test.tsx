@@ -17,7 +17,7 @@ import { formatDayYearTime } from './format'
 
 // Managing captured observations (CP-08, CP-22): status on each row, filters
 // on type and status, note and transcript corrections, and deleting and
-// restoring, all on the sample assessment's Observations tab. An observation
+// restoring, all on an assessment's Observations tab. An observation
 // is opened on its own page and edited in place.
 const REF = 'RPT-2026-0411'
 const OBS_URL = `/api/assessments/${REF}/observations`
@@ -152,14 +152,6 @@ const SEVERITY_NOT_SURE = observation({
   suggestion: { status: 'done', error: null, category: null, severity: { notSure: true } },
   toCheck: true,
 })
-// The sample assessment's own observations, kept in the browser.
-const RACKING =
-  'Pallet racking installed against north wall since last visit. Two ESFR heads obstructed.'
-const PUMP_TEST =
-  'Pump test certificate not produced on request. Site engineer believes it is held by the contractor.'
-const SORTATION =
-  'Sortation line controller is a single point of failure. Client quotes 14 weeks to replace.'
-
 function assessment(engineer: { id: string; name: string }): Assessment {
   return {
     id: 'a1',
@@ -195,17 +187,15 @@ const json = (status: number, body: unknown) =>
   )
 
 // A stand-in for the gateway, answering by route and applying each change to
-// the listed observations as the gateway does. The work list is unreachable
-// unless given, so the dashboard shows its sample rows. `refuse` answers a
+// the listed observations as the gateway does. The work list holds the
+// assessment, assigned to the signed-in engineer, unless given. `refuse` answers a
 // change instead, e.g. with a 400.
 let listed: SavedObservation[] = []
-let workList: Assessment[] | null = null
-let offline = false
+let workList: Assessment[] = []
 let refuse: ((method: string) => Promise<Response> | null) | null = null
 const calls: { method: string; url: string; body?: unknown }[] = []
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
-    if (offline) return Promise.reject(new TypeError('Failed to fetch'))
     const method = init.method ?? 'GET'
     // Added recordings and photos arrive as a form (CP-08); calls name its files.
     const form = init.body instanceof FormData ? init.body : null
@@ -221,11 +211,12 @@ function mockGateway() {
       : init.body
         ? JSON.parse(String(init.body))
         : undefined
+    // Tag suggestions (CP-36) only read the text, so they are not a change to count.
+    if (url === `/api/assessments/${REF}/suggest-kinds`) return json(200, { kinds: [] })
     if (method !== 'GET') calls.push({ method, url, body })
     const refused = refuse?.(method)
     if (refused) return refused
-    if (url === '/api/assessments')
-      return workList ? json(200, workList) : Promise.reject(new TypeError('Failed to fetch'))
+    if (url === '/api/assessments') return json(200, workList)
     if (url === OBS_URL)
       return json(
         200,
@@ -338,18 +329,23 @@ async function openObservations() {
   window.history.replaceState(null, '', '/')
   render(<App />)
   await signIn()
-  // Grouped by client (CP-23), the list's rows are replaced when the gateway answers,
-  // so wait for that answer, then click the row once.
-  if (workList)
-    await screen.findByText(`${workList.length} assessment${workList.length === 1 ? '' : 's'}`)
-  else await screen.findByText('Showing sample assessments')
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
-  fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
-  // The sample observations show straight away; wait for the gateway's.
-  if (!offline && listed.length)
+  // Wait for the gateway's work list, then open the assessment from its row.
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
+  fireEvent.click(await screen.findByRole('tab', { name: /Observations/ }))
+  // Wait for the gateway's observations.
+  if (listed.length)
     await screen.findByRole('button', { name: new RegExp(listed[0].note ?? FAILED) })
 }
 const click = (name: string | RegExp) => fireEvent.click(screen.getByRole('button', { name }))
+// What a photo row says, its controls' screen-reader names included: the photo's file name is
+// only there now (redesign round 2 took it out of the row's text).
+const said = (li: Element) =>
+  [
+    li.textContent,
+    ...[...li.querySelectorAll('[aria-label]')].map((e) => e.getAttribute('aria-label')),
+  ].join(' ')
 // An observation's row, by the start of its summary.
 const row = (summary: string) =>
   screen.getByRole('button', { name: new RegExp(summary.slice(0, 20)) })
@@ -397,8 +393,7 @@ beforeAll(() => {
 })
 beforeEach(() => {
   listed = [NOTE_ONLY]
-  workList = null
-  offline = false
+  workList = [assessment(ME)]
   refuse = null
   calls.length = 0
   mockGateway()
@@ -428,7 +423,7 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
   it('filters by type and status, alone or with other filters', async () => {
     listed = [NOTE_ONLY, VOICE_ONLY, TRANSCRIBING, FAILED_VOICE]
     await openObservations()
-    const ALL = [NOTE, VOICE, RISER, FAILED, RACKING, PUMP_TEST, SORTATION]
+    const ALL = [NOTE, VOICE, RISER, FAILED]
     expect(menuLabels('Type')).toEqual(['All types', 'Note', 'Voice', 'Photo', 'Scan'])
     fireEvent.keyDown(document.body, { key: 'Escape' })
     expect(menuLabels('Status')).toEqual([
@@ -442,11 +437,11 @@ describe('Listing and filtering observations (CP-08 AC1-AC3)', () => {
     ])
     fireEvent.keyDown(document.body, { key: 'Escape' })
 
-    // One with a note and a recording is both types; the sample pump test has a voice clip.
+    // One with a note and a recording is both types.
     filter('Type', 'Voice')
-    expect(shown(...ALL)).toEqual([VOICE, RISER, FAILED, PUMP_TEST])
+    expect(shown(...ALL)).toEqual([VOICE, RISER, FAILED])
     filter('Type', 'Note')
-    expect(shown(...ALL)).toEqual([NOTE, RISER, RACKING, PUMP_TEST, SORTATION])
+    expect(shown(...ALL)).toEqual([NOTE, RISER])
     fireEvent.click(screen.getByRole('button', { name: 'Clear type filter' }))
     expect(shown(...ALL)).toEqual(ALL)
 
@@ -467,7 +462,7 @@ describe('Reading an observation (CP-24)', () => {
     expect(within(row(PROPOSAL)).getByRole('img', { name: 'Complete' })).toBeInTheDocument()
     expect(within(row(UNREAD)).getByRole('img', { name: 'Reading failed' })).toBeInTheDocument()
     expect(within(row(NOT_SURE)).getByRole('img', { name: 'To check' })).toBeInTheDocument()
-    const ALL = [READING, PROPOSAL, UNREAD, NOT_SURE, RACKING]
+    const ALL = [READING, PROPOSAL, UNREAD, NOT_SURE]
     filter('Status', 'Reading')
     expect(shown(...ALL)).toEqual([READING])
     filter('Status', 'Reading failed')
@@ -598,11 +593,10 @@ describe('The Observations tab rows, footer and Add observation (CP-24, AC11 and
     listed = [SUGGESTION_FAILED, SEVERITY_NOT_SURE]
     await openObservations()
 
-    // The sample assessment's 3 observations are listed too.
-    expect(screen.getByText('5 observations')).toBeInTheDocument()
+    expect(screen.getByText('2 observations')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '2 to check' }))
     expect(screen.getByRole('button', { name: 'Status: To check' })).toBeInTheDocument()
-    expect(screen.getByText('2 of 5 observations')).toBeInTheDocument()
+    expect(screen.getByText('2 of 2 observations')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /to check$/ })).toBeNull()
   })
 
@@ -621,8 +615,9 @@ describe('The Observations tab rows, footer and Add observation (CP-24, AC11 and
 
     click('Add observation')
     click(/^Add observation manually/)
-    // This stand-in gateway has no capture session, so the form opens in demo mode.
-    expect(await screen.findByRole('button', { name: 'Save observation' })).toBeInTheDocument()
+    // This stand-in gateway has no capture session, so the form says it can't save.
+    expect(await screen.findByText('Can’t save right now')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeDisabled()
   })
 
   it('opens the site walk recorder from the Add observation menu', async () => {
@@ -656,14 +651,14 @@ describe('Moving between observations (CP-22)', () => {
 
     const arrow = (name: string) => screen.getByRole('button', { name }) as HTMLButtonElement
     while (!arrow('Next observation').disabled) fireEvent.click(arrow('Next observation'))
-    // The sample observations are in the list too, so the end is the whole list's.
-    await vi.waitFor(() => expect(place()).toMatch(/^(\d+) of \1$/))
+    await vi.waitFor(() => expect(place()).toMatch(/^2 of 2$/))
     while (!arrow('Previous observation').disabled) fireEvent.click(arrow('Previous observation'))
-    expect(place()).toMatch(/^1 of \d+$/)
+    expect(place()).toMatch(/^1 of 2$/)
   })
 
   it('keeps keyboard focus on the stepper after stepping, moving to the other arrow at the end', async () => {
-    listed = [NOTE_ONLY, VOICE_ONLY]
+    // Three, so stepping from the first leaves Next on.
+    listed = [NOTE_ONLY, VOICE_ONLY, TRANSCRIBING]
     await openObservations()
     fireEvent.click(row(NOTE))
 
@@ -790,7 +785,7 @@ describe('Deleting and restoring an observation (CP-08 AC12-AC14)', () => {
     expect(screen.getByRole('button', { name: 'Deleted observations (1)' })).toBeInTheDocument()
     showDeleted()
     const deleted = await screen.findByRole('button', { name: /^Hose reel/ })
-    expect(shown(VOICE, RACKING)).toEqual([])
+    expect(shown(VOICE)).toEqual([])
     expect(screen.getByRole('button', { name: /^Restore Hose reel/ })).toBeInTheDocument()
     fireEvent.click(deleted)
     expect(
@@ -826,31 +821,6 @@ describe('Deleting and restoring an observation (CP-08 AC12-AC14)', () => {
     )
     expect(screen.getByRole('textbox', { name: 'Note' })).toHaveValue(NOTE)
   })
-
-  it('edits, deletes and restores a sample observation in this demo only', async () => {
-    offline = true
-    await openObservations()
-
-    fireEvent.click(row(SORTATION))
-    typeNote('Sortation controller has no standby unit.')
-    await saved()
-
-    click('Delete observation')
-    const confirm = await screen.findByRole('dialog', { name: 'Delete this observation?' })
-    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete' }))
-    expect(
-      await screen.findByText(
-        'Observation deleted in this demo only. Choose Deleted to restore it.',
-      ),
-    ).toBeInTheDocument()
-    expect(shown(RACKING, PUMP_TEST)).toEqual([RACKING, PUMP_TEST])
-
-    showDeleted()
-    fireEvent.click(screen.getByRole('button', { name: /^Sortation controller has no standby/ }))
-    click('Restore')
-    expect(await screen.findByText('Observation restored in this demo only.')).toBeInTheDocument()
-    expect(calls).toEqual([])
-  })
 }, 15000)
 
 describe('Who can change an observation (CP-08 AC17)', () => {
@@ -861,26 +831,22 @@ describe('Who can change an observation (CP-08 AC17)', () => {
     ] as const) {
       workList = [assessment(engineer)]
       await openObservations()
-      // A saved observation, and a sample one kept in the browser.
-      for (const summary of [NOTE, SORTATION]) {
-        fireEvent.click(row(summary))
-        const changes = [
-          screen.queryByRole('textbox', { name: 'Note' }),
-          screen.queryByRole('button', { name: 'Delete observation' }),
-          screen.queryByRole('button', { name: /^Severity: .*\. Change$/ }),
-        ]
-        for (const control of changes)
-          if (offered) expect(control).toBeInTheDocument()
-          else expect(control).not.toBeInTheDocument()
-        backToList()
-      }
+      fireEvent.click(row(NOTE))
+      const changes = [
+        screen.queryByRole('textbox', { name: 'Note' }),
+        screen.queryByRole('button', { name: 'Delete observation' }),
+        screen.queryByRole('button', { name: /^Severity: .*\. Change$/ }),
+      ]
+      for (const control of changes)
+        if (offered) expect(control).toBeInTheDocument()
+        else expect(control).not.toBeInTheDocument()
       cleanup()
     }
   })
 
-  it('offers no changes on another engineer’s assessment opened by link (CP-20)', async () => {
-    // Not on this engineer's work list, which holds only their own.
-    workList = []
+  it('offers no changes on another engineer’s listed assessment opened by link (CP-20)', async () => {
+    // On the list but assigned to someone else, so it opens read-only.
+    workList = [assessment(OTHER)]
     listed = [
       observation({
         id: 'o1',
@@ -1077,30 +1043,6 @@ describe('Adding and removing recordings and photos (CP-08)', () => {
     expect(screen.queryByRole('button', { name: 'Remove Recording 1' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Remove IMG_0460.jpg' })).not.toBeInTheDocument()
   })
-
-  it('adds, removes and restores media of a sample observation in this demo only', async () => {
-    offline = true
-    await openObservations()
-    fireEvent.click(row(SORTATION))
-    addMedia()
-    const dialog = await addDialog()
-    expect(dialog).toHaveTextContent('No capture session, so these stay in this browser')
-    choose(dialog, photo('IMG_0520.jpg'))
-
-    click('Add to observation')
-    expect(await screen.findByText('Added 1 photo in this demo only.')).toBeInTheDocument()
-
-    click('Remove IMG_0520.jpg')
-    const confirm = await screen.findByRole('dialog', { name: 'Remove this photo?' })
-    fireEvent.click(within(confirm).getByRole('button', { name: 'Remove photo' }))
-    expect(
-      await screen.findByText('Photo removed in this demo only. Restore it under Removed media.'),
-    ).toBeInTheDocument()
-    fireEvent.click(screen.getByText('Removed media (1)'))
-    click('Restore IMG_0520.jpg')
-    expect(await screen.findByText('Photo restored in this demo only.')).toBeInTheDocument()
-    expect(calls).toEqual([])
-  })
 }, 15000)
 
 describe('Site photographs (CP-04)', () => {
@@ -1221,8 +1163,8 @@ describe('Site photographs (CP-04)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
 
     const collection = screen.getByRole('group', { name: 'Site photographs' })
-    // The saved photo, and the sample assessment's own two.
-    expect(within(collection).getAllByRole('listitem')).toHaveLength(3)
+    // Only the saved photo; the deleted observation's is left out.
+    expect(within(collection).getAllByRole('listitem')).toHaveLength(1)
     // The Observations tab stays selected, and leads back.
     expect(screen.getByRole('tab', { name: /Observations/ })).toHaveAttribute(
       'aria-selected',
@@ -1281,13 +1223,13 @@ describe('Site photographs (CP-04)', () => {
     const rowOf = (...texts: string[]) =>
       within(view)
         .getAllByRole('listitem')
-        .find((li) => texts.every((t) => li.textContent?.includes(t)))!
+        .find((li) => texts.every((t) => said(li).includes(t)))!
     const first = rowOf(PROPOSAL, 'IMG_0460.jpg')
     const later = rowOf(PROPOSAL, 'IMG_0470.jpg')
     const unread = rowOf(UNREAD)
 
-    // Each row names its photo; the text stays closed until asked for.
-    expect(first).toHaveTextContent('IMG_0460.jpg')
+    // A row no longer shows its photo's file name (redesign round 2); the text stays closed until asked for.
+    expect(first).not.toHaveTextContent('IMG_0460.jpg')
     expect(within(view).queryByText(PROPOSED)).not.toBeInTheDocument()
     // Nothing written yet, nothing to open.
     expect(within(unread).queryByRole('button', { name: /^Description/ })).toBeNull()
@@ -1329,7 +1271,7 @@ describe('Site photographs (CP-04)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
     const first = within(screen.getByRole('group', { name: 'Site photographs' }))
       .getAllByRole('listitem')
-      .find((li) => li.textContent?.includes('IMG_0460.jpg'))!
+      .find((li) => said(li).includes('IMG_0460.jpg'))!
     fireEvent.click(within(first).getByRole('button', { name: 'Description of IMG_0460.jpg' }))
 
     expect(first).toHaveTextContent('Describes this photo and 1 other. Its evidence changed since.')
@@ -1453,9 +1395,8 @@ describe('Searching All Photos (CP-13)', () => {
       target: { value: 'under SITS' },
     })
 
-    // Not IMG_0470.jpg: the description says nothing of it. (The other two
-    // of five are the sample assessment's own.)
-    expect(screen.getByText('2 of 5 photos')).toBeInTheDocument()
+    // Not IMG_0470.jpg: the description says nothing of it.
+    expect(screen.getByText('2 of 3 photos')).toBeInTheDocument()
     const rows = within(view).getAllByRole('listitem')
     expect(rows.map((r) => r.textContent?.includes('IMG_0470.jpg'))).toEqual([false, false])
     // A description since out of date is still found, and says so.
@@ -1584,13 +1525,10 @@ describe('Filtering All Photos (CP-13)', () => {
     await openObservations()
     fireEvent.click(screen.getByRole('button', { name: 'All photos' }))
     const view = screen.getByRole('group', { name: 'Site photographs' })
-    const shownRows = () =>
-      within(view)
-        .getAllByRole('listitem')
-        .map((li) => li.textContent)
+    const shownRows = () => within(view).getAllByRole('listitem').map(said)
 
     filter('Description', 'Not described')
-    // IMG_0470.jpg, and the sample assessment's own photos, which carry none.
+    // IMG_0470.jpg, which carries no description.
     expect(shownRows().some((t) => t?.includes('IMG_0470.jpg'))).toBe(true)
     expect(shownRows().some((t) => t?.includes(PROPOSAL) && t.includes('IMG_0460.jpg'))).toBe(false)
 

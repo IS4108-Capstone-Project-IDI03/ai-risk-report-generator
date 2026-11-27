@@ -5,7 +5,7 @@
 // why (AC18). Opened by screens/Observations.tsx; the save is addMedia in
 // useAssessmentWorkflow.tsx.
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Callout, Dialog, IconRegistry } from '../../../design-system'
+import { Button, Callout, Dialog, IconRegistry } from '../../../design-system'
 import { choosePhotos, microphoneProblem, record, unsupportedPhotos } from '../media'
 import type { PhotoFile, VoiceClip } from '../types'
 import type { AssessmentWorkflow } from '../useAssessmentWorkflow'
@@ -134,37 +134,26 @@ export function AddMediaDialog({ v, dialog }: Props) {
       <Dialog
         className="ds-dialog-sheet"
         title="Add to observation"
-        description={
-          dialog.where +
-          '. ' +
-          (dialog.saved
-            ? 'Kept as captured, with your name and the time.'
-            : 'No capture session, so these stay in this browser and are not uploaded.')
-        }
+        description={dialog.where + '. Kept as captured, with your name and the time.'}
         width={560}
         onClose={busy ? undefined : cancel}
         footer={
           <>
-            <button
-              type="button"
-              className="cap-btn cap-btn--secondary"
-              disabled={busy}
-              onClick={cancel}
-            >
+            <Button variant="pill" disabled={busy} onClick={cancel}>
               {'Cancel'}
-            </button>
-            <button
-              type="button"
-              className="cap-btn cap-btn--primary"
+            </Button>
+            <Button
+              pill
+              variant="primary"
               disabled={busy || !listed || recording}
               onClick={() => run(() => v.addMedia(clips, photos, pages))}
             >
               {'Add to observation'}
-            </button>
+            </Button>
           </>
         }
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div className="cap-stack cap-stack--roomy">
           {!!saveProblem && (
             <div role="alert">
               <Callout tone="warning" title="Nothing added">

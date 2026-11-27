@@ -79,10 +79,12 @@ export function NewAssessment({
   // c. A reading fills the form in (AC5) while the found items reveal; one
   // that named nothing says so once the form opens.
   const [readNothing, setReadNothing] = useState(false)
+  const [alsoNamed, setAlsoNamed] = useState<string[]>([])
   const fill = (read: Read | null) => {
     if (!read) return
     f.fillIn(formFromResult(read.result, read.files))
     setReadNothing(!read.result.client.name.value && !read.result.sites.length)
+    setAlsoNamed(read.result.client.alsoNamed ?? [])
   }
   // Every read fills the form, a retry's too; without this Try again opens it empty.
   const add = (files: File[], text: string) => void intake.add(files, text).then(fill)
@@ -125,6 +127,7 @@ export function NewAssessment({
             enter={mode === 'documents'}
             filled={intake.phase === 'ready'}
             readNothing={readNothing}
+            alsoNamed={intake.phase === 'ready' ? alsoNamed : []}
             rejected={
               intake.phase === 'ready'
                 ? intake.files.filter((x) => x.status === 'refused' || x.status === 'failed')

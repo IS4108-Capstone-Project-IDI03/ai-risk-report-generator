@@ -2,7 +2,7 @@
 // Open, Reset and Remove. Reset and Remove ask first. When it is gone the line says it was removed
 // with a button to set it up again. Called by WalkthroughsSection. Calls the engine and ConfirmDialog.
 import { useState } from 'react'
-import { Button, Icon, IconAction } from '../../../design-system'
+import { Button, IconAction, IconTile } from '../../../design-system'
 import { Tip } from '../../help/Tip'
 import {
   openPractice,
@@ -31,9 +31,7 @@ export function PracticeRow() {
   }
   return (
     <section className="wts-practice" aria-label="Practice assessment">
-      <span className="wts-tile">
-        <Icon name="clipboard-list" size={16} />
-      </span>
+      <IconTile icon="clipboard-list" />
       <div className="wts-pname">
         <span className="wts-ptitle">
           Practice assessment <Tip id="settings.practice" />

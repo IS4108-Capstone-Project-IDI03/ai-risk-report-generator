@@ -7,6 +7,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { signal, onSignal } from '../walkthrough/signals'
 import { NewAssessment } from './screens/NewAssessment'
 import { calls, created, gateway, json } from './testKit'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 
 let tryIt: string | null = null
 vi.mock('../walkthrough/engine', async (importOriginal) => ({
@@ -64,7 +65,7 @@ describe('New assessment, for the walkthroughs', () => {
     open('form')
     type(screen.getByLabelText(/^Client name/), 'Pacific Crest REIT')
     type(within(site()).getByLabelText(/^Site name/), 'Tuas Hub')
-    type(within(site()).getByLabelText(/^Facility type/), 'Distribution warehouse')
+    chooseOption(/^Facility type/, 'Distribution warehouse', site())
     type(within(site()).getByLabelText(/^Address/), '21 Tuas South Ave 3')
     expect(heard).not.toHaveBeenCalled()
     await act(async () => void fireEvent.click(screen.getByRole('button', { name: 'Create' })))

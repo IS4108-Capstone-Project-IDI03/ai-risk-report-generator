@@ -97,7 +97,7 @@ allow-listed IPs: in Atlas, open Network Access → Add IP Address → Add
 current IP address (the cluster owner may have to do this). Campus networks
 such as NUS Wi-Fi can block MongoDB's port 27017; if the server still times
 out after your IP is added, try a phone hotspot. `npm run seed` then writes
-sample records, including four user accounts, to the shared database, and any
+the demo data, including three user accounts, to the shared database, and any
 edits made in the UI change them for everyone.
 
 ### 4. `client`
@@ -199,21 +199,28 @@ docker compose exec server wget -qO- http://speech-ocr-service:8003/health
 
 (`wget`, not `curl` — the Alpine-based images don't ship `curl`.)
 
-### 5. Sample data in Docker (users, assessments, demo AI usage)
+### 5. Demo data in Docker (accounts, assessments, usage)
 
-**What/why:** the Docker `mongo` container has its own empty database (volume `mongo-data`). It is not the Mac's Homebrew MongoDB, so nothing you created locally is there. Seed it once the containers are up:
+**What/why:** the Docker `mongo` container has its own empty database (volume `mongo-data`). It is not the Mac's Homebrew MongoDB, so nothing you created locally is there. Fill it once the containers are up:
 
 ```
-docker compose exec server npm run seed:all
+docker compose exec server npm run seed -- --reset            # free, about 30 seconds
+docker compose exec server npm run seed -- --reset --with-ai  # also the AI content, about US$1 and 5 minutes
 ```
 
-- `seed` creates the sample users (password `password123`), sample sites and assessments. `seed:usage` adds clearly fake AI-call rows for the Usage and Costs screen (EV-04): drafting by report section, retrieval, voice notes and photo reading for the sample assessments `RPT-2026-0411`, `RPT-2026-0408` and `RPT-2026-0327`, and chatbot questions from the sample engineers, spread over the last four weeks. It writes no document-ingestion rows, so the Ingestion tab shows only real uploads. Every demo row has a `pricingBasis` starting `DEMO data`, and a re-run replaces them. Both are safe to re-run.
-- Real AI calls are recorded alongside the demo rows from the start, in the same `ai_calls` collection. To track only real calls, discard the demo rows, and the sample assessments with them if you no longer want those. Deleting an assessment does not delete its `ai_calls` rows, so delete both:
-  ```
-  docker compose exec mongo mongosh riskreport --eval 'db.ai_calls.deleteMany({ pricingBasis: /^DEMO data/ })'
-  ```
-  A real call made on a sample assessment shares its reference but never has the `DEMO data` prefix, so it is kept.
-- A dev account, `chrisganaeshfx@gmail.com` / `123`, is created too (hard-coded in the seed; dev only, never run the seed against a shared database).
+The whole stack must be running: the seed exports the two finished reports from their real Export tab in headless Chromium, and `--with-ai` makes its content through the gateway's own API.
+
+- `npm run seed` is one demo seed. It makes 3 accounts, 4 clients with 6 Singapore sites, and 7 assessments, one per stage, so every main screen has something to show:
+  - Sign in as `alex.rowe@example.com` (risk engineer, owns most cases) or `sana.patel@example.com` (knowledge admin), password `password123`. `jide.okafor@example.com` (second risk engineer, so assigning has a choice) uses the same password.
+  - Alex and Sana start with the welcome tour done and walkthrough offers off. Jide is left fresh, so the first-sign-in welcome and the practice assessment can be shown.
+  - Cases: two finalised and exported full reports, Sections 2 to 12 with their figures (`RPT-2026-0002` Marina Central Tower by Alex, `0001` Tuas Cold Store by Jide), a drafted report in review with decided findings, an open comment and a late due date (`0003`), an assessment on site with 10 observations, two of them to check (`0004`, due within 7 days), a resurvey of Tuas Cold Store compared with `0001` (`0005`), and two scheduled ones (`0006` for Alex, `0007` for Jide).
+  - The exports are real: each report's PDF is made by the app, and its Export tab downloads it again (PDF or Word). The export is dated two weeks after the visit, like the rest of the set.
+  - It files a client's email under `0005` (Glacier Bay's Documents tab) and writes Inbox and bell items.
+- `--with-ai` also makes, through the app as Alex, what the AI does: a photo, a handwritten page and two recordings on `0004` and `0005` observations (read, transcribed, and the photo's category and severity suggested), a site walk on `0004` with its proposal ready to review, checklists for `0004` to `0006`, the `0005` comparison with `0001`, and the Insights summary of Alex's four clients. Every result passes the app's own checks, and Usage and Costs shows the real cost (about US$1.05 on 25 Nov 2026). The media is in `server/src/scripts/seed-media/` (see its `CREDITS.md`).
+- Without `--with-ai`, Usage and Costs shows made-up rows instead, tagged `DEMO data` in `pricingBasis` and replaced on every run.
+- Without `--reset` it adds or refreshes only the demo set (safe to repeat), and refuses if one of its references (`RPT-2026-0001` to `0007`) already belongs to other data. It replaces the demo assessments' observations, drafts, reviews, comments, checklists, walks and comparisons, but not what the app keeps beside them: a stage reached since (it only moves forward), drafting runs (an earlier OFI redraft then shows Section 3 as out of date), Ask conversations and MarshBot threads. For the clean demo state, use `--reset`.
+- `--reset` first empties everything except the knowledge base and the admin's settings: assessments, clients, sites, observations, reports, notifications, usage, conversations and every account other than the three above. It keeps knowledge documents, ingestion jobs, manual standards, knowledge requests, app settings and privacy word lists, and the vector store. The one exception: it deletes the four made-up "Practice" documents the local dev seed adds (found by their fingerprint), which would otherwise show up as standards on every checklist. Never run it on a database you want to keep. The demo documents of the knowledge base are not seeded: upload real ones on the Knowledge tab.
+- The older per-story seeds (`seed:cp23`, `seed:cp29`, `seed:cp61`, `seed:comparison`, `seed:usage`, `seed:gn01`, `seed:case`) still run on top of it; each is described in its own file header.
 - The data survives `docker compose down`. Only `docker compose down -v` deletes it (the `-v` removes the volumes).
 
 ### 6. Switching between Mode A and Mode B

@@ -54,6 +54,10 @@ function Footer({
 // without a current source requires a short note").
 const needsNote = (outcome: Outcome, sources: number) => outcome === 'fixed' && !sources
 
+// Where a dialog starts when the item has no outcome it can keep: the neutral
+// choice, so a quick Save never marks an item Worse that nobody judged worse.
+const NEUTRAL: Outcome = 'unchanged'
+
 function NoteField({
   value,
   onChange,
@@ -89,7 +93,7 @@ export function OutcomeDialog({
   onDecide: Save
 }) {
   const choices = CHOOSABLE.filter((o) => o !== 'not_checked' || !item.sources.length)
-  const start = item.outcome && item.outcome !== 'new' ? item.outcome : choices[0]
+  const start = item.outcome && item.outcome !== 'new' ? item.outcome : NEUTRAL
   const [outcome, setOutcome] = useState<Outcome>(start)
   const [note, setNote] = useState(item.decided?.note ?? '')
   const { busy, refusal, save } = useSave(onClose)
@@ -107,8 +111,8 @@ export function OutcomeDialog({
   return (
     <Dialog
       open
-      className="ds-dialog--v2"
       title="Change outcome"
+      description="Your choice replaces the suggested outcome."
       width={480}
       onClose={onClose}
       footer={<Footer busy={busy} onClose={onClose} onSave={submit} />}
@@ -157,12 +161,13 @@ export function PairDialog({
   onDecide: Save
 }) {
   const [chosen, setChosen] = useState<string[]>(item.sources)
-  const start = item.outcome && item.outcome !== 'new' ? item.outcome : 'unchanged'
+  const start = item.outcome && item.outcome !== 'new' ? item.outcome : NEUTRAL
   const [outcome, setOutcome] = useState<Outcome>(start)
   const [note, setNote] = useState('')
   const { busy, refusal, save } = useSave(onClose)
   const choices = CHOOSABLE.filter((o) => o !== 'not_checked' || !chosen.length)
-  const effective = choices.includes(outcome) ? outcome : choices[0]
+  // Not checked can't stand once evidence is ticked: it falls back to the neutral choice.
+  const effective = choices.includes(outcome) ? outcome : NEUTRAL
   const required = needsNote(effective, chosen.length)
   const [noteError, setNoteError] = useState<string | undefined>()
   const toggle = (key: string, on: boolean) =>
@@ -184,9 +189,8 @@ export function PairDialog({
   return (
     <Dialog
       open
-      className="ds-dialog--v2"
       title="Re-pair with current evidence"
-      description="Choose what in this assessment this previous item is compared with."
+      description="Choose what in this assessment the previous item is compared with."
       width={560}
       onClose={onClose}
       footer={<Footer busy={busy} onClose={onClose} onSave={submit} />}
@@ -270,9 +274,8 @@ export function PairNewDialog({
   return (
     <Dialog
       open
-      className="ds-dialog--v2"
       title="Pair with a previous item"
-      description={`${sourceLabel(source)}: choose the previous report's item it matches.`}
+      description={`Which item in the previous report does ${sourceLabel(source)} match?`}
       width={560}
       onClose={onClose}
       footer={<Footer busy={busy} onClose={onClose} onSave={submit} label="Pair" />}

@@ -5,13 +5,14 @@
 import {
   AssessmentTypeControl,
   AssessmentTypeTile,
-  IconButton,
+  IconAction,
+  IconTile,
   Switch,
   type AssessmentType,
 } from '../../../design-system'
 import { EngineerPicker } from '../../assignment/components/EngineerPicker'
 import { plural } from '../../clients/formatClient'
-import { TYPE_HELP, type FormAssessment } from '../form'
+import { defaultDue, TYPE_HELP, type FormAssessment } from '../form'
 import type { NewAssessmentForm } from '../useNewAssessment'
 import { useExit } from './Block'
 import { ContactsEditor } from './ContactsEditor'
@@ -66,7 +67,15 @@ export function AssessmentBlock({
               : undefined)
         }
         onChange={(iso, invalid) => {
-          f.setAssessment(i, j, { [k]: iso })
+          // Report due follows a new survey start while it is still the default two weeks after the
+          // old one; without this, moving the start to 10 Dec left the report due on 10 Dec too.
+          const follow =
+            k === 'siteVisitDate' &&
+            !!iso &&
+            !invalid &&
+            !!a.siteVisitDate &&
+            a.reportDueDate === defaultDue(a.siteVisitDate)
+          f.setAssessment(i, j, { [k]: iso, ...(follow && { reportDueDate: defaultDue(iso) }) })
           f.markTyped(path + k, invalid)
         }}
       />
@@ -75,10 +84,11 @@ export function AssessmentBlock({
   return (
     <section className="na-assessment" aria-label={'Assessment ' + (j + 1)}>
       <div className="na-assessment-head">
+        {/* Until a type is chosen, a quiet report tile instead of an empty square. */}
         {type ? (
           <AssessmentTypeTile type={type} size={32} />
         ) : (
-          <span className="na-tile na-tile--empty" aria-hidden="true" />
+          <IconTile icon="file-text" tone="outline" />
         )}
         <h3>{'Assessment ' + (j + 1)}</h3>
         <span className="na-type">
@@ -109,11 +119,15 @@ export function AssessmentBlock({
             />
           </span>
           {removable && (
-            <IconButton
-              icon="trash-2"
-              label={'Remove assessment ' + (j + 1)}
-              onClick={() => exit(() => f.removeAssessment(i, j))}
-            />
+            <span className="na-remove">
+              <IconAction
+                icon="trash-2"
+                label={'Remove assessment ' + (j + 1)}
+                tooltip="Remove assessment"
+                danger
+                onClick={() => exit(() => f.removeAssessment(i, j))}
+              />
+            </span>
           )}
         </span>
       </div>

@@ -400,7 +400,7 @@ describe('site walk review', () => {
     // Without this, leaving dropped the only copy of the edit.
     expect(await screen.findByText(/could not be saved/)).toBeInTheDocument()
     expect(onClose).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Not saved. Retry' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument()
     expect(row('Edited offline')).toBeInTheDocument()
   })
 
@@ -448,18 +448,19 @@ describe('site walk review', () => {
     expect(
       screen.getByRole('button', { name: 'Back to Loading bay · Chiller room' }),
     ).toBeInTheDocument()
-    expect(screen.getByText('2 of 3')).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Observations' })).toHaveTextContent('2 of 3')
     expect(
       within(screen.getByRole('region', { name: 'Photos' })).getByRole('button', {
         name: 'Open Photo 1',
       }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('region', { name: 'Site walk recording' })).toBeInTheDocument()
+    expect(screen.getByRole('listitem', { name: 'Site walk recording' })).toBeInTheDocument()
     expect(document.querySelector('audio')).toHaveAttribute('src', '/audio/w1-1.webm#t=10,20')
     expect(screen.getByRole('button', { name: 'Previous observation' })).toBeEnabled()
     fireEvent.click(screen.getByRole('button', { name: 'Next observation' }))
     expect(noteBox()).toHaveValue('PU panels, no covering.')
-    expect(screen.getByText('3 of 3')).toBeInTheDocument()
+    // The page is drawn again for the next observation, so the stepper is found again.
+    expect(screen.getByRole('navigation', { name: 'Observations' })).toHaveTextContent('3 of 3')
     expect(screen.getByRole('button', { name: 'Next observation' })).toBeDisabled()
   })
 
@@ -482,6 +483,35 @@ describe('site walk review', () => {
       name: 'Cold room',
     })
     expect(sent.observations.filter((o) => o.locationRef === 'loc-2')).toHaveLength(2)
+  })
+
+  it('steps on to the next observation after placing one, though placing moved it in the list', async () => {
+    await openReview()
+    openObservation('Extinguisher missing')
+    expect(screen.getByRole('navigation', { name: 'Observations' })).toHaveTextContent('1 of 3')
+    pick(/^Location:/, 'Level 1 › Loading bay')
+
+    // Placed, it now sorts after Chiller room's two; Next still goes where it pointed before.
+    expect(screen.getByRole('navigation', { name: 'Observations' })).toHaveTextContent('1 of 3')
+    fireEvent.click(screen.getByRole('button', { name: 'Next observation' }))
+    expect(noteBox()).toHaveValue('Coils iced over.')
+  })
+
+  it('places an observation at an assessment location the walk never named', async () => {
+    // Without this the picker held only the walk's own places, so a finding with no place
+    // (a management interview, say) could be put at none of the assessment's locations.
+    await openReview()
+    openObservation('Extinguisher missing')
+    pick(/^Location:/, 'Level 1 › Cold room')
+
+    expect(
+      screen.getByRole('button', { name: 'Location: Block A › Level 1 › Cold room. Change' }),
+    ).toBeInTheDocument()
+    await wait(AUTOSAVE_MS + 50)
+    const sent = saves()[0].body as Proposal
+    const added = sent.locations.find((l) => l.existingId === 'e2')!
+    expect(added).toMatchObject({ ref: 'loc-3', name: 'Cold room', kind: 'building' })
+    expect(sent.observations.find((o) => o.ref === 'obs-3')!.locationRef).toBe('loc-3')
   })
 
   it('tells the engineer when a proposal or a location is renamed', async () => {
@@ -507,7 +537,7 @@ describe('site walk review', () => {
     openObservation('Coils iced over')
     fireEvent.click(screen.getByRole('button', { name: 'Delete observation' }))
     expect(screen.queryByText('Coils iced over.')).not.toBeInTheDocument()
-    expect(await screen.findByText('Observation deleted.')).toBeInTheDocument()
+    expect(await screen.findByText('Observation deleted')).toBeInTheDocument()
     await wait(AUTOSAVE_MS + 50)
     expect((saves()[0].body as Proposal).observations.map((o) => o.ref)).toEqual(['obs-2', 'obs-3'])
 
@@ -593,6 +623,8 @@ describe('site walk review', () => {
     const table = screen.getByRole('group', { name: 'Site photographs' })
     expect(within(table).getByRole('button', { name: 'Open Photo 1' })).toBeInTheDocument()
     expect(within(table).getByText('Coils iced over.')).toBeInTheDocument()
+    // No search or filters here, so no empty toolbar strip above the rows.
+    expect(document.querySelector('.ob-bar')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to Loading bay · Chiller room' }))
     fireEvent.click(within(nav()).getByRole('button', { name: 'All handwritten pages' }))
@@ -844,7 +876,10 @@ describe('adding an observation through the Add manually screen', () => {
       />,
     )
 
-    expect(await screen.findByText('Hose reel missing.')).toBeInTheDocument()
+    // The recording row names itself by the first words of what was said; the rest opens.
+    expect(await screen.findByText('“Hose reel missing.”')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show transcript' }))
+    expect(screen.getByText('Hose reel missing.')).toBeInTheDocument()
     expect(document.querySelector('audio[src="/m/m1"]')).not.toBeNull()
     expect(screen.getByRole('button', { name: /Photo 1/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Page 1/ })).toBeInTheDocument()

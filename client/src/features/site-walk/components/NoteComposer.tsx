@@ -2,8 +2,8 @@
 // before, during, between and after recordings (it is numbered after the one running).
 // Used by screens/Recording.tsx. With the assessment's `reference` the note can be
 // dictated into (CP-27); the screen leaves it out while the walk itself is recording.
-import { useRef } from 'react'
-import { Button, Icon } from '../../../design-system'
+import { useId } from 'react'
+import { Button, Panel, Textarea } from '../../../design-system'
 import { DictateButton } from '../../assessments/dictation/DictateButton'
 export function NoteComposer({
   value,
@@ -16,30 +16,30 @@ export function NoteComposer({
   onAdd: () => void
   reference?: string
 }) {
-  const box = useRef<HTMLTextAreaElement>(null)
+  const id = useId()
   return (
-    <section className="sw-composer" data-walk="site-walk.notes">
-      <h2>
-        <Icon name="sticky-note" size={15} />
-        Notes
-      </h2>
-      <textarea
-        ref={box}
+    <Panel className="sw-composer" title="Notes" data-walk="site-walk.notes">
+      <Textarea
+        id={id}
         aria-label="Add a note"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        // Says where to stand, then what to see: the one hint the box needs.
         placeholder="Block A, Level 1, loading bay. Pallets stored in the fire lane…"
         rows={3}
       />
       <div className="sw-composer-row">
-        <p className="sw-note">{'Say where you are, then what you see there.'}</p>
         {reference && (
-          <DictateButton reference={reference} field={() => box.current} onChange={onChange} />
+          <DictateButton
+            reference={reference}
+            field={() => document.getElementById(id) as HTMLTextAreaElement | null}
+            onChange={onChange}
+          />
         )}
         <Button variant="pill" disabled={!value.trim()} onClick={onAdd}>
           Add note
         </Button>
       </div>
-    </section>
+    </Panel>
   )
 }

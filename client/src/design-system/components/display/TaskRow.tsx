@@ -14,6 +14,8 @@ export type TaskRowProps = {
   active?: boolean
   // Opens the task; without it (or once done) the row is not a button.
   onOpen?: () => void
+  // The button's screen-reader name, when the words alone don't say where it goes.
+  label?: string
 }
 
 /** Returns one task; a button while it can be opened. */
@@ -24,6 +26,7 @@ export function TaskRow({
   done = false,
   active = false,
   onOpen,
+  label,
 }: TaskRowProps) {
   const body = (
     <>
@@ -44,7 +47,7 @@ export function TaskRow({
     'data-active': active && !done ? '' : undefined,
   }
   return onOpen && !done ? (
-    <button type="button" className="ds-task" onClick={onOpen} {...flags}>
+    <button type="button" className="ds-task" aria-label={label} onClick={onOpen} {...flags}>
       {body}
     </button>
   ) : (

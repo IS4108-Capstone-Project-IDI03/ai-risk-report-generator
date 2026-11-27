@@ -1,7 +1,7 @@
 // The Settings screen (S-01): a menu of sections, each in its own file under screens/.
 // Shown by features/assessments/AssessmentApp.tsx for every signed-in user. Calls api.ts.
-import { useEffect, useRef, useState } from 'react'
-import { Icon, TopBar } from '../../design-system'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Icon, Panel, TopBar, useIsPhone, useScrollFade } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { Tip } from '../help/Tip'
 import { useWalkthroughScreen } from '../walkthrough/useWalkthroughScreen'
@@ -91,13 +91,15 @@ const ADMIN: Section[] = [
     id: 'checklist',
     icon: 'list-checks',
     label: 'Checklist',
-    render: needs((s) => <ChecklistSection canEdit={s.canEditGlobal} />),
+    walk: 'settings.menu.checklist',
+    render: needs((s, _f, end) => <ChecklistSection canEdit={s.canEditGlobal} titleEnd={end} />),
   },
   {
     id: 'privacy-words',
     icon: 'shield',
     label: 'Privacy Words',
     adminOnly: true,
+    walk: 'settings.menu.privacy-words',
     render: () => <PrivacyWordsSection />,
   },
 ]
@@ -125,6 +127,16 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
   // The right end of the title line, for the section that draws its main button there.
   const [titleEnd, setTitleEnd] = useState<HTMLElement | null>(null)
   const menu = useRef<HTMLElement>(null)
+  // On a phone the menu scrolls sideways: the edge with more past it fades.
+  const fade = useScrollFade<HTMLElement>()
+  const menuRef = useCallback(
+    (el: HTMLElement | null) => {
+      menu.current = el
+      return fade(el)
+    },
+    [fade],
+  )
+  const phone = useIsPhone()
   useWalkthroughScreen('settings', settings !== null)
 
   useEffect(() => {
@@ -145,13 +157,13 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
   return (
     <div className="st-page">
       <TopBar
-        eyebrow="ACCOUNT"
+        eyebrow={phone ? undefined : 'ACCOUNT'}
         title="Settings"
-        helper="Your password and preferences, and how the system is set."
+        helper={phone ? undefined : 'Your password and preferences, and how the system is set.'}
         bell={bell}
       />
       <div className="st">
-        <nav ref={menu} className="st-menu" aria-label="Settings sections">
+        <nav ref={menuRef} className="st-menu ds-scroll-fade" aria-label="Settings sections">
           {GROUPS.map((group, i) => (
             <div key={i} className="st-menu-group">
               {group.heading && <div className="st-menu-heading">{group.heading}</div>}
@@ -173,12 +185,14 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
             </div>
           ))}
         </nav>
-        <section className="st-panel" aria-label={section.label}>
-          <div className="st-titlebar">
-            <h2 className="st-title">{section.label}</h2>
-            {section.tip}
-            <div className="st-titlebar-end" ref={setTitleEnd} />
-          </div>
+        {/* The open section: the shared titled card, its title line holding the help tip and
+            a slot for the section's one main button (F-12). */}
+        <Panel
+          className="st-panel"
+          title={section.label}
+          help={section.tip}
+          actions={<div className="st-titlebar-end" ref={setTitleEnd} />}
+        >
           {problem ? (
             <p className="st-err st-content" role="alert">
               <Icon name="octagon-alert" size={14} color="var(--red-600)" /> {problem}
@@ -186,7 +200,7 @@ export function Settings({ bell }: { bell?: React.ReactNode }) {
           ) : (
             <div className="st-content">{section.render(settings, setSettings, titleEnd)}</div>
           )}
-        </section>
+        </Panel>
       </div>
     </div>
   )

@@ -1,0 +1,14 @@
+/* A failed recording or page's reason (CP-03, CP-19), used by RecordingRow.tsx and
+   assessments/components/PageEntry.tsx. */
+/* Why it failed, written out on a phone, where the hover tooltip never shows. */
+.sw-status-reason {
+  display: none;
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+@media (max-width: 767px), (pointer: coarse) {
+  .sw-status-reason {
+    display: block;
+  }
+}

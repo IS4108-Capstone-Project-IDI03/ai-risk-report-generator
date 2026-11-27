@@ -1,0 +1,138 @@
+/* MarshBot's question box (CB-01, CB-08, CB-09, CB-10): OpenUI's composer drawn as the v2 field box
+   the Ask tab uses (assessments/ask/ask.css, .ask-composer-box: keep the two alike), with one row
+   of round icon actions under the words: Photo and PDF at the left, the mic and the navy Send at
+   the right, all on one centre line. Every edge is on the 8 px grid: 8 px from the box's border
+   to the buttons, 16 px to the words. Buttons are 32 px with a mouse and 44 px on touch. */
+
+.knowledge-assistant {
+  /* The action row's button size; touch screens raise it to 44 px below. */
+  --composer-button: 32px;
+  --composer-gap: 4px;
+}
+
+/* The box: the composer stays at the foot of the chat (never floats over it), so it is solid. */
+.knowledge-assistant .openui-agent-composer-slot {
+  background: var(--surface-card);
+}
+.knowledge-assistant .openui-agent-thread-composer__input-wrapper {
+  position: relative;
+  gap: 8px;
+  padding: 12px 8px 8px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  box-shadow: 0 1px 2px rgb(0 15 71 / 0.04);
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+/* Focus: the border turns navy, as the Ask tab's box does. No 3 px ring: the box is focused
+   whenever the chat opens, and a ring that never goes away read as an error state. */
+.knowledge-assistant .openui-agent-thread-composer__input-wrapper:focus-within {
+  border-color: var(--border-focus);
+}
+.knowledge-assistant .openui-agent-thread-composer__input {
+  min-height: 24px;
+  padding: 0 8px;
+  color: var(--graphite-900);
+  font: 400 15px/24px var(--font-sans);
+  letter-spacing: 0;
+}
+/* The rounded box shows focus (:focus-within above); a square ring inside it would clash. */
+.knowledge-assistant .openui-agent-thread-composer__input:focus-visible {
+  outline: none;
+}
+/* The same grey as the v2 search field's placeholder (--graphite-400 falls under 4.5:1). */
+.knowledge-assistant .openui-agent-thread-composer__input::placeholder {
+  color: var(--graphite-600);
+  opacity: 1;
+}
+/* The action row holds Send; the other buttons are drawn into the box by PhotoAttach, PdfAttach
+   and VoiceInput and placed on the same row below. */
+.knowledge-assistant .openui-agent-thread-composer__action-bar {
+  min-height: var(--composer-button);
+}
+.knowledge-assistant .openui-agent-thread-composer__submit-button {
+  width: var(--composer-button);
+  height: var(--composer-button);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--marsh-navy);
+  color: var(--text-inverse);
+  transition:
+    background-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.knowledge-assistant .openui-agent-thread-composer__submit-button:not(:disabled):hover {
+  background: var(--ink-800);
+}
+.knowledge-assistant .openui-agent-thread-composer__submit-button:not(:disabled):active {
+  transform: scale(0.96);
+}
+/* Nothing to send yet: the navy fades, so Send reads as waiting, not broken. */
+.knowledge-assistant .openui-agent-thread-composer__submit-button:disabled {
+  background: var(--marsh-navy);
+  opacity: 0.3;
+}
+.knowledge-assistant .openui-agent-thread-composer__submit-button .openui-icon-button-icon {
+  width: 16px;
+  height: 16px;
+}
+.photo-attach,
+.pdf-attach,
+.voice-input {
+  position: absolute;
+  bottom: 8px;
+  display: flex;
+  gap: var(--composer-gap);
+}
+.photo-attach {
+  left: 8px;
+}
+.pdf-attach {
+  left: calc(8px + var(--composer-button) + var(--composer-gap));
+}
+.voice-input {
+  right: calc(8px + var(--composer-button) + var(--composer-gap));
+}
+/* !important: the shared IconButton sets its size inline. The buttons pass size="md" for the
+   16 px icon Send has; the box is this row's size. */
+.photo-attach > * > .ds-icon-button,
+.pdf-attach > * > .ds-icon-button,
+.voice-input > * > .ds-icon-button,
+.photo-attach > .ds-icon-button,
+.pdf-attach > .ds-icon-button,
+.voice-input > .ds-icon-button {
+  width: var(--composer-button) !important;
+  height: var(--composer-button) !important;
+}
+
+/* The Hands-free row and voice notes under the box start at its left edge, 8 px below it. */
+.voice-input__panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin: 8px 0 0;
+}
+.voice-input__state,
+.voice-input__note {
+  margin: 8px 0 0;
+  font-size: var(--text-caption-size);
+}
+
+/* Phones and touch screens: 44 px buttons, and 16 px words so iOS doesn't zoom the page when the
+   box is focused. */
+@media (max-width: 767px), (pointer: coarse) {
+  .knowledge-assistant {
+    --composer-button: 44px;
+  }
+  .knowledge-assistant .openui-agent-thread-composer__input {
+    font-size: 16px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .knowledge-assistant .openui-agent-thread-composer__submit-button:not(:disabled):active {
+    transform: none;
+  }
+}

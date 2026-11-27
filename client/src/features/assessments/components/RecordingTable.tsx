@@ -1,6 +1,6 @@
 // The body of All Recordings (CP-12): All Photos' table (PhotoTable.tsx) with a
-// play tile where the thumbnail would be. Under the observation: the
-// recording's name, where its transcription stands (with Retry), and its
+// play tile where the thumbnail would be. Under the observation: where the
+// recording's transcription stands (with Retry), and its
 // transcript, which opens by itself when the recording plays. The one playing
 // or paused also shows a seek bar, its time and the speed. Rendered by
 // screens/Recordings.tsx.

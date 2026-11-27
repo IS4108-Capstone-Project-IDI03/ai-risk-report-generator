@@ -1,7 +1,8 @@
 // The knowledge assistant screen (CB-01): ask the knowledge base in a conversation and
 // get cited answers, with the opened citation's source in a panel beside the chat.
 // OpenUI's AgentInterface draws the conversation list, messages and composer; answers stream
-// from the gateway via ../api.ts and render with ../library.tsx.
+// from the gateway via ../api.ts and render with ../library.tsx (OpenUI Lang 1.x) in
+// components/AnswerTurn.tsx.
 // Rendered by AssessmentApp for the 'chat' screen, loaded on first open.
 import { AgentInterface } from '@openuidev/react-ui'
 import '@openuidev/react-ui/components.css'
@@ -9,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import '../../assessments/review.css'
 import { chatLLM, chatStorage } from '../api'
 import { AnswerBar } from '../components/AnswerBar'
+import { AnswerTurn } from '../components/AnswerTurn'
 import { ChatSidebar } from '../components/ChatSidebar'
 import { CitationPanel } from '../components/CitationPanel'
 import { preloadPdfViewer } from '../components/pdfViewerLoader'
@@ -18,10 +20,10 @@ import { CitationSelectionContext, type SelectedCitation } from '../components/c
 import { DocumentsContext, useDocumentMap } from '../components/documents'
 import { SearchStep } from '../components/SearchStep'
 import { PdfAttach } from '../components/PdfAttach'
+import { QuestionFromLink } from '../components/QuestionFromLink'
 import { PhotoAttach } from '../components/PhotoAttach'
 import { UserMessage } from '../components/UserMessage'
 import { VoiceInput } from '../components/VoiceInput'
-import { chatLibrary } from '../library'
 import marshbot from '../marshbot.svg'
 import { starters } from '../starters'
 import { VersionsContext } from '../useVersions'
@@ -29,6 +31,8 @@ import { useWalkthroughScreen } from '../../walkthrough/useWalkthroughScreen'
 import type { Versions } from '../api'
 import { chatTheme } from '../theme'
 import '../chat.css'
+import '../composer.css'
+import '../sidebar.css'
 
 export function KnowledgeAssistant({
   isAdmin,
@@ -79,8 +83,12 @@ export function KnowledgeAssistant({
               <AgentInterface
                 llm={chatLLM}
                 storage={chatStorage}
-                componentLibrary={chatLibrary}
-                components={{ ToolCallTimeline: SearchStep, UserMessage }}
+                // AnswerTurn renders answers with OpenUI Lang 1.x; OpenUI's own answer can't.
+                components={{
+                  AssistantMessage: AnswerTurn,
+                  ToolCallTimeline: SearchStep,
+                  UserMessage,
+                }}
                 agentName="MarshBot"
                 logoUrl={marshbot}
                 starters={starters}
@@ -102,8 +110,8 @@ export function KnowledgeAssistant({
                     <img src={marshbot} alt="" width={64} height={64} />
                     <h2>Hi, I'm MarshBot</h2>
                     <p>
-                      Ask me about the FM Global and NFPA standards or Marsh's past reports. Every
-                      answer cites the page it came from.
+                      Ask me about the FM Global and NFPA standards or Marsh's past reports, and
+                      every answer cites its page.
                     </p>
                   </div>
                 </AgentInterface.Welcome>
@@ -113,6 +121,7 @@ export function KnowledgeAssistant({
                 <PhotoAttach />
                 <PdfAttach />
                 <VoiceInput />
+                <QuestionFromLink />
               </AgentInterface>
               {selected && <CitationPanel selected={selected} onClose={close} />}
             </div>

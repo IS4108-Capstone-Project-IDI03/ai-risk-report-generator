@@ -30,7 +30,7 @@ import {
   transcribeWithSegments,
   transcriptionFailureReason,
 } from './speech.service'
-import { notifyFailed } from './site-walk-notice.service'
+import { notifyFailed, settleWalkItems } from './site-walk-notice.service'
 import * as storage from './storage.service'
 
 // The walk does not exist on this assessment (404).
@@ -677,6 +677,7 @@ export async function discardWalk(reference: string, walkId: string, user: Sessi
   // Matching on "not started" stops a Create all that began since the read.
   const deleted = await SiteWalkModel.deleteOne({ _id: walk._id, created: { $exists: false } })
   if (!deleted.deletedCount) throw new SiteWalkStateError(CREATE_STARTED)
+  await settleWalkItems(walk._id, user.id, 'deleted')
   for (const key of [...walk.recordings, ...walk.photos, ...(walk.media ?? [])].map((f) => f.key))
     await storage.deleteObject(key).catch(() => undefined)
 }

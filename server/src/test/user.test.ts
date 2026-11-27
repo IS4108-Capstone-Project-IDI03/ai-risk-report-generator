@@ -209,6 +209,23 @@ describe('PUT /api/users/:id role assignment', () => {
     const stored = await UserModel.findById(admin._id).lean()
     expect(stored).toMatchObject({ role: 'knowledge_admin', active: true })
   })
+
+  // Found live: a deactivated engineer stayed signed in, because the sliding session token
+  // carried its own role and was never checked against the account again.
+  it("applies a new role and a deactivation to the account's open session at once", async () => {
+    const user = await seedUser({ role: 'risk_engineer' })
+    const theirs = signedInAs(app, user)
+    expect((await theirs.get('/api/users')).status).toBe(403)
+
+    await save(String(user._id), profile({ role: 'knowledge_admin' }))
+    expect((await theirs.get('/api/users')).status).toBe(200)
+
+    await save(String(user._id), profile({ active: false }))
+    expect((await theirs.get('/api/auth/me')).status).toBe(401)
+
+    await save(String(user._id), profile({ active: true }))
+    expect((await theirs.get('/api/auth/me')).status).toBe(200)
+  })
 })
 
 // New accounts (F-08): a knowledge admin adds a team member with a name, work

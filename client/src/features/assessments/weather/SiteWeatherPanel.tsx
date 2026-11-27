@@ -3,8 +3,8 @@
 // applies (AC3), the source and that it is advisory (AC4), when it was last updated in the
 // site's own time (AC6), and a 44 px Refresh (AC7). It blocks nothing: an engineer may be
 // recording at their desk. A bar across the top of the Overview's conversation
-// (marshbot/screens/MarshBotOverview.tsx) and a card above New Observation's form
-// (screens/SiteObservation.tsx). Calls useSiteWeather.ts.
+// (marshbot/screens/MarshBotOverview.tsx) and a slim card in New Observation's header, above its
+// form on a phone (screens/SiteObservation.tsx). Calls useSiteWeather.ts.
 import { Icon, IconButton } from '../../../design-system'
 import type { SiteWeather, WeatherReading, WeatherSource } from './api'
 import { useSiteWeather } from './useSiteWeather'
@@ -68,18 +68,21 @@ export function SiteWeatherPanel({ reference, layout }: Props) {
               <NoReading weather={weather} now={now} />
             )}
           </div>
-          <IconButton
-            icon="refresh-cw"
-            size="lg"
-            label="Refresh site weather"
-            tooltip="Refresh"
-            className="wx-refresh"
-            data-busy={refreshing || undefined}
-            aria-disabled={refreshing || undefined}
-            onClick={() => {
-              if (!refreshing) refresh()
-            }}
-          />
+          {/* No weather service is set up: refreshing could never bring a reading. */}
+          {weather?.status !== 'unconfigured' && (
+            <IconButton
+              icon="refresh-cw"
+              size="lg"
+              label="Refresh site weather"
+              tooltip="Refresh"
+              className="wx-refresh"
+              data-busy={refreshing || undefined}
+              aria-disabled={refreshing || undefined}
+              onClick={() => {
+                if (!refreshing) refresh()
+              }}
+            />
+          )}
         </div>
       </div>
     </section>
@@ -206,7 +209,7 @@ function NoReading({
         <p className="wx-lead">
           <b>{'Weather unavailable'}</b>
         </p>
-        <p className="wx-meta">{'No weather service is set up on the server.'}</p>
+        <p className="wx-meta">{"Site weather isn't set up in this app yet."}</p>
       </>
     )
   return (
@@ -215,7 +218,7 @@ function NoReading({
         <b>{'Weather unavailable'}</b>
       </p>
       <p className="wx-meta">
-        {`${weather.source ? weather.source.name : 'The gateway'} can't be reached right now, and ` +
+        {`${weather.source ? weather.source.name : 'The weather service'} can't be reached right now, and ` +
           (weather.lastReadingAt
             ? `the last reading was taken at ${siteTime(weather.lastReadingAt, weather.timeZone, now)} site time.`
             : 'no reading has been taken yet.')}

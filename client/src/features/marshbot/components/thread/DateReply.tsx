@@ -3,11 +3,10 @@
 // phone), from today on; picking a day swaps it for a short confirm of what will change. Nothing
 // is sent until Confirm. Used by Actions.tsx.
 import { useState } from 'react'
-import { Button, Popover } from '../../../../design-system'
+import { Button, Popover, ReplyButton } from '../../../../design-system'
 import { Calendar } from '../../../../design-system/components/forms/DatePicker'
 import { shortDay, today, visitDay } from '../../format'
 import type { Reply } from '../../types'
-import { ReplyButton } from './ReplyButton'
 
 /** Returns the reply that picks a day, then confirms it, then sends `onSend(day)`. */
 export function DateReply({

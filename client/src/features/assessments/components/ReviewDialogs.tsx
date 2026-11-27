@@ -59,10 +59,11 @@ export function EditFindingDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button
+            pill
             variant="primary"
             loading={busy}
             disabled={!text.trim() || unchanged}
@@ -119,10 +120,11 @@ export function RejectFindingDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button
+            pill
             variant="danger"
             iconLeft={IconRegistry.action.reject}
             loading={busy}
@@ -167,10 +169,11 @@ export function RegenerateDialog({
       onClose={onClose}
       footer={
         <>
-          <Button variant="secondary" onClick={onClose}>
+          <Button pill variant="secondary" onClick={onClose}>
             Cancel
           </Button>
           <Button
+            pill
             variant="primary"
             iconLeft={IconRegistry.action.regenerate}
             onClick={() => onRegenerate(instruction.trim())}
@@ -210,10 +213,11 @@ export function AcceptReplacementDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button
+            pill
             variant="primary"
             iconLeft={IconRegistry.action.accept}
             loading={busy}
@@ -263,10 +267,11 @@ export function RestoreVersionDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
           <Button
+            pill
             variant="primary"
             iconLeft={IconRegistry.action.reinstate}
             loading={busy}

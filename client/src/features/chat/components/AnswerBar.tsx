@@ -2,7 +2,7 @@
 // Rendered inside AgentInterface (screens/KnowledgeAssistant.tsx), where OpenUI's chat state lives.
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
-import { IconButton } from '../../../design-system'
+import { IconAction } from '../../../design-system'
 import { signal } from '../../walkthrough/signals'
 import { useLoadVersions, useVersions } from '../useVersions'
 import { PlayAnswer } from './PlayAnswer'
@@ -50,7 +50,7 @@ export function AnswerBar() {
     <div className="answer-bar">
       {info && <VersionSwitcher info={info} label="answer" onPick={(id) => void switchTo(id)} />}
       {question && typeof question.content === 'string' && (
-        <IconButton
+        <IconAction
           icon="refresh-cw"
           label="Try again"
           onClick={() => void resend(question.id, question.content as string)}

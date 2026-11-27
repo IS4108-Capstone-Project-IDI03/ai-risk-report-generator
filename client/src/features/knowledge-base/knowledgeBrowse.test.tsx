@@ -4,6 +4,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { choose } from './filterTestHelpers'
 import App from '../../App'
 import { signIn } from '../../test/session'
 
@@ -114,12 +115,23 @@ const OUTLINE = {
 // The listing the stub answers by default: these three of 60 passages.
 const LISTING = { total: 60, passages: [FIRST, TABLE, PICTURE], outline: OUTLINE }
 type Listing = { total: number; passages: object[]; outline: object }
-// 60 passages, answered a page at a time as the gateway would.
-const sixty = (query: URLSearchParams): Listing => {
-  const offset = Number(query.get('offset'))
-  const end = Math.min(offset + Number(query.get('limit')), 60)
-  const page = Array.from({ length: end - offset }, (_, n) => passage(offset + n))
-  return { total: 60, passages: page, outline: OUTLINE }
+// `total` passages, answered a page at a time as the gateway would.
+const passagesOf =
+  (total: number) =>
+  (query: URLSearchParams): Listing => {
+    const offset = Number(query.get('offset'))
+    const end = Math.min(offset + Number(query.get('limit')), total)
+    const page = Array.from({ length: end - offset }, (_, n) => passage(offset + n))
+    return { total, passages: page, outline: OUTLINE }
+  }
+const sixty = passagesOf(60)
+// Opens a filter pill's menu and returns its choices' words.
+async function choicesOf(pill: HTMLElement) {
+  fireEvent.click(pill)
+  const menu = await screen.findByRole('listbox')
+  return within(menu)
+    .getAllByRole('option')
+    .map((o) => o.textContent)
 }
 
 const requested: string[] = []
@@ -160,7 +172,7 @@ const listings = () =>
 // Opens a document's details, then its passages.
 async function openPassages(title: string) {
   fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-  const details = screen.getByRole('region', { name: `Details of ${title}` })
+  const details = screen.getByRole('dialog', { name: title })
   fireEvent.click(within(details).getByRole('button', { name: 'View passages' }))
   return screen.getByRole('dialog', { name: 'Passages' })
 }
@@ -197,7 +209,7 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: /^NFPA 13 sprinkler standard/ }))
 
-    const details = screen.getByRole('region', { name: 'Details of NFPA 13 sprinkler standard' })
+    const details = screen.getByRole('dialog', { name: 'NFPA 13 sprinkler standard' })
     expect(within(details).getByText('2022')).toBeVisible()
     for (const action of ['Edit details', 'Withdraw', 'Delete']) {
       expect(within(details).queryByRole('button', { name: action })).not.toBeInTheDocument()
@@ -220,11 +232,11 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
     await openAsEngineer()
     expect(await screen.findByRole('button', { name: /^FM 2-0 Installation/ })).toBeVisible()
 
-    fireEvent.change(screen.getByLabelText('Source type'), { target: { value: 'nfpa_standard' } })
+    choose('Source type', 'NFPA standards')
 
     expect(screen.getByRole('button', { name: /^NFPA 13 sprinkler standard/ })).toBeVisible()
     expect(screen.queryByRole('button', { name: /^FM 2-0 Installation/ })).not.toBeInTheDocument()
-    expect(screen.getByRole('status', { name: '' })).toHaveTextContent('Showing 1 of 2 documents')
+    expect(screen.getByText('1 of 2 documents')).toBeVisible()
   })
 
   it('shows the list, not the Review page, when an engineer opens a Review link', async () => {
@@ -233,7 +245,7 @@ describe('Knowledge base for a risk engineer (IN-17)', () => {
     render(<App />)
     await signIn('risk_engineer')
 
-    expect(await screen.findByRole('heading', { name: 'All documents' })).toBeVisible()
+    expect(await screen.findByRole('table', { name: 'Documents' })).toBeVisible()
     expect(window.location.pathname).toBe('/admin/knowledge-base')
     expect(requested.some((url) => url.endsWith('/comparison'))).toBe(false)
   })
@@ -260,31 +272,31 @@ describe("A document's passages (IN-17)", () => {
     expect(second).toHaveTextContent('Table')
     expect(third).toHaveTextContent('No heading')
     expect(third).toHaveTextContent('PictureGenerated')
-    expect(listings()).toEqual(['offset=0&limit=25'])
+    expect(listings()).toEqual(['offset=0&limit=10'])
   })
 
-  it('pages through them with Next and Previous, saying which passages show', async () => {
-    mockGateway([NFPA], sixty)
+  it('pages through them with Next and Previous, ten at a time, saying which passages show', async () => {
+    mockGateway([NFPA], passagesOf(25))
     await openAsEngineer()
     const dialog = await openPassages('NFPA 13 sprinkler standard')
     const pager = await within(dialog).findByRole('navigation', { name: 'Pages' })
-    expect(within(dialog).getByText('Passages 1–25 of 60')).toBeVisible()
+    expect(within(dialog).getByText('Passages 1–10 of 25')).toBeVisible()
     expect(pager).toHaveTextContent('Page 1 of 3')
     expect(within(pager).getByRole('button', { name: 'Previous page' })).toBeDisabled()
 
     fireEvent.click(within(pager).getByRole('button', { name: 'Next page' }))
-    expect(await within(dialog).findByText('Passages 26–50 of 60')).toBeVisible()
+    expect(await within(dialog).findByText('Passages 11–20 of 25')).toBeVisible()
     fireEvent.click(within(pager).getByRole('button', { name: 'Next page' }))
-    expect(await within(dialog).findByText('Passages 51–60 of 60')).toBeVisible()
+    expect(await within(dialog).findByText('Passages 21–25 of 25')).toBeVisible()
     expect(within(pager).getByRole('button', { name: 'Next page' })).toBeDisabled()
     fireEvent.click(within(pager).getByRole('button', { name: 'Previous page' }))
 
-    expect(await within(dialog).findByText('Passages 26–50 of 60')).toBeVisible()
+    expect(await within(dialog).findByText('Passages 11–20 of 25')).toBeVisible()
     expect(listings()).toEqual([
-      'offset=0&limit=25',
-      'offset=25&limit=25',
-      'offset=50&limit=25',
-      'offset=25&limit=25',
+      'offset=0&limit=10',
+      'offset=10&limit=10',
+      'offset=20&limit=10',
+      'offset=10&limit=10',
     ])
   })
 
@@ -305,39 +317,43 @@ describe("A document's passages (IN-17)", () => {
     await openAsEngineer()
     const dialog = await openPassages('NFPA 13 sprinkler standard')
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Next page' }))
-    await within(dialog).findByText('Passages 26–50 of 60')
+    await within(dialog).findByText('Passages 11–20 of 60')
 
-    const chapter = within(dialog).getByLabelText('Chapter')
-    const section = within(dialog).getByLabelText('Section')
-    expect([...chapter.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+    // Our own dropdowns (FilterMenu), never the browser's: a pill that opens its choices.
+    const chapter = within(dialog).getByRole('button', { name: 'Chapter' })
+    const section = within(dialog).getByRole('button', { name: 'Section' })
+    expect(await choicesOf(chapter)).toEqual([
       'All chapters',
       'Front matter (4)',
       'Chapter 8 Installation (40)',
       'Annex A Explanatory material (16)',
     ])
     expect(section).toBeDisabled()
-    fireEvent.change(chapter, { target: { value: 'c:8' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Chapter 8 Installation (40)' }))
 
-    await within(dialog).findByText('Passages 1–25 of 60')
+    await within(dialog).findByText('Passages 1–10 of 60')
     expect(section).toBeEnabled()
-    expect([...section.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+    expect(await choicesOf(section)).toEqual([
       'All sections',
       'Chapter start (2)',
       // A long title ends at a whole word, so a dropdown doesn't grow to a paragraph.
       '8.1 Basic requirements for sprinklers installed in rack… (20)',
       '8.2 (18)',
     ])
-    fireEvent.change(section, { target: { value: 's:8.2' } })
-    fireEvent.change(chapter, { target: { value: 'c:' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: '8.2 (18)' }))
+    await choicesOf(within(dialog).getByRole('button', { name: /^Chapter: / }))
+    // Front matter is a chapter named "", not all of them.
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Front matter (4)' }))
 
     await vi.waitFor(() =>
       expect(listings().slice(2)).toEqual([
-        'offset=0&limit=25&chapter=8',
-        'offset=0&limit=25&chapter=8&section=8.2',
-        'offset=0&limit=25&chapter=',
+        'offset=0&limit=10&chapter=8',
+        'offset=0&limit=10&chapter=8&section=8.2',
+        'offset=0&limit=10&chapter=',
       ]),
     )
-    expect(section).toHaveValue('')
+    // A new chapter starts at all its sections.
+    expect(within(dialog).getByRole('button', { name: 'Section' })).toBeEnabled()
   })
 
   it('filters a past report by its template sections, in one dropdown', async () => {
@@ -353,17 +369,17 @@ describe("A document's passages (IN-17)", () => {
     await openAsEngineer()
     const dialog = await openPassages('NFPA 13 sprinkler standard')
 
-    const sections = await within(dialog).findByLabelText('Section')
-    expect(within(dialog).queryByLabelText('Chapter')).not.toBeInTheDocument()
-    expect([...sections.querySelectorAll('option')].map((o) => o.textContent)).toEqual([
+    const sections = await within(dialog).findByRole('button', { name: 'Section' })
+    expect(within(dialog).queryByRole('button', { name: 'Chapter' })).not.toBeInTheDocument()
+    expect(await choicesOf(sections)).toEqual([
       'All sections',
       'Fire protection (12)',
       'Undefined (3)',
     ])
-    fireEvent.change(sections, { target: { value: 'c:Fire protection' } })
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Fire protection (12)' }))
 
     await vi.waitFor(() =>
-      expect(listings()).toContain('offset=0&limit=25&chapter=Fire+protection'),
+      expect(listings()).toContain('offset=0&limit=10&chapter=Fire+protection'),
     )
   })
 
@@ -372,14 +388,14 @@ describe("A document's passages (IN-17)", () => {
     await openAsEngineer()
     const dialog = await openPassages('NFPA 13 sprinkler standard')
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Next page' }))
-    await within(dialog).findByText('Passages 26–50 of 60')
+    await within(dialog).findByText('Passages 11–20 of 60')
     const from = within(dialog).getByLabelText('From page')
     const to = within(dialog).getByLabelText('To page')
 
     fireEvent.change(from, { target: { value: '20' } })
     fireEvent.change(to, { target: { value: '30' } })
     await vi.waitFor(() =>
-      expect(listings().at(-1)).toBe('offset=0&limit=25&pageFrom=20&pageTo=30'),
+      expect(listings().at(-1)).toBe('offset=0&limit=10&pageFrom=20&pageTo=30'),
     )
     const asked = listings().length
     fireEvent.change(from, { target: { value: '31' } })
@@ -401,7 +417,7 @@ describe("A document's passages (IN-17)", () => {
     expect(first).toHaveAttribute('aria-expanded', 'true')
     const opened = within(dialog).getByRole('region', { name: 'Passage 1' })
     expect(within(opened).getByText(LONG_TEXT)).toBeVisible()
-    expect(opened).toHaveTextContent('Passage ID nfpa:0')
+    expect(opened).not.toHaveTextContent('Passage ID')
     // Plain text has no region of the page to fetch.
     expect(requested.some((url) => url.startsWith('/api/chat/passages/'))).toBe(false)
 
@@ -462,7 +478,8 @@ describe("A document's passages (IN-17)", () => {
     )
     await openAsEngineer()
     const dialog = await openPassages('NFPA 13 sprinkler standard')
-    fireEvent.change(await within(dialog).findByLabelText('Chapter'), { target: { value: 'c:8' } })
+    await choicesOf(await within(dialog).findByRole('button', { name: 'Chapter' }))
+    fireEvent.click(within(dialog).getByRole('option', { name: 'Chapter 8 Installation (40)' }))
     fireEvent.change(within(dialog).getByLabelText('From page'), { target: { value: '900' } })
 
     expect(await within(dialog).findByText('No passages match')).toBeVisible()
@@ -470,9 +487,9 @@ describe("A document's passages (IN-17)", () => {
     fireEvent.click(within(dialog).getAllByRole('button', { name: 'Clear filters' })[0])
 
     expect(await within(dialog).findByRole('table')).toBeVisible()
-    expect(within(dialog).getByLabelText('Chapter')).toHaveValue('')
+    expect(within(dialog).getByRole('button', { name: 'Chapter' })).toBeInTheDocument()
     expect(within(dialog).getByLabelText('From page')).toHaveValue(null)
-    expect(listings().at(-1)).toBe('offset=0&limit=25')
+    expect(listings().at(-1)).toBe('offset=0&limit=10')
   })
 
   it('says so when a document has no passages', async () => {
@@ -511,7 +528,7 @@ describe("Searching a document's passages by words (IN-17)", () => {
     await openAsEngineer()
     const dialog = await openPassages('NFPA 13 sprinkler standard')
     fireEvent.click(await within(dialog).findByRole('button', { name: 'Next page' }))
-    await within(dialog).findByText('Passages 26–50 of 60')
+    await within(dialog).findByText('Passages 11–20 of 60')
     const search = within(dialog).getByRole('searchbox', { name: 'Search this document' })
 
     fireEvent.change(search, { target: { value: 'co' } })
@@ -523,9 +540,9 @@ describe("Searching a document's passages by words (IN-17)", () => {
     expect(rows[1]).toHaveTextContent('8.1 Basic requirements')
     // Only the settled words are searched, and nothing in between.
     expect(listings()).toEqual([
-      'offset=0&limit=25',
-      'offset=25&limit=25',
-      'offset=0&limit=25&q=cold+store',
+      'offset=0&limit=10',
+      'offset=10&limit=10',
+      'offset=0&limit=10&q=cold+store',
     ])
   })
 
@@ -540,8 +557,8 @@ describe("Searching a document's passages by words (IN-17)", () => {
 
     fireEvent.change(search, { target: { value: '' } })
 
-    expect(await within(dialog).findByText('Passages 1–25 of 60')).toBeVisible()
-    expect(listings().at(-1)).toBe('offset=0&limit=25')
+    expect(await within(dialog).findByText('Passages 1–10 of 60')).toBeVisible()
+    expect(listings().at(-1)).toBe('offset=0&limit=10')
     expect(within(dialog).queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument()
   })
 
@@ -588,7 +605,7 @@ describe("Searching a document's passages by meaning (IN-17)", () => {
     expect(
       await within(dialog).findByText(`Passages 1–2 of 2 matching “${QUESTION}”`),
     ).toBeVisible()
-    expect(byMeaning()).toEqual(['offset=0&limit=25&q=how+often+are+valves+checked&mode=meaning'])
+    expect(byMeaning()).toEqual(['offset=0&limit=10&q=how+often+are+valves+checked&mode=meaning'])
     expect(within(dialog).queryByText('Press Enter to search')).not.toBeInTheDocument()
   })
 

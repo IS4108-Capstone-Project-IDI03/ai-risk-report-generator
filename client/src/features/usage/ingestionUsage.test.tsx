@@ -5,6 +5,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 
 const doc = (key: string, over: Record<string, unknown> = {}) => ({
   key,
@@ -138,7 +139,7 @@ async function openIngestion() {
   render(<App />)
   await signIn('knowledge_admin')
   fireEvent.click(screen.getAllByRole('button', { name: 'Usage and Costs' })[0])
-  fireEvent.click(await screen.findByRole('tab', { name: 'Ingestion' }, { timeout: 15000 }))
+  fireEvent.click(await screen.findByRole('tab', { name: 'Documents' }, { timeout: 15000 }))
 }
 const documentsTable = () => screen.getByRole('table', { name: 'Documents and their cost' })
 
@@ -195,11 +196,11 @@ describe('Usage and costs: ingestion (EV-04)', { timeout: 30000 }, () => {
     const urls = mockGateway()
     await openIngestion()
     await screen.findByRole('table', { name: 'Documents and their cost' })
-    fireEvent.change(screen.getByLabelText('Period'), { target: { value: 'month' } })
+    chooseOption('Period', 'This month')
     await waitFor(() =>
       expect(urls().at(-1)).toBe('/api/usage/ingestion?split=service&range=month'),
     )
-    fireEvent.change(screen.getByLabelText('Split each bar by'), { target: { value: 'feature' } })
+    chooseOption('Split each bar by', 'Feature')
     await waitFor(() =>
       expect(urls().at(-1)).toBe('/api/usage/ingestion?split=feature&range=month'),
     )
@@ -246,7 +247,7 @@ describe('Usage and costs: ingestion (EV-04)', { timeout: 30000 }, () => {
     await signIn('risk_engineer')
     fireEvent.click(screen.getAllByRole('button', { name: 'Usage and Costs' })[0])
     await screen.findByText('No AI calls in this period', {}, { timeout: 15000 })
-    expect(screen.queryByRole('tab', { name: 'Ingestion' })).toBeNull()
+    expect(screen.queryByRole('tab', { name: 'Documents' })).toBeNull()
   })
 
   it('opens a document from its title: its details, cost per stage, and usage at the rates charged', async () => {

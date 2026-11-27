@@ -1923,7 +1923,12 @@ describe('adding and removing recordings and photos (CP-08)', () => {
     expect(heic.body.error).toBe(
       'IMG_0461.jpg is not a JPG or PNG image. Save it as JPG or PNG and add it again.',
     )
-    expect((await addMedia(id, [{ type: 'audio/aiff' }])).status).toBe(415)
+    // The refusal names the recording, since one bad file refuses the whole batch.
+    const aiff = await addMedia(id, [{ type: 'audio/aiff', name: 'walk-note.aiff' }])
+    expect(aiff.status).toBe(415)
+    expect(aiff.body.error).toBe(
+      "walk-note.aiff is in an audio format that isn't supported. Use WebM, Ogg, MP4, M4A, MP3, WAV or FLAC.",
+    )
     expect((await addMedia(id, [{ audio: Buffer.from('') }])).status).toBe(400)
     const nothing = await api.post(`/api/observations/${id}/media`).field('note', 'Not media.')
     expect(nothing.status).toBe(400)

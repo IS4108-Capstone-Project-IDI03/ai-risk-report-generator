@@ -83,7 +83,7 @@ export function RescheduleDialog({
     )
   return (
     <Dialog
-      className="ds-dialog--v2 cal-reschedule"
+      className="cal-reschedule"
       title={`Reschedule ${item.site}`}
       description={`${item.reference} for ${item.client}. The new dates show on the Assessments list and its Overview.`}
       width={480}

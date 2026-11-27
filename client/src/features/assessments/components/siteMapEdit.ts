@@ -1,5 +1,5 @@
 // The site map's places and how one is pinned, moved or removed (CP-26, AS-06 Details panel).
-// Called by SiteMapCard.tsx (sample Overview) and marshbot/components/SiteMapPanel.tsx.
+// Called by marshbot/components/SiteMapPanel.tsx.
 // Calls PUT /api/sites/:id/map through clients/api.ts, one change at a time.
 import { useState } from 'react'
 import { GatewayError } from '../api'

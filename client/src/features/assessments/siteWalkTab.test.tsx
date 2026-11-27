@@ -9,8 +9,11 @@ import App from '../../App'
 import { signIn } from '../../test/session'
 import type { SiteWalk } from '../site-walk/api'
 import type { SavedObservation } from './api'
+import { created } from '../new-assessment/testKit'
 
 const REF = 'RPT-2026-0411'
+// The assessment every test opens: the signed-in engineer's own.
+const ASSESSMENT = { ...created(REF, 'Tilbury Distribution Centre'), status: 'capturing' }
 const WALKS = `/api/assessments/${REF}/site-walks`
 const json = (status: number, body: unknown) =>
   Promise.resolve(
@@ -71,6 +74,7 @@ beforeEach(() => {
   observations = null
   vi.stubGlobal('fetch', (url: string, init: RequestInit = {}) => {
     calls.push((init.method ?? 'GET') + ' ' + url)
+    if (url === '/api/assessments') return json(200, [ASSESSMENT])
     // Continue on a recording walk starts or resumes it.
     if (url === WALKS && init.method === 'POST') return json(200, walks[0])
     if (url === WALKS) return json(200, walks)
@@ -116,7 +120,9 @@ async function openApp() {
 }
 async function openObservations() {
   await openApp()
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
 }
 
@@ -199,6 +205,17 @@ describe('The Site Walk Proposals screen, opened from the Observations toolbar',
     expect(calls).toContain(`DELETE ${WALKS}/w1`)
   })
 
+  it('names a failed walk a site walk in its delete toast: it has no proposal yet', async () => {
+    walks = [walk({ error: 'The recording could not be transcribed.' })]
+    await openObservations()
+    await openWalksScreen('Site walk proposals (1)')
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Site walk' }))
+    const dialog = within(screen.getByRole('dialog', { name: 'Delete this site walk?' }))
+    walks = []
+    fireEvent.click(dialog.getByRole('button', { name: 'Delete site walk' }))
+    expect(await screen.findByText(/Site walk deleted/)).toBeInTheDocument()
+  })
+
   it('opens the review from a ready walk', async () => {
     walks = [READY]
     await openObservations()
@@ -274,7 +291,9 @@ describe('Version history (and Archive, for the owner) on the Observations tab',
 
   it('is in the header on the other tabs too', async () => {
     await openApp()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     const group = screen.getByRole('group', { name: 'Assessment' })
     expect(within(group).getByRole('button', { name: 'History' })).toBeInTheDocument()
   })

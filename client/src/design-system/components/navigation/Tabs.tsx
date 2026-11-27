@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type * as React from 'react'
 import { Icon } from '../core/Icon'
+import { markMore } from './scrollFade'
 export type TabsProps = {
   // `alert` turns the count into an amber pill that asks for attention, and is
   // read out after the label (e.g. "1 needs review").
@@ -27,24 +28,35 @@ export type TabsProps = {
 }
 function Tabs({ items = [], value, onChange, compact = false, style = {}, walk }: TabsProps) {
   // Scrolls a row too narrow for its tabs so the chosen one shows; without
-  // this a phone could open on a tab that is off to the side.
+  // this a phone could open on a tab that is off to the side. It runs again
+  // when the row narrows (a window resized from desktop to phone width).
   const list = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const row = list.current
-    const tab = row?.querySelector<HTMLElement>('[aria-selected="true"]')
-    if (!row || !tab) return
-    const r = row.getBoundingClientRect()
-    const t = tab.getBoundingClientRect()
-    if (t.left < r.left) row.scrollLeft += t.left - r.left
-    else if (t.right > r.right) row.scrollLeft += t.right - r.right
+    if (!row) return
+    const reveal = () => {
+      const tab = row.querySelector<HTMLElement>('[aria-selected="true"]')
+      if (!tab) return
+      const r = row.getBoundingClientRect()
+      const t = tab.getBoundingClientRect()
+      if (t.left < r.left) row.scrollLeft += t.left - r.left
+      else if (t.right > r.right) row.scrollLeft += t.right - r.right
+      markMore(row)
+    }
+    reveal()
+    if (typeof ResizeObserver === 'undefined') return
+    const watch = new ResizeObserver(reveal)
+    watch.observe(row)
+    return () => watch.disconnect()
   }, [value])
   return (
     <div
       ref={list}
-      className={compact ? 'ds-tabs ds-tabs-compact' : 'ds-tabs'}
+      className={compact ? 'ds-tabs ds-tabs-compact ds-scroll-fade' : 'ds-tabs ds-scroll-fade'}
       role="tablist"
       aria-label="View"
       data-walk={walk}
+      onScroll={(event) => markMore(event.currentTarget)}
       style={{
         display: 'flex',
         alignItems: 'flex-end',

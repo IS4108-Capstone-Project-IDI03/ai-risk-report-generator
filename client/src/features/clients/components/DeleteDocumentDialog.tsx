@@ -23,7 +23,6 @@ export function DeleteDocumentDialog({
     })
   return (
     <Dialog
-      className="ds-dialog--v2"
       title={`Delete ${doc.name}?`}
       description="The file is permanently removed from this client's documents."
       width={440}

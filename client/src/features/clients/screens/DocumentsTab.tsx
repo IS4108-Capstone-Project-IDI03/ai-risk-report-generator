@@ -4,9 +4,11 @@
 // Calls the documents hook passed in and the toast helper for every action.
 import { useRef, useState, type ChangeEvent } from 'react'
 import {
-  AddRow,
   Button,
+  EmptyNote,
   EmptyState,
+  ListCard,
+  ListToolbar,
   SearchField,
   TableFooter,
   TAG_GROUPS,
@@ -79,15 +81,20 @@ export function DocumentsTab({
 
   if (failed)
     return (
-      <div className="cl-card">
+      <ListCard>
         <EmptyState
           icon="file-warning"
           title="Documents could not be loaded"
-          description="The gateway could not be reached. Check your connection and try again."
+          description="Check your connection and try again."
         />
-      </div>
+      </ListCard>
     )
-  if (!documents) return <p role="status">{'Loading documents…'}</p>
+  if (!documents)
+    return (
+      <EmptyNote centred status>
+        {'Loading documents…'}
+      </EmptyNote>
+    )
 
   const search = q.trim().toLowerCase()
   const shown = documents.filter(
@@ -95,25 +102,29 @@ export function DocumentsTab({
   )
   const pickFiles = () => picker.current?.click()
   const toolbar = (
-    <div className="cl-toolbar">
-      <SearchField
-        label="Search documents"
-        placeholder="Search documents"
-        value={q}
-        onChange={(e) => setQ(e.target.value)}
-      />
-      <FilterMenu
-        name="Tag"
-        icon="tag"
-        choices={tags.map((t) => ({
-          value: t.label,
-          label: t.label,
-          icon: TAG_GROUPS.find((g) => g.group === (t.group ?? 'client'))?.icon,
-        }))}
-        value={tag}
-        onChange={setTag}
-      />
-      <span className="cl-toolbar-end">
+    <ListToolbar
+      search={
+        <SearchField
+          label="Search documents"
+          placeholder="Search documents"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+      }
+      filters={
+        <FilterMenu
+          name="Tag"
+          icon="tag"
+          choices={tags.map((t) => ({
+            value: t.label,
+            label: t.label,
+            icon: TAG_GROUPS.find((g) => g.group === (t.group ?? 'client'))?.icon,
+          }))}
+          value={tag}
+          onChange={setTag}
+        />
+      }
+      end={
         <Button
           variant="create"
           iconLeft="upload"
@@ -123,8 +134,8 @@ export function DocumentsTab({
         >
           {'Upload'}
         </Button>
-      </span>
-    </div>
+      }
+    />
   )
   return (
     <>
@@ -138,14 +149,33 @@ export function DocumentsTab({
         onChange={upload}
       />
       {/* On a phone the search, Tag and Upload sit on the page, above the card (board 22 F). */}
-      {phone && toolbar}
-      <div className="cl-card">
-        {!phone && toolbar}
+      {phone && documents.length > 0 && toolbar}
+      <ListCard
+        toolbar={!phone && documents.length > 0 ? toolbar : undefined}
+        footer={
+          documents.length > 0 ? (
+            <TableFooter>{plural(documents.length, 'document')}</TableFooter>
+          ) : undefined
+        }
+      >
         {documents.length === 0 ? (
-          <div className="cl-empty">
-            <p className="cl-empty-title">{'No documents yet'}</p>
-            <AddRow onClick={pickFiles}>{'Add documents'}</AddRow>
-          </div>
+          // Nothing to search or filter yet, so the one action is the empty state's own.
+          <EmptyState
+            icon="file-text"
+            title="No documents yet"
+            description="Upload this client's files, such as past reports or emails."
+            action={
+              <Button
+                variant="primary"
+                pill
+                iconLeft="upload"
+                loading={uploading}
+                onClick={pickFiles}
+              >
+                {'Add documents'}
+              </Button>
+            }
+          />
         ) : (
           <>
             <table className="cl-table cl-docs" aria-label="Documents">
@@ -188,17 +218,13 @@ export function DocumentsTab({
               </tbody>
             </table>
             {shown.length === 0 && (
-              <p className="cl-empty-title" role="status">
+              <EmptyNote centred status>
                 {'No documents match'}
-              </p>
+              </EmptyNote>
             )}
-            <div className="cl-add">
-              <AddRow onClick={pickFiles}>{'Add documents'}</AddRow>
-            </div>
-            <TableFooter>{plural(documents.length, 'document')}</TableFooter>
           </>
         )}
-      </div>
+      </ListCard>
       {deleting && (
         <DeleteDocumentDialog
           doc={deleting}

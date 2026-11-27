@@ -1,6 +1,6 @@
 // The Details panel's blocks and its site map (AS-06, boards D1, D2, D3). jsdom lays nothing
-// out, so the panel's height is faked to test the budgets; Google Maps is faked as in
-// assessments/components/SiteMapCard.test.tsx.
+// out, so the panel's height is faked to test the budgets; Google Maps is faked
+// (its script never loads in jsdom).
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -9,7 +9,6 @@ import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow
 import { DetailsContent, type DetailedRecord } from './DetailsContent'
 import { DetailsPanel } from './DetailsPanel'
 import { toast, Toaster } from '../../../design-system'
-import { DetailsToaster } from './DetailsToaster'
 import { DETAILS_TOASTER } from './detailsToast'
 import { PlacingBar } from './PlacingBar'
 import { SiteMapPanel } from './SiteMapPanel'
@@ -236,7 +235,9 @@ describe('the site map in the panel', () => {
   it('gives a pinned place its coordinates and three icon buttons, an unpinned one a single Pin button', () => {
     open()
     expect(row('Site').getByText('1.4521, 103.9012')).toBeInTheDocument()
-    expect(row('Site').getByRole('link', { name: 'Directions to Site' })).toBeInTheDocument()
+    expect(
+      row('Site').getByRole('link', { name: 'Directions to Site, opens in a new tab' }),
+    ).toBeInTheDocument()
     for (const name of ['Move Pin for Site', 'Remove Pin for Site'])
       expect(row('Site').getByRole('button', { name })).toBeInTheDocument()
     expect(
@@ -428,10 +429,9 @@ describe('the site map in the panel', () => {
 
   it('shows directions but no changes to someone who may not edit', () => {
     open({ canEdit: false })
-    expect(row('Site').getByRole('link', { name: 'Directions to Site' })).toHaveAttribute(
-      'href',
-      'https://www.google.com/maps/dir/?api=1&destination=1.4521,103.9012',
-    )
+    expect(
+      row('Site').getByRole('link', { name: 'Directions to Site, opens in a new tab' }),
+    ).toHaveAttribute('href', 'https://www.google.com/maps/dir/?api=1&destination=1.4521,103.9012')
     expect(
       screen.queryByRole('button', { name: /Move Pin|Remove Pin|Pin on the Map/ }),
     ).not.toBeInTheDocument()
@@ -509,7 +509,7 @@ describe('toasts raised from the panel', () => {
       <>
         <Toaster />
         <dialog open data-testid="panel">
-          <DetailsToaster />
+          <Toaster id={DETAILS_TOASTER} />
         </dialog>
       </>,
     )
@@ -543,15 +543,13 @@ describe('the panel header', () => {
       />,
     )
 
-  it('has Edit Details as an icon named by its tooltip, like Edit Site, and a Close with a real tooltip', () => {
+  it('has Edit Details as a labelled button in the footer, and a Close with a real tooltip', () => {
     serveDocuments([])
     panel()
-    // Round 10: no words on the button; the same icon button as Edit Site.
+    // The record's action sits in the panel's footer at its bottom edge, as other side panels' do.
     const edit = screen.getByRole('button', { name: 'Edit Details' })
-    expect(edit).toHaveTextContent('')
-    fireEvent.mouseEnter(edit.parentElement!)
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Edit Details')
-    fireEvent.mouseLeave(edit.parentElement!)
+    expect(edit).toHaveTextContent('Edit Details')
+    expect(edit.closest('footer')).toHaveClass('ds-side-panel-foot')
     const close = screen.getByRole('button', { name: 'Close' })
     expect(close).not.toHaveAttribute('title')
     fireEvent.mouseEnter(close.parentElement!)
@@ -612,7 +610,7 @@ describe('adding a client document from the panel', () => {
     render(
       <>
         <dialog open>
-          <DetailsToaster />
+          <Toaster id={DETAILS_TOASTER} />
           <DetailsContent v={editable()} record={RECORD} toasterId={DETAILS_TOASTER} />
         </dialog>
       </>,
@@ -745,7 +743,7 @@ describe('adding a client document from the panel', () => {
       <>
         <Toaster />
         <dialog open>
-          <DetailsToaster />
+          <Toaster id={DETAILS_TOASTER} />
           <DetailsContent v={editable()} record={RECORD} toasterId={DETAILS_TOASTER} />
         </dialog>
       </>,

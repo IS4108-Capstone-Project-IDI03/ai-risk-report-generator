@@ -89,14 +89,14 @@ it('renders every shared component and preserves the icon vocabulary', () => {
       <UI.Checkbox label="Checkbox" />
       <UI.Radio label="Radio" />
       <UI.Switch label="Switch" />
-      <UI.Card title="Card">
+      <UI.Panel title="Card">
         <UI.Badge>Badge</UI.Badge>
         <UI.Tag>Tag</UI.Tag>
-      </UI.Card>
+      </UI.Panel>
       <UI.Table columns={[{ key: 'value', header: 'Value' }]} rows={[{ id: '1', value: 'Row' }]} />
       <UI.StatusIcon status="Draft" />
       <UI.PageHeader title="Page" status={<UI.Badge>Ready</UI.Badge>} />
-      <UI.MetricStat label="Metric" value={3} />
+      <UI.FigureTile label="Metric" value={3} icon="hash" />
       <UI.SideNav sections={[{ label: 'Nav', items: [{ value: 'home', label: 'Home' }] }]} />
       <UI.Tabs items={[{ value: 'first', label: 'First' }]} value="first" />
       <UI.Breadcrumb items={[{ label: 'Home' }, { label: 'Current' }]} />
@@ -159,8 +159,15 @@ it('lists select options under headings and removes a tag with a real button', (
       </UI.Tag>
     </>,
   )
-  const heading = screen.getByRole('group', { name: 'Block A' })
-  expect(within(heading).getByRole('option', { name: 'Lobby' })).toBeInTheDocument()
+  fireEvent.click(screen.getByRole('combobox', { name: 'Location' }))
+  const list = screen.getByRole('listbox', { name: 'Location' })
+  // The group's name is a heading row, with its options after it.
+  const heading = within(list).getByText('Block A')
+  expect(heading).toHaveClass('ob-menu-heading')
+  expect(within(list).getByRole('option', { name: 'Lobby' })).toBeInTheDocument()
+  expect(heading.compareDocumentPosition(within(list).getByRole('option', { name: 'Lobby' }))).toBe(
+    Node.DOCUMENT_POSITION_FOLLOWING,
+  )
   fireEvent.click(screen.getByRole('button', { name: 'Remove Severity: High' }))
   expect(remove).toHaveBeenCalledOnce()
 })

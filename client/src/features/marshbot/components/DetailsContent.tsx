@@ -4,9 +4,12 @@
 // DetailsPanel.tsx. Calls DetailsContacts, DetailsDocuments, DetailsPlaces and useDetailsBudget.
 import { useRef, type ReactNode } from 'react'
 import {
+  Avatar,
   AssessmentTypeTile,
   Button,
   Chip,
+  Fact,
+  FactList,
   IconAction,
   ReportDue,
   useIsPhone,
@@ -14,7 +17,6 @@ import {
 import type { Assessment } from '../../assessments/api'
 import { rowsOf } from '../../assessments/components/siteMapEdit'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
-import { ClientAvatar, initials } from '../../clients/components/ClientAvatar'
 import { assessmentType, country } from '../../clients/formatClient'
 import { daysBetween, today } from '../format'
 import { DetailsContacts } from './DetailsContacts'
@@ -49,7 +51,7 @@ export function DetailsContent({
   // Why the site can't be edited (someone else's assessment uses it): the pencil stays, greyed,
   // and says so (design system v2: grey out and explain).
   siteReason?: string | null
-  // Swaps the panel to the site map (SiteMapPanel); absent for a sample assessment with no map.
+  // Swaps the panel to the site map (SiteMapPanel); absent when the assessment has no map.
   onOpenMap?: () => void
   // The toaster that shows what adding a document did (the panel's own on a computer).
   toasterId?: string
@@ -79,7 +81,7 @@ export function DetailsContent({
   return (
     <div ref={root} className="mb-details">
       <div className="mb-details-client">
-        <ClientAvatar name={record.client} />
+        <Avatar kind="client" name={record.client} size={40} />
         <div>
           {/* The client's name opens its page (CP-18), where the engineer may manage it. */}
           {openClient ? (
@@ -124,29 +126,23 @@ export function DetailsContent({
           <Chip kind="facility">{record.site.facilityType}</Chip>
         </div>
       </section>
-      <div className="mb-two">
-        <section>
-          <Label>Type</Label>
+      <FactList>
+        <Fact label="Type">
           <AssessmentTypeTile type={assessmentType(record.surveyType)} size={28} showLabel />
-        </section>
-        <section>
-          <Label>Engineer</Label>
+        </Fact>
+        <Fact label="Engineer">
           <span className="mb-person">
-            <span className="cl-contact-dot" aria-hidden="true">
-              {initials(record.engineer?.name ?? '')}
-            </span>
+            <Avatar name={record.engineer?.name ?? ''} />
             {record.engineer?.name ?? 'Not assigned'}
           </span>
-        </section>
-        <section>
-          <Label>{record.siteVisitEndDate ? 'Survey ends' : 'Survey'}</Label>
+        </Fact>
+        <Fact label={record.siteVisitEndDate ? 'Survey ends' : 'Survey'}>
           <ReportDue date={survey} note={surveyDone ? 'Done' : undefined} todayLabel="Today" />
-        </section>
-        <section>
-          <Label>Report due</Label>
+        </Fact>
+        <Fact label="Report due">
           <ReportDue date={record.reportDueDate} todayLabel="Today" />
-        </section>
-      </div>
+        </Fact>
+      </FactList>
       <DetailsContacts contacts={contacts} shown={budget.contacts} links={budget.links} />
       {docs && (
         <DetailsDocuments

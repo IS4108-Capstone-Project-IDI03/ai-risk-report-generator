@@ -128,6 +128,14 @@ export function DraftingSteps({
   const tasksDone = g.tasks.filter((t) => t.done).length
   // The engineer's turn: amber tiles and rows that open Review. An admin only watches.
   const turn = g.steps.two.state === 'now' && g.canStart
+  // The one out-of-date row that carries the (?): the first drawn as out of date.
+  const staleTip = [...one, ...three].find(
+    (p) =>
+      p.outOfDate &&
+      p.job !== 'drafting' &&
+      p.job !== 'queued' &&
+      !(p.job === 'failed' && !p.drafted),
+  )?.id
   // The report bar's groups: the parts each step drafts (8 then 3).
   const groups = [1, 3].map((n) => g.parts.filter((p) => p.step === n).length)
 
@@ -184,7 +192,7 @@ export function DraftingSteps({
           {...fold(1, g.steps.one.state, one, plural(one.length, 'section'))}
         >
           {one.map((p) => (
-            <DraftingPartRow key={p.id} part={p} showCount />
+            <DraftingPartRow key={p.id} part={p} showCount tip={p.id === staleTip} />
           ))}
         </StepCard>
 
@@ -234,7 +242,7 @@ export function DraftingSteps({
             {...fold(3, g.steps.three.state, three, plural(three.length, 'section'))}
           >
             {three.map((p) => (
-              <DraftingPartRow key={p.id} part={p} showCount={false} />
+              <DraftingPartRow key={p.id} part={p} showCount={false} tip={p.id === staleTip} />
             ))}
           </StepCard>
         </div>

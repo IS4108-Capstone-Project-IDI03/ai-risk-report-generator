@@ -96,6 +96,7 @@ export function FindBar({
         {canReplace && (
           <>
             <Button
+              pill
               variant="secondary"
               size="sm"
               iconLeft={IconRegistry.editor.replace}
@@ -105,6 +106,7 @@ export function FindBar({
               Replace
             </Button>
             <Button
+              pill
               variant="secondary"
               size="sm"
               iconLeft={IconRegistry.editor.replaceAll}

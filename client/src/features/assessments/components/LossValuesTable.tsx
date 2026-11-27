@@ -3,7 +3,8 @@
 // beside Time Element items, their totals, and the TIV. Rows start as the
 // template's; the engineer renames, adds or removes them to suit the site. Totals
 // are the gateway's, as last saved. Used by LossEstimateFigures.tsx.
-import { Button, IconButton, Input } from '../../../design-system'
+import { Button, IconAction, Input } from '../../../design-system'
+import { formatDay } from '../format'
 import { formatAmount } from '../reportFigures'
 
 export type TypedValue = { key: string; item: string; value: string }
@@ -47,10 +48,10 @@ export function LossValuesTable({
               value={row.item}
               onChange={(e) => set({ item: e.target.value })}
             />
-            <IconButton
+            <IconAction
               icon="trash-2"
               label={`Remove ${name}`}
-              size="sm"
+              danger
               onClick={() => onChange({ [side]: rows.filter((_, j) => j !== i) })}
             />
           </div>
@@ -100,7 +101,8 @@ export function LossValuesTable({
                     onChange={(e) => onChange({ dateOfValues: e.target.value })}
                   />
                 ) : (
-                  ` ${typed.dateOfValues || '–'}`
+                  // "31 Dec 2026", as every screen dates a day, not the stored 2026-12-31.
+                  ` ${typed.dateOfValues ? formatDay(new Date(typed.dateOfValues + 'T00:00:00')) : '–'}`
                 )}
               </label>
             </th>

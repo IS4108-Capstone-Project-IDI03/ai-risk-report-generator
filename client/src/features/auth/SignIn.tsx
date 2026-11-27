@@ -1,11 +1,22 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import { Button, Callout, Checkbox, Input, Tabs } from '../../design-system'
+import { Button, Callout, Input } from '../../design-system'
 import { GatewayError } from '../assessments/api'
 import { signIn as requestSignIn, requestPasswordReset, resetPassword, type Session } from './api'
 import { meetsRule, PASSWORD_RULE } from './passwordRule'
 import { SetPassword } from './SetPassword'
+import marshLogo from '../../assets/marsh-logo.png'
 import './sign-in.css'
+
+// The Marsh logo over the product name, as the sidebar shows them, but larger.
+function SignInBrand() {
+  return (
+    <div className="sign-in-brand">
+      <img src={marshLogo} alt="Marsh" />
+      <span>Risk Report Generator</span>
+    </div>
+  )
+}
 
 // Why a sign-in attempt failed. Wrong credentials always read the same, so the
 // message never reveals whether the email has an account (F-04).
@@ -13,8 +24,8 @@ function signInProblem(error: unknown) {
   if (error instanceof GatewayError && error.status === 401) return 'Incorrect email or password.'
   if (error instanceof GatewayError && error.status === 429) return error.message
   if (error instanceof GatewayError && error.status === null)
-    return 'The gateway could not be reached, so you were not signed in. Check that the server is running, then try again.'
-  return 'Something went wrong, so you were not signed in. Try again.'
+    return "Can't reach the server, so you weren't signed in. Check your connection, then try again."
+  return "Something went wrong, so you weren't signed in. Try again."
 }
 
 // The reset code in an emailed link (F-06): /?reset=<code>.
@@ -25,17 +36,15 @@ const emailedInviteCode = () => new URLSearchParams(window.location.search).get(
 export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   // A reset link opens straight at the new-password step.
   const [mode, setMode] = useState(() => (emailedResetCode() ? 'reset-confirm' : 'signin'))
-  const [name, setName] = useState('')
-  const [employeeNumber, setEmployeeNumber] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [checked, setChecked] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [busy, setBusy] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
   const [resetToken, setResetToken] = useState(emailedResetCode)
   const [newPassword, setNewPassword] = useState('')
+  const [passwordProblem, setPasswordProblem] = useState('')
   // An invitation link opens the set-password screen instead.
   const [inviteToken, setInviteToken] = useState(emailedInviteCode)
   // Remove the code from the address bar so it isn't kept in history or shared.
@@ -43,19 +52,11 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
     if (emailedResetCode() || emailedInviteCode())
       window.history.replaceState(null, '', window.location.pathname)
   }, [])
-  const requestAccess = mode === 'signup'
-  function changeMode(value: string) {
-    setMode(value)
-    setChecked(false)
-    setError('')
-    setNotice('')
-    setPassword('')
-  }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy) return
     setNotice('')
-    if (!email.trim() || !password.trim() || (requestAccess && !name.trim())) {
+    if (!email.trim() || !password.trim()) {
       setError('Complete the required fields before continuing.')
       return
     }
@@ -63,20 +64,8 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
       setError('Enter a valid work email address.')
       return
     }
-    if (requestAccess && !meetsRule(password)) {
-      setError(PASSWORD_RULE)
-      return
-    }
-    if (requestAccess && !checked) {
-      setError('Accept the acceptable-use terms before requesting access.')
-      return
-    }
     setError('')
     setPassword('')
-    if (requestAccess) {
-      setNotice('Demo access request complete. No request was sent and no account was created.')
-      return
-    }
     setBusy(true)
     try {
       onSignIn(await requestSignIn(email, password))
@@ -85,10 +74,6 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
     } finally {
       setBusy(false)
     }
-  }
-  function unavailable(message: string) {
-    setError('')
-    setNotice(message)
   }
 
   async function submitResetRequest(event: FormEvent<HTMLFormElement>) {
@@ -110,6 +95,12 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   async function submitResetConfirm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (busy || !resetToken.trim() || !newPassword.trim()) return
+    // The gateway refuses it too; checking here says why before the reset code is spent on nothing.
+    if (!meetsRule(newPassword)) {
+      setPasswordProblem(PASSWORD_RULE)
+      return
+    }
+    setPasswordProblem('')
     setBusy(true)
     setError('')
     try {
@@ -146,10 +137,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
   if (mode === 'reset-request' || mode === 'reset-confirm') {
     return (
       <main className="sign-in">
-        <div className="sign-in-brand">
-          <strong>Marsh</strong>
-          <span>Risk Report Generator</span>
-        </div>
+        <SignInBrand />
         <section className="sign-in-card" aria-labelledby="sign-in-title">
           <header>
             <h1 id="sign-in-title">Reset your password</h1>
@@ -180,15 +168,15 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
                 required
                 autoComplete="username"
               />
-              <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+              <Button type="submit" variant="primary" pill size="lg" fullWidth disabled={busy}>
                 {busy ? 'Sending…' : 'Send reset link'}
               </Button>
             </form>
           ) : (
             <form noValidate onSubmit={submitResetConfirm} className="sign-in-form">
               <Input
-                label="Reset token"
-                placeholder="Filled in when you open the emailed link"
+                label="Reset code"
+                placeholder="From your reset email"
                 value={resetToken}
                 onChange={(e) => setResetToken(e.target.value)}
                 required
@@ -201,8 +189,10 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
                 onChange={(e) => setNewPassword(e.target.value)}
                 required
                 autoComplete="new-password"
+                error={passwordProblem || undefined}
+                hint={PASSWORD_RULE}
               />
-              <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
+              <Button type="submit" variant="primary" pill size="lg" fullWidth disabled={busy}>
                 {busy ? 'Updating…' : 'Set new password'}
               </Button>
             </form>
@@ -227,72 +217,18 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
 
   return (
     <main className="sign-in">
-      <div className="sign-in-brand">
-        <strong>Marsh</strong>
-        <span>Risk Report Generator</span>
-      </div>
+      <SignInBrand />
       <section className="sign-in-card" aria-labelledby="sign-in-title">
         <header>
-          <h1 id="sign-in-title">{requestAccess ? 'Request access' : 'Sign in'}</h1>
-          <p>
-            {requestAccess
-              ? 'Accounts are issued to Marsh risk engineers. Your request goes to your regional lead for approval.'
-              : 'Use your Marsh work account to reach your assessments.'}
-          </p>
+          <h1 id="sign-in-title">Sign in</h1>
+          <p>Use your Marsh work account.</p>
         </header>
-        <div className="sign-in-tabs">
-          <Tabs
-            items={[
-              { value: 'signin', label: 'Sign in' },
-              { value: 'signup', label: 'Request access' },
-            ]}
-            value={mode}
-            onChange={changeMode}
-          />
-        </div>
         {error && (
           <div role="alert">
             <Callout tone="danger" title={error} />
           </div>
         )}
         <form noValidate onSubmit={submit} className="sign-in-form">
-          <Button
-            variant="secondary"
-            size="lg"
-            fullWidth
-            iconLeft="building-2"
-            onClick={() =>
-              unavailable(
-                'Single sign-on is not connected in this demo. Use the form to explore the sample workflow.',
-              )
-            }
-          >
-            Continue with Marsh single sign-on
-          </Button>
-          <div className="sign-in-divider">
-            <span />
-            Or
-            <span />
-          </div>
-          {requestAccess && (
-            <>
-              <Input
-                label="Full name"
-                placeholder="e.g. Alison Rowe"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                autoComplete="name"
-              />
-              <Input
-                label="Employee number"
-                placeholder="MMC-000000"
-                value={employeeNumber}
-                onChange={(e) => setEmployeeNumber(e.target.value)}
-                hint="Found on your Marsh McLennan staff record."
-              />
-            </>
-          )}
           <Input
             label="Work email"
             type="email"
@@ -305,51 +241,29 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
           <Input
             label="Password"
             type="password"
-            placeholder={requestAccess ? 'Letters and numbers' : 'Enter your password'}
+            placeholder="Enter your password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            autoComplete={requestAccess ? 'new-password' : 'current-password'}
-            hint={requestAccess ? PASSWORD_RULE : undefined}
+            autoComplete="current-password"
           />
           <div className="sign-in-options">
-            <Checkbox
-              label={
-                requestAccess
-                  ? 'I accept the acceptable-use terms'
-                  : 'Keep me signed in on this device'
-              }
-              checked={checked}
-              onChange={setChecked}
-            />
-            {!requestAccess && (
-              <button
-                className="text-link"
-                type="button"
-                onClick={() => {
-                  setError('')
-                  setNotice('')
-                  setMode('reset-request')
-                }}
-              >
-                Reset password
-              </button>
-            )}
+            <button
+              className="text-link"
+              type="button"
+              onClick={() => {
+                setError('')
+                setNotice('')
+                setMode('reset-request')
+              }}
+            >
+              Reset password
+            </button>
           </div>
-          <Button type="submit" variant="primary" size="lg" fullWidth disabled={busy}>
-            {requestAccess ? 'Request access' : busy ? 'Signing in…' : 'Sign in'}
+          <Button type="submit" variant="primary" pill size="lg" fullWidth disabled={busy}>
+            {busy ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
-        <p className="sign-in-switch">
-          {requestAccess ? 'Already have an account?' : 'No account yet?'}{' '}
-          <button
-            className="text-link"
-            type="button"
-            onClick={() => changeMode(requestAccess ? 'signin' : 'signup')}
-          >
-            {requestAccess ? 'Sign in' : 'Request access'}
-          </button>
-        </p>
         {notice && (
           <div role="status">
             <Callout tone="info" title={notice} />
@@ -357,7 +271,7 @@ export function SignIn({ onSignIn }: { onSignIn: (session: Session) => void }) {
         )}
       </section>
       <p className="sign-in-footer">
-        Internal use only. Access is granted by your regional risk engineering lead.
+        Internal use only. Your regional risk engineering lead grants access.
       </p>
     </main>
   )

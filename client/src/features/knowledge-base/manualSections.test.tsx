@@ -7,6 +7,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
 import { knowledgeTab } from './openTab'
+import { pick } from './filterTestHelpers'
+import { optionWords } from '../../design-system/components/forms/selectTestHelpers'
 
 const STANDARD = {
   issuingBody: 'NFPA',
@@ -158,7 +160,7 @@ async function openKnowledgeBase() {
 async function openClauses(title: string, action = 'Continue editing') {
   await openKnowledgeBase()
   fireEvent.click(await screen.findByRole('button', { name: new RegExp(`^${title}`) }))
-  const details = screen.getByRole('region', { name: `Details of ${title}` })
+  const details = screen.getByRole('dialog', { name: title })
   fireEvent.click(within(details).getByRole('button', { name: action }))
   return screen.findByRole('region', { name: 'Clauses' })
 }
@@ -184,7 +186,7 @@ function trail(...headings: string[]) {
 
 // Chooses an image for a screenshot of `kind` in the editor.
 function attach(kind: string, name = 'table.png') {
-  fireEvent.change(within(editor()).getByLabelText('Screenshot of a'), { target: { value: kind } })
+  pick(editor(), 'Screenshot of a', kind[0].toUpperCase() + kind.slice(1))
   const file = new File(['png bytes'], name, { type: 'image/png' })
   fireEvent.change(within(editor()).getByLabelText('Add screenshot'), {
     target: { files: [file] },
@@ -218,10 +220,8 @@ describe('starting a manual entry', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
     const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
-    expect(within(dialog).queryByRole('option', { name: 'Marsh report' })).not.toBeInTheDocument()
-    fireEvent.change(within(dialog).getByLabelText(field('Source type')), {
-      target: { value: 'nfpa_standard' },
-    })
+    expect(optionWords('Source type', dialog)).not.toContain('Marsh report')
+    pick(dialog, 'Source type', 'NFPA standard')
     fireEvent.change(within(dialog).getByLabelText(field('Standard number')), {
       target: { value: '72' },
     })
@@ -253,9 +253,7 @@ describe('starting a manual entry', () => {
     fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
     const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
-    fireEvent.change(within(dialog).getByLabelText(field('Source type')), {
-      target: { value: 'nfpa_standard' },
-    })
+    pick(dialog, 'Source type', 'NFPA standard')
     fireEvent.change(within(dialog).getByLabelText(field('Standard number')), {
       target: { value: '13' },
     })
@@ -275,10 +273,10 @@ describe('the clauses page', () => {
   it('opens from a draft’s Continue editing and a published entry’s Edit clauses, not a PDF’s', async () => {
     mockGateway({ sections: [clause(1)] })
     await openClauses(PUBLISHED.title, 'Edit clauses')
-    fireEvent.click(screen.getByRole('button', { name: 'All documents' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Knowledge base' }))
 
     fireEvent.click(await screen.findByRole('button', { name: /^NFPA 25/ }))
-    const details = screen.getByRole('region', { name: `Details of ${UPLOADED.title}` })
+    const details = screen.getByRole('dialog', { name: UPLOADED.title })
     expect(within(details).queryByRole('button', { name: /clauses/i })).not.toBeInTheDocument()
     expect(
       within(details).queryByRole('button', { name: 'Continue editing' }),
@@ -311,14 +309,14 @@ describe('the clauses page', () => {
     expect(within(editor()).getByLabelText(field('Clause number'))).toHaveValue('')
   })
 
-  it('shows a clause that failed to embed, and Re-embed clears it', async () => {
+  it('shows a clause that is not searchable, and Try again clears it', async () => {
     const { sent } = mockGateway({
       sections: [clause(1, { indexed: false, indexError: "Search couldn't be updated." })],
     })
     const list = await openClauses(DRAFT.title)
 
-    expect(await within(list).findByText('Failed to embed')).toBeInTheDocument()
-    fireEvent.click(within(list).getByRole('button', { name: 'Re-embed 8.1' }))
+    expect(await within(list).findByText('Not searchable')).toBeInTheDocument()
+    fireEvent.click(within(list).getByRole('button', { name: 'Try 8.1 again' }))
 
     expect(await within(list).findByText('Ready')).toBeInTheDocument()
     expect(sent.at(-1)?.url).toBe('/api/knowledge-documents/nfpa13/sections/s1/reembed')
@@ -435,9 +433,9 @@ describe('the clauses page', () => {
     mockGateway()
     await openClauses(DRAFT.title)
 
-    fireEvent.click(screen.getByRole('button', { name: 'All documents' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Knowledge base' }))
 
-    expect(await screen.findByRole('heading', { name: 'All documents' })).toBeVisible()
+    expect(await screen.findByRole('table', { name: 'Documents' })).toBeVisible()
   })
 })
 
@@ -556,8 +554,11 @@ async function startDialog() {
   fireEvent.click(screen.getByRole('tab', { name: 'Add documents' }))
   fireEvent.click(await screen.findByRole('button', { name: 'Enter a standard manually' }))
   const dialog = screen.getByRole('dialog', { name: 'Enter a standard manually' })
+  // Source type is a dropdown (the design system's Select), chosen by its words; the rest are typed.
   const set = (label: string, value: string) =>
-    fireEvent.change(within(dialog).getByLabelText(field(label)), { target: { value } })
+    label === 'Source type'
+      ? pick(dialog, label, value)
+      : fireEvent.change(within(dialog).getByLabelText(field(label)), { target: { value } })
   return { dialog, set }
 }
 
@@ -567,22 +568,18 @@ describe('starting from an earlier edition', () => {
       documents: [DRAFT, EARLIER_PDF, EARLIER_MANUAL, UPLOADED],
     })
     const { dialog, set } = await startDialog()
-    set('Source type', 'nfpa_standard')
+    set('Source type', 'NFPA standard')
     set('Standard number', '13')
     set('Title', 'NFPA 13 Installation of Sprinkler Systems')
     set('Edition', '2026')
 
-    const from = await within(dialog).findByLabelText(field('Start from'))
-    expect(
-      within(from)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual([
+    await within(dialog).findByRole('combobox', { name: 'Start from' })
+    expect(optionWords('Start from', dialog)).toEqual([
       'A blank entry',
       'NFPA 13 Installation of Sprinkler Systems (2022 edition)',
       'NFPA 13 (typed in) (2019 edition, entered manually)',
     ])
-    fireEvent.change(from, { target: { value: 'nfpa13-2022' } })
+    pick(dialog, 'Start from', 'NFPA 13 Installation of Sprinkler Systems (2022 edition)')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Start entering' }))
 
     await waitFor(() => expect(sent[0]?.body).toMatchObject({ copyFrom: 'nfpa13-2022' }))
@@ -591,7 +588,7 @@ describe('starting from an earlier edition', () => {
   it('asks for the standard number before offering editions', async () => {
     mockGateway({ documents: [EARLIER_PDF] })
     const { dialog, set } = await startDialog()
-    set('Source type', 'nfpa_standard')
+    set('Source type', 'NFPA standard')
 
     expect(within(dialog).queryByLabelText(field('Start from'))).not.toBeInTheDocument()
   })
@@ -604,23 +601,27 @@ describe('working through the clauses', () => {
     clause(3, { indexed: false, indexError: 'down' }),
   ]
 
-  it('filters the list to the clauses left to check or that failed to embed', async () => {
+  it('filters the list to the clauses left to check or that are not searchable', async () => {
     mockGateway({ sections: MIXED() })
     const list = await openClauses(DRAFT.title)
-    const show = await within(list).findByLabelText('Show')
+    const choose = (option: string) => {
+      fireEvent.click(within(list).getByRole('button', { name: /^Clauses/ }))
+      fireEvent.click(screen.getByRole('option', { name: option }))
+    }
 
+    fireEvent.click(await within(list).findByRole('button', { name: 'Clauses' }))
     expect(
-      within(show)
+      within(screen.getByRole('listbox', { name: 'Clauses' }))
         .getAllByRole('option')
         .map((o) => o.textContent),
-    ).toEqual(['All clauses (3)', 'To check (1)', 'Failed to embed (1)'])
-    fireEvent.change(show, { target: { value: 'unchecked' } })
+    ).toEqual(['All clauses (3)', 'To check (1)', 'Not searchable (1)'])
+    fireEvent.click(screen.getByRole('option', { name: 'To check (1)' }))
     expect(
       within(list)
         .getAllByRole('button', { name: /^8\./ })
         .map((b) => b.textContent),
     ).toEqual([expect.stringMatching(/^8\.2/)])
-    fireEvent.change(show, { target: { value: 'failed' } })
+    choose('Not searchable (1)')
     expect(within(list).getByRole('button', { name: /^8\.3/ })).toBeInTheDocument()
     expect(within(list).queryByRole('button', { name: /^8\.1/ })).not.toBeInTheDocument()
   })
@@ -632,7 +633,9 @@ describe('working through the clauses', () => {
     const publish = await screen.findByRole('button', { name: 'Publish' })
 
     expect(publish).toHaveAttribute('aria-disabled', 'true')
-    expect(publish).toHaveAccessibleDescription(/1 clause is left to check and 1 failed to embed/)
+    expect(publish).toHaveAccessibleDescription(
+      /1 clause is left to check and 1 not searchable yet/,
+    )
   })
 
   it('says a draft with no clauses has nothing to publish yet', async () => {

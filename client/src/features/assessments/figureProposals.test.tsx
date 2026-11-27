@@ -92,7 +92,7 @@ describe('Section 4 proposed scores', () => {
     )
     expect(calls.some((c) => c.method === 'POST')).toBe(true)
     expect(marked('Fire Protection current score')).toBe(true)
-    expect(screen.getByText(/proposed by claude-test/)).toBeInTheDocument()
+    expect(screen.getByText(/Figures in violet were proposed/)).toBeInTheDocument()
     // The rating waits for the engineer's confirmation.
     expect(scoreRow()).toHaveTextContent('Not entered')
     expect(screen.getByRole('button', { name: 'Confirm figures' })).toBeInTheDocument()

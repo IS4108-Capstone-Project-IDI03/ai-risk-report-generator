@@ -11,6 +11,7 @@ import {
 import { withPhotos } from './photoStore'
 import { smoothAdapter } from './smoothAdapter'
 import { request } from '../assessments/api'
+import { toast } from '../../design-system'
 import { tryItRunning } from '../walkthrough/engine'
 
 /** The chat screen's link to POST /api/chat, read as AG-UI events (the gateway's format). */
@@ -84,12 +85,37 @@ export const chatStorage: ChatStorage = {
       (await request<Thread>('POST', CHATS, { message: { content: textOf(first.content) } })).data,
     getMessages: async (id) =>
       (await request<{ messages: Message[] }>('GET', `${CHATS}/${id}`)).data.messages,
-    updateThread: async (thread) =>
-      (await request<Thread>('PATCH', `${CHATS}/${thread.id}`, { title: thread.title })).data,
-    deleteThread: async (id) => {
-      await request('DELETE', `${CHATS}/${id}`)
-    },
+    // OpenUI fires rename and delete without waiting and swallows a failure, so each says how
+    // it went here (v2: a toast for every confirmed action); without this a failed rename just
+    // looked like nothing happened.
+    updateThread: (thread) =>
+      reported(
+        async () =>
+          (await request<Thread>('PATCH', `${CHATS}/${thread.id}`, { title: thread.title })).data,
+        'Chat renamed',
+        "Couldn't rename the chat",
+      ),
+    deleteThread: (id) =>
+      reported(
+        async () => {
+          await request('DELETE', `${CHATS}/${id}`)
+        },
+        'Chat deleted',
+        "Couldn't delete the chat",
+      ),
   },
+}
+
+/** Runs a chat-list change and shows a toast for its outcome; rethrows a failure so OpenUI undoes it. */
+async function reported<T>(run: () => Promise<T>, done: string, failed: string): Promise<T> {
+  try {
+    const result = await run()
+    toast.success(done)
+    return result
+  } catch (error) {
+    toast.error(failed, { description: error instanceof Error ? error.message : 'Try again.' })
+    throw error
+  }
 }
 
 /** For a message with siblings (retries, edited questions): all their ids and which one is shown (CB-04). */

@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { created } from '../new-assessment/testKit'
 import type { SiteLocation } from './api'
 import {
   buildingStack,
@@ -180,6 +181,15 @@ let observations: ReturnType<typeof observation>[] = []
 
 function mockGateway() {
   vi.stubGlobal('fetch', (url: string) => {
+    // The work list holds the assessment these tests open, assigned to the signed-in engineer.
+    if (url === '/api/assessments')
+      return json(200, [
+        {
+          ...created(REF, 'Tilbury Distribution Centre'),
+          client: 'Northgate Logistics',
+          status: 'capturing',
+        },
+      ])
     if (url === `/api/assessments/${REF}/capture-session`)
       return json(201, {
         session: { id: 's1', status: 'active', startedAt: '2026-09-29T08:00:00.000Z' },
@@ -232,7 +242,9 @@ describe('The Observations tab as buildings (CP-61)', () => {
   async function openStack() {
     render(<App />)
     await signIn()
-    fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+    fireEvent.click(
+      (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+    )
     fireEvent.click(screen.getByRole('tab', { name: /^Observations/ }))
     fireEvent.click(await screen.findByRole('radio', { name: 'Buildings' }))
     await cell(/^Block A › Ground › Loading bay: 2 observations/)
@@ -267,8 +279,7 @@ describe('The Observations tab as buildings (CP-61)', () => {
     const roof = await cell(/^Block A › Roof › Roof plant: Nothing recorded$/)
     expect(roof).toHaveAttribute('data-tone', 'empty')
     expect(roof).toHaveTextContent('Roof plantNothing recorded')
-    // With the demo assessment's own three sample observations, each at its own location.
-    expect(screen.getByText('8 locations · 2 with nothing recorded · 7 observations')).toBeVisible()
+    expect(screen.getByText('5 locations · 2 with nothing recorded · 4 observations')).toBeVisible()
   })
 
   it('leaves deleted observations out of the counts', async () => {
@@ -345,8 +356,10 @@ describe('The Observations tab as buildings (CP-61)', () => {
     // One with nothing recorded still reads so, whatever the filter.
     expect(await cell(/Roof plant: Nothing recorded$/)).toBeInTheDocument()
     expect(
-      screen.getByText('8 locations · 2 with nothing recorded · 2 of 7 observations'),
+      screen.getByText('5 locations · 2 with nothing recorded · 1 of 4 observations'),
     ).toBeVisible()
+    // The colour key opens from its pill (redesign round 2: one line, the list in a popover).
+    fireEvent.click(screen.getByRole('button', { name: 'Colour key' }))
     expect(
       within(screen.getByRole('list', { name: /^Worst severity/ })).getByText('No match'),
     ).toBeVisible()
@@ -361,16 +374,13 @@ describe('The Observations tab as buildings (CP-61)', () => {
       .getAllByRole('row')
       .slice(1)
       .map((row) => [...row.querySelectorAll('th, td')].map((c) => c.textContent))
-    // In the CP-16 order; the last building and Pump house are the demo assessment's samples.
+    // In the CP-16 order.
     expect(rows).toEqual([
       ['Loading bayBlock A › Ground', '2', 'Critical'],
       ['Server roomBlock A › Level 2', '1', 'High'],
       ['Roof plantBlock A › Roof', '0', '–'],
       ['WorkshopBlock B › Ground', '1', 'Moderate'],
-      ['Bay 1 — despatchWarehouse › Ground', '1', 'Moderate'],
-      ['Bay 3 — north aisleWarehouse › Ground', '1', 'Critical'],
       ['GuardhouseElsewhere on site', '0', '–'],
-      ['Pump houseElsewhere on site', '1', 'High'],
     ])
     fireEvent.click(screen.getByRole('button', { name: 'Hide table' }))
     expect(screen.queryByRole('table')).toBeNull()

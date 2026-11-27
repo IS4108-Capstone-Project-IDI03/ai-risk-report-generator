@@ -15,6 +15,7 @@ import {
   locationSchema,
 } from './location.service'
 import { createWalkObservation, type WalkEvidence } from './observation.service'
+import { settleWalkItems } from './site-walk-notice.service'
 import {
   InvalidSiteWalkError,
   loadWalk,
@@ -236,5 +237,6 @@ export async function createAll(
     { status: 'created' },
     { returnDocument: 'after' },
   ).lean<StoredWalk>()
+  await settleWalkItems(walk._id, user.id, 'done')
   return idsOf(done!, proposal)
 }

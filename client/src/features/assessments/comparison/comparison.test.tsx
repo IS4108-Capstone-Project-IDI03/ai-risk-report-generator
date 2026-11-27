@@ -2,8 +2,17 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { ComparisonItem, ComparisonPage, CurrentSource } from './api'
+import { SeverityShift } from './ComparisonDetail'
 import { ComparisonTab } from './ComparisonTab'
-import { filterItems, NO_FILTERS, outcomePill, shownLine } from './comparisonDisplay'
+import {
+  confirmedCount,
+  filterItems,
+  measuredChanges,
+  NO_FILTERS,
+  outcomePill,
+  shownLine,
+} from './comparisonDisplay'
+import { selectField } from '../../../design-system/components/forms/selectTestHelpers'
 
 // RV-13: the Comparison tab, from the gateway's answers (a stubbed fetch).
 
@@ -304,7 +313,7 @@ describe('The Comparison tab (RV-13)', () => {
     gateway(() => ({ body: page() }))
     show()
 
-    fireEvent.change(await screen.findByLabelText('Outcome'), { target: { value: 'new' } })
+    fireEvent.click(await screen.findByRole('button', { name: '1 New' }))
 
     expect(screen.getByText('Showing 1 of 3 items')).toBeInTheDocument()
     expect(
@@ -337,6 +346,8 @@ describe('The Comparison tab (RV-13)', () => {
     fireEvent.click(within(panel).getByRole('button', { name: 'Accept' }))
 
     expect(await screen.findByText('Accepted by Alex Rowe on 24 Nov 2026')).toBeInTheDocument()
+    // Accepted, there is nothing left to accept.
+    expect(within(panel).queryByRole('button', { name: 'Accept' })).toBeNull()
     expect(calls.at(-1)).toMatchObject({
       method: 'POST',
       url: '/api/assessments/RPT-2026-0801/comparison/c1/items/P%3A9%3A0.0/decision',
@@ -357,6 +368,45 @@ describe('The Comparison tab (RV-13)', () => {
       await screen.findByText('Add a short note saying how you know it was fixed.'),
     ).toBeInTheDocument()
     expect(calls.filter((c) => c.method === 'POST')).toHaveLength(0)
+  })
+
+  it('re-pairing a Not checked item with evidence starts it at Unchanged, never Worse', async () => {
+    const calls = gateway(() => ({ body: page() }))
+    show()
+    fireEvent.click(await screen.findByText('The sprinkler valve was chained but not locked.'))
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-pair' }))
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /Roller shutter in the fire wall/ }))
+
+    expect(selectField('Outcome')).toHaveTextContent(/^Unchanged$/)
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await vi.waitFor(() =>
+      expect(calls.at(-1)).toMatchObject({
+        method: 'POST',
+        body: { action: 'pair', sources: ['O:o2'], outcome: 'unchanged' },
+      }),
+    )
+  })
+
+  it('drops the Dismissed filter once its last item is restored', async () => {
+    const dismissed = { ...NEW, dismissed: true }
+    const counts = { ...page().comparison!.counts, new: 0, dismissed: 1 }
+    const restored = page()
+    gateway((call) =>
+      call.method === 'POST'
+        ? { body: restored }
+        : {
+            body: page({
+              comparison: { ...page().comparison!, items: [WORSE, dismissed, NOT_CHECKED], counts },
+            }),
+          },
+    )
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: '1 Dismissed' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore' }))
+
+    expect(await screen.findByText('Showing 3 items')).toBeInTheDocument()
+    expect(screen.queryByText('No item matches these filters.')).toBeNull()
   })
 
   it('is read only for anyone but the assigned engineer', async () => {
@@ -405,6 +455,18 @@ describe('Comparison display rules', () => {
     expect(filterItems(items, { ...NO_FILTERS, location: 'Warehouse, Level 1' })).toEqual([])
   })
 
+  it('shows one severity when both reports agree, and the move when they differ', () => {
+    render(
+      <>
+        <SeverityShift severity={{ previous: 'Low', current: 'Low', direction: 0 }} />
+        <SeverityShift severity={{ previous: 'High', current: 'Critical', direction: 1 }} />
+      </>,
+    )
+    expect(screen.queryByText(/Low.*Low/)).toBeNull()
+    expect(screen.getByText('Low')).toBeInTheDocument()
+    expect(screen.getByText(/High/).textContent).toBe('High →  to Critical')
+  })
+
   it('marks a suggestion in AI violet and a decision in neutral', () => {
     expect(outcomePill(WORSE)).toMatchObject({ label: 'Worse', tone: 'ai' })
     expect(
@@ -421,5 +483,19 @@ describe('Comparison display rules', () => {
     ).toBe('neutral')
     expect(outcomePill({ ...WORSE, outcome: null }).label).toBe('Sources disagree')
     expect(shownLine(1, 1)).toBe('Showing 1 item')
+  })
+
+  it('sums up measured figures once each, and counts confirmed outcomes', () => {
+    const twin = { ...WORSE, key: 'P:4:0.0' }
+    const decided = {
+      ...NEW,
+      decided: { action: 'accept', by: { id: 'u', name: 'A' }, at: '', note: null, carried: false },
+    }
+    expect(measuredChanges([WORSE, twin, NOT_CHECKED]).map((m) => m.item.key)).toEqual(['P:9:0.0'])
+    expect(measuredChanges([{ ...WORSE, dismissed: true }])).toEqual([])
+    expect(confirmedCount([WORSE, decided, { ...NOT_CHECKED, dismissed: true }])).toEqual({
+      done: 1,
+      of: 2,
+    })
   })
 })

@@ -79,6 +79,19 @@ describe('Dialog', () => {
 
     expect(dialog).toHaveAttribute('open')
   })
+
+  it('returns focus to the opener without scrolling the page', () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    const focus = vi.spyOn(opener, 'focus')
+    const { unmount } = render(<Dialog title="Ask">body</Dialog>)
+
+    unmount()
+
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true })
+    opener.remove()
+  })
 })
 
 const phone = (yes: boolean) =>

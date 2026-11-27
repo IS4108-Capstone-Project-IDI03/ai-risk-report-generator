@@ -35,10 +35,10 @@ export function EditDetailsDialog({
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" loading={busy} onClick={() => save(onSaved)}>
+          <Button pill variant="primary" loading={busy} onClick={() => save(onSaved)}>
             Save details
           </Button>
         </>

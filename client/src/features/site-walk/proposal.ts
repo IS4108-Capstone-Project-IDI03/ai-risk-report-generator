@@ -68,7 +68,7 @@ export type ObservationPatch = Partial<
 > & {
   // null clears the tags (CP-36): the key is then left off the observation.
   kinds?: Kind[] | null
-  confirm?: ('category' | 'severity')[]
+  confirm?: ('location' | 'category' | 'severity')[]
 }
 
 // Sets (or, with null or empty, removes) the tags; undefined leaves them as they are.
@@ -87,6 +87,7 @@ export function updateObservation(p: Proposal, ref: string, patch: ObservationPa
     ...fields,
     check: {
       ...o.check,
+      location: o.check.location && !('locationRef' in fields) && !confirm.includes('location'),
       category: o.check.category && !('copeDimension' in fields) && !confirm.includes('category'),
       severity: o.check.severity && !('severity' in fields) && !confirm.includes('severity'),
     },
@@ -214,8 +215,11 @@ export function removeLocation(p: Proposal, ref: string): Proposal {
 // proposal and the ref the observations now use.
 export function sameAs(p: Proposal, ref: string, existing: SiteLocation) {
   const linked = p.locations.find((l) => l.existingId === existing.id && l.ref !== ref)
+  // Naming the existing location settles any doubt the AI had about the place.
+  const settle = (o: ProposedObservation) =>
+    o.locationRef === ref ? { ...o, check: { ...o.check, location: false } } : o
   const move = (o: ProposedObservation) =>
-    o.locationRef === ref ? { ...o, locationRef: linked!.ref } : o
+    o.locationRef === ref ? { ...settle(o), locationRef: linked!.ref } : o
   if (linked)
     return {
       proposal: {
@@ -225,11 +229,11 @@ export function sameAs(p: Proposal, ref: string, existing: SiteLocation) {
       },
       ref: linked.ref,
     }
-  const kind: ProposedLocation['kind'] =
-    existing.building || existing.floor ? 'building' : 'elsewhere'
+  const kind = kindOf(existing)
   return {
     proposal: {
       ...p,
+      observations: p.observations.map(settle),
       locations: p.locations.map((l) =>
         l.ref === ref
           ? {
@@ -245,6 +249,29 @@ export function sameAs(p: Proposal, ref: string, existing: SiteLocation) {
     },
     ref,
   }
+}
+
+// An assessment location's kind, as a proposed location stores it.
+const kindOf = (l: SiteLocation): ProposedLocation['kind'] =>
+  l.building || l.floor ? 'building' : 'elsewhere'
+
+/**
+ * Returns the proposal with one observation at an assessment location that the walk did not name,
+ * linking that location into the proposal first (or reusing the link). Without this, a finding with
+ * no place could only be placed at a location the walk itself proposed.
+ */
+export function placeAtExisting(p: Proposal, ref: string, existing: SiteLocation): Proposal {
+  const linked = p.locations.find((l) => l.existingId === existing.id)
+  const location: ProposedLocation = linked ?? {
+    ref: nextRef('loc', p.locations),
+    existingId: existing.id,
+    kind: kindOf(existing),
+    building: existing.building,
+    floor: existing.floor,
+    name: existing.name,
+  }
+  const next = linked ? p : { ...p, locations: [...p.locations, location] }
+  return updateObservation(next, ref, { locationRef: location.ref })
 }
 
 // The location as a form fills it in, for Rename.
@@ -263,13 +290,19 @@ export const lacksNote = (o: ProposedObservation) => !o.note.trim() && !o.mediaI
 export const lacksValue = (o: ProposedObservation) =>
   lacksNote(o) || !o.locationRef || !o.copeDimension || !o.severity
 
-/** Returns whether the AI was not sure of the category or severity; never blocks Create all. */
-export const isNotSure = (o: ProposedObservation) => o.check.category || o.check.severity
+/** Returns whether the AI was not sure of the place, category or severity; never blocks Create all. */
+export const isNotSure = (o: ProposedObservation) =>
+  o.check.location || o.check.category || o.check.severity
 
-/** Returns the amber reason under a not-sure row: "Check category and severity". */
-export const notSureReason = (o: ProposedObservation) =>
-  'Check ' +
-  [o.check.category && 'category', o.check.severity && 'severity'].filter(Boolean).join(' and ')
+/** Returns the amber reason under a not-sure row: "Check location, category and severity". */
+export function notSureReason(o: ProposedObservation) {
+  const words = [
+    o.check.location && 'location',
+    o.check.category && 'category',
+    o.check.severity && 'severity',
+  ].filter(Boolean)
+  return 'Check ' + [words.slice(0, -1).join(', '), words.at(-1)].filter(Boolean).join(' and ')
+}
 
 /** Returns what an observation still needs, as words for its row: ["location", "severity"]. */
 export const missingFields = (o: ProposedObservation) =>

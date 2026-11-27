@@ -1,11 +1,20 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import '@testing-library/jest-dom/vitest'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { signIn } from '../../test/session'
+import { chooseOption, selectField } from '../../design-system/components/forms/selectTestHelpers'
+import { created } from '../new-assessment/testKit'
 import { checkReady } from './generation/fixtures'
 
-// Deliberately differs from the demo data, so passing tests prove the capture
+// Tilbury on the engineer's work list, as the gateway sends it.
+const TILBURY = {
+  ...created('RPT-2026-0411', 'Tilbury Distribution Centre'),
+  client: 'Northgate Logistics',
+  status: 'capturing',
+}
+
+// Deliberately differs from the work list's Tilbury, so passing tests prove the capture
 // screen names the assessment from the server response.
 const CAPTURE = {
   session: {
@@ -42,7 +51,9 @@ function mockGateway(...replies: (() => Promise<Response>)[]) {
     url.startsWith('/api/background-work')
       ? unreachable()
       : init?.method === 'GET'
-        ? listReply()
+        ? url === '/api/assessments' || !/\/(locations|observations)/.test(url)
+          ? listReply()
+          : respond(200, [])
         : // The walkthrough record's save after a real Create (F-12) is not one of the replies below.
           url === '/api/settings/me'
           ? Promise.resolve(new Response(null, { status: 204 }))
@@ -59,9 +70,12 @@ function choose(pill: string | RegExp, choice: string) {
   fireEvent.click(screen.getByRole('button', { name: pill }))
   fireEvent.click(screen.getByRole('menuitemradio', { name: choice }))
 }
-function openCapture() {
-  // Open the assessment from the work list; capture starts from its Observations tab.
-  fireEvent.click(screen.getAllByRole('button', { name: /^Tilbury Distribution Centre/ })[0])
+async function openCapture() {
+  // Open the assessment from the work list (its grey placeholder rows go once the list has
+  // answered); capture starts from its Observations tab.
+  fireEvent.click(
+    (await screen.findAllByRole('button', { name: /^Tilbury Distribution Centre/ }))[0],
+  )
   fireEvent.click(screen.getByRole('tab', { name: /Observations/ }))
   fireEvent.click(screen.getByRole('button', { name: 'Add observation' }))
   fireEvent.click(screen.getByRole('button', { name: /^Add observation manually/ }))
@@ -83,12 +97,16 @@ afterEach(() => {
 })
 
 describe('Capture session (CP-01)', () => {
+  beforeEach(() => {
+    listReply = () => respond(200, [TILBURY])
+  })
+
   it('starts a session only when capture opens', async () => {
     const fetchMock = mockGateway(() => respond(201))
     await openApp()
     expect(fetchMock).not.toHaveBeenCalled()
 
-    openCapture()
+    await openCapture()
 
     // The live light sits beside the assessment in the navigation's Recent list.
     expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
@@ -102,7 +120,7 @@ describe('Capture session (CP-01)', () => {
     mockGateway(() => respond(201))
     await openApp()
 
-    openCapture()
+    await openCapture()
 
     await screen.findByRole('img', { name: 'live' })
     // The workspace header names the assessment the session is for.
@@ -115,7 +133,7 @@ describe('Capture session (CP-01)', () => {
     mockGateway(() => new Promise<Response>((resolve) => (start = resolve)))
     await openApp()
 
-    openCapture()
+    await openCapture()
 
     const save = screen.getByRole('button', { name: 'Save observation' })
     // While the session starts, Save is busy and does nothing (the phone's bar is not a native
@@ -132,12 +150,12 @@ describe('Capture session (CP-01)', () => {
       () => respond(200),
     )
     await openApp()
-    openCapture()
+    await openCapture()
     await screen.findByRole('img', { name: 'live' })
 
     fireEvent.click(screen.getByRole('button', { name: 'Back to Observations' }))
     expect(screen.queryByRole('button', { name: 'Save observation' })).not.toBeInTheDocument()
-    openCapture()
+    await openCapture()
 
     // The same session carries on, with no notice either way.
     await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
@@ -145,59 +163,53 @@ describe('Capture session (CP-01)', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   }, 10000)
 
-  it('keeps sample data usable when the gateway cannot be reached, then retries', async () => {
+  it('says why nothing can be saved when the gateway cannot be reached, then retries', async () => {
     const fetchMock = mockGateway(
       () => Promise.reject(new TypeError('Failed to fetch')),
       () => respond(201),
     )
     await openApp()
-    openCapture()
+    await openCapture()
 
-    const notice = await screen.findByRole('status')
-    await screen.findByText('Showing sample data')
-    expect(screen.queryByRole('img', { name: 'live' })).not.toBeInTheDocument()
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent('Can’t save right now')
     expect(notice).toHaveTextContent(
-      'No capture session was started: the gateway could not be reached.',
+      'Can’t reach the server. Check your connection, then try again.',
     )
+    expect(screen.queryByRole('img', { name: 'live' })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(
       'Tilbury Distribution Centre',
     )
-    // The Observations tab, still on show, counts what is saved.
-    expect(screen.getByRole('tab', { name: 'Observations 3' })).toBeInTheDocument()
-    // Without the gateway, the sample assessment offers its sample locations,
-    // by building, then elsewhere on site (CP-16).
-    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site/, expanded: false }))
-    fireEvent.click(screen.getByRole('button', { name: /^Elsewhere on site › Pump house/ }))
-    fireEvent.change(screen.getByRole('textbox', { name: 'Note' }), {
-      target: { value: 'Offline sprinkler observation' },
-    })
-    fireEvent.click(screen.getByRole('radio', { name: 'Moderate' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save observation' }))
-    expect(await screen.findByText('Observation saved in this demo only.')).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Observations 4' })).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
-
-    // Once the session starts, the warning goes.
-    expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
+    // Nothing is kept on this device instead: Save waits for a session.
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeDisabled()
     expect(screen.queryByText('Showing sample data')).not.toBeInTheDocument()
+
+    fireEvent.click(within(notice).getByRole('button', { name: 'Try again' }))
+
+    // Once the session starts, the notice goes and Save is back.
+    expect(await screen.findByRole('img', { name: 'live' })).toBeInTheDocument()
+    expect(screen.queryByText('Can’t save right now')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeEnabled()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
   it.each([
-    [502, 'the gateway could not be reached', 'Start the gateway'],
-    [404, 'RPT-2026-0411 is not on the server', 'Seed the sample assessment or create a new one'],
-    [500, 'the gateway returned HTTP 500', 'Check the gateway logs'],
-  ])('explains an HTTP %i from the gateway', async (status, cause, next) => {
+    [502, 'Can’t reach the server. Check your connection, then try again.'],
+    [
+      404,
+      'This assessment isn’t on the server any more. Go back to Assessments and open it again.',
+    ],
+    [500, 'The server had a problem. Try again in a moment.'],
+  ])('explains an HTTP %i from the gateway', async (status, line) => {
     mockGateway(() => respond(status, { error: 'unused' }))
     await openApp()
 
-    openCapture()
+    await openCapture()
 
-    await screen.findByText('Showing sample data')
-    const notice = screen.getByRole('status')
-    expect(notice).toHaveTextContent(`No capture session was started: ${cause}.`)
-    expect(notice).toHaveTextContent(next)
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent('Can’t save right now')
+    expect(notice).toHaveTextContent(line)
+    expect(screen.getByRole('button', { name: 'Save observation' })).toBeDisabled()
   })
 })
 
@@ -275,11 +287,9 @@ function createFromForm() {
     target: { value: 'Jurong Distribution Hub' },
   })
   fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
-  fireEvent.change(screen.getByLabelText(/^Jurisdiction/), { target: { value: 'MY' } })
+  chooseOption(/^Jurisdiction/, 'Malaysia')
   // The facility type starts empty on the new form, so it is chosen here.
-  fireEvent.change(screen.getByLabelText(/^Facility type/), {
-    target: { value: 'Distribution warehouse' },
-  })
+  chooseOption(/^Facility type/, 'Distribution warehouse')
   fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
 }
 const CREATE_ONE = 'Create'
@@ -331,7 +341,7 @@ describe('Create assessment (CP-01)', () => {
     startFromForm()
     expect(screen.getByLabelText(/^Site name/)).toHaveValue('')
     expect(screen.getByLabelText(/^Client name/)).toHaveValue('')
-    expect(screen.getByLabelText(/^Jurisdiction/)).toHaveValue('SG')
+    expect(selectField(/^Jurisdiction/)).toHaveTextContent('Singapore')
   })
 
   it('opens a created assessment in its workspace, then captures against it', async () => {
@@ -474,9 +484,7 @@ describe('Create assessment (CP-01)', () => {
     createFromForm()
 
     expect(await screen.findByText('Nothing created')).toBeInTheDocument()
-    expect(
-      await screen.findByText(/The gateway could not be reached\. Try again\./),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/Can't reach the server\. Try again\./)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'New Assessment' })).toBeInTheDocument()
   })
 })
@@ -595,7 +603,7 @@ describe('A client’s sites (CP-17)', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /Kent Ridge campus/ }))
     fireEvent.click(screen.getByRole('button', { name: 'New site' }))
     type(screen.getByLabelText(/^Site name/), 'Outram campus')
-    type(screen.getByLabelText(/^Facility type/), 'Distribution warehouse')
+    chooseOption(/^Facility type/, 'Distribution warehouse')
     type(screen.getByLabelText(/^Address/), '1 Outram Road')
     create('Create')
     await screen.findByText(/RPT-2026-0001 created/)
@@ -610,7 +618,7 @@ describe('A client’s sites (CP-17)', () => {
     type(screen.getByLabelText(/^Client name/), 'Changi Airprot Group')
     expect(screen.getByText(/Did you mean/)).toHaveTextContent('Did you mean Changi Airport Group?')
     type(screen.getByLabelText(/^Site name/), 'Terminal 5')
-    type(screen.getByLabelText(/^Facility type/), 'Distribution warehouse')
+    chooseOption(/^Facility type/, 'Distribution warehouse')
     type(screen.getByLabelText(/^Address/), 'Airport Boulevard')
 
     // Creating without taking the suggestion keeps the name as typed.
@@ -702,11 +710,14 @@ describe('Work list (RV-10)', () => {
       ['Far', 8, 8, 'not_started'],
       ['Done', -2, 1, 'finalised'],
       ['Shelved', -2, 2, 'archived'],
+      // Exported (AS-06 stage) is finished too: past its due date, it is not late.
+      ['Exported', -2, -12, 'under_review'],
     ]
     listReply = () =>
       respond(
         200,
         cases.map(([name, due, visit, status], i) => ({
+          ...(name === 'Exported' && { stage: 'exported' }),
           ...CREATED,
           id: `case-${i}`,
           reference: `RPT-CASE-${i}`,
@@ -722,8 +733,8 @@ describe('Work list (RV-10)', () => {
     // Grouped by client, then site in name order.
     const shown = () =>
       screen.getAllByRole('button', { name: /^Case/ }).map((b) => b.getAttribute('data-id'))
-    // Archived work is hidden until Status is Archived: 6 of the 7.
-    expect(results()).toHaveTextContent('6 assessments')
+    // Archived work is hidden until Status is Archived: 7 of the 8.
+    expect(results()).toHaveTextContent('7 assessments')
 
     // Each row counts down to its report due date, or is marked overdue.
     const row = (name: string) =>
@@ -734,6 +745,7 @@ describe('Work list (RV-10)', () => {
     expect(row('Far')).toHaveTextContent('in 8 days')
     // Finished work shows its date alone, never late.
     expect(row('Done')).not.toHaveTextContent(/late|today|in \d+ days/)
+    expect(row('Exported')).not.toHaveTextContent(/late|today|in \d+ days/)
 
     // The footer's late link applies the Late choice of the Report due pill.
     expect(screen.getByRole('button', { name: '1 report late' })).toBeInTheDocument()
@@ -752,7 +764,7 @@ describe('Work list (RV-10)', () => {
 
     // Any report due clears the pill and shows every assessment.
     choose('Report due: Site visit within 7 days', 'Any report due')
-    expect(results()).toHaveTextContent('6 assessments')
+    expect(results()).toHaveTextContent('7 assessments')
   })
 
   it('filters by stage and searches by site and client', async () => {
@@ -778,12 +790,14 @@ describe('Work list (RV-10)', () => {
     expect(results()).toHaveTextContent('1 assessment')
   })
 
-  it('shows the sample assessments when the gateway cannot be reached', async () => {
+  it('shows no rows, only that the list can’t load, when the gateway cannot be reached', async () => {
     mockGateway()
     await openApp()
 
-    expect(await screen.findByText('Showing sample assessments')).toBeInTheDocument()
-    expect(results()).toHaveTextContent('6 assessments')
+    expect(await screen.findByText('Can’t load assessments')).toBeInTheDocument()
+    expect(screen.queryByText('Showing sample assessments')).not.toBeInTheDocument()
+    expect(screen.queryByText('Tilbury Distribution Centre')).not.toBeInTheDocument()
+    expect(document.querySelector('.at-row')).toBeNull()
   })
 
   // CP-23: one date format on every screen ("5 Sep 2026", never "05 Sept"),
@@ -1134,9 +1148,7 @@ it('assigns new assessments to me, with no engineer to choose (CP-23 AC10)', asy
   expect(screen.queryByText('Assigned engineer')).not.toBeInTheDocument()
   fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: CREATED.site.name } })
   fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
-  fireEvent.change(screen.getByLabelText(/^Facility type/), {
-    target: { value: 'Distribution warehouse' },
-  })
+  chooseOption(/^Facility type/, 'Distribution warehouse')
   fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: CREATED.client } })
   fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
   await screen.findByText(/RPT-2026-0001 created/)
@@ -1156,9 +1168,7 @@ it('keeps work assigned to someone else out of my list', async () => {
   startFromForm()
   fireEvent.change(screen.getByLabelText(/^Site name/), { target: { value: CREATED.site.name } })
   fireEvent.change(screen.getByLabelText(/^Address/), { target: { value: '2 Jurong Port Rd' } })
-  fireEvent.change(screen.getByLabelText(/^Facility type/), {
-    target: { value: 'Distribution warehouse' },
-  })
+  chooseOption(/^Facility type/, 'Distribution warehouse')
   fireEvent.change(screen.getByLabelText(/^Client name/), { target: { value: CREATED.client } })
   fireEvent.click(screen.getByRole('button', { name: CREATE_ONE }))
   await screen.findByText(/RPT-2026-0001 created/)
@@ -1355,7 +1365,7 @@ it('archives from a list row with the same confirm, and Undo restores it (CP-23 
   ])
 })
 
-it('offers Archive on the demo assessment too, from its saved record', async () => {
+it('offers Archive on a saved assessment, from its saved record', async () => {
   const tilburyRecord = {
     ...CREATED,
     reference: 'RPT-2026-0411',
@@ -1366,7 +1376,7 @@ it('offers Archive on the demo assessment too, from its saved record', async () 
     respond(200, url === '/api/assessments' ? [tilburyRecord] : []),
   )
   await openApp()
-  // Grouped by client, the sample rows give way to the saved record's group.
+  // Grouped by client, the saved record has its own group.
   const tilbury = within(
     await screen.findByRole('region', { name: /^Straits Logistics/ }),
   ).getByRole('button', { name: /^Tilbury Distribution Centre/ })
@@ -1426,19 +1436,17 @@ it('edits my assessment details from its Details panel, keeping its engineer (RV
   // Only this visit's own details, from the saved ones: the site and client
   // change for all their assessments elsewhere (CP-18), and the engineer stays.
   const dialog = screen.getByRole('dialog', { name: 'Edit Assessment Details' })
-  expect(within(dialog).getByLabelText(/Assessment Type/)).toHaveValue('Property risk survey')
+  expect(selectField(/Assessment Type/, dialog)).toHaveTextContent('Property risk survey')
   expect(within(dialog).getByLabelText(/Survey Date/)).toHaveValue('21/04/2026')
   expect(within(dialog).getByLabelText(/Report Due Date/)).toHaveValue('02/05/2026')
   expect(within(dialog).queryByLabelText(/Site name/)).not.toBeInTheDocument()
   expect(within(dialog).queryByLabelText(/^Client/)).not.toBeInTheDocument()
 
-  fireEvent.change(within(dialog).getByLabelText(/Assessment Type/), {
-    target: { value: 'Follow-up visit' },
-  })
+  chooseOption(/Assessment Type/, 'Follow-up visit', dialog)
   // A rejected save names the problem beside its field and keeps the changes (AC11).
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
   expect(await within(dialog).findByText(/on or after the site visit date/)).toBeInTheDocument()
-  expect(within(dialog).getByLabelText(/Assessment Type/)).toHaveValue('Follow-up visit')
+  expect(selectField(/Assessment Type/, dialog)).toHaveTextContent('Follow-up visit')
 
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save Changes' }))
   await screen.findByText('Details updated')
@@ -1494,12 +1502,10 @@ it('corrects the site from Details for every assessment at it, asking first abou
   expect(
     within(dialog).getByText('Changes apply to the 2 assessments at this site.'),
   ).toBeInTheDocument()
-  fireEvent.change(within(dialog).getByLabelText(/Facility type/), {
-    target: { value: 'Cold store' },
-  })
+  chooseOption(/Facility type/, 'Cold store', dialog)
   fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }))
   // A new scope changes what drafting retrieves, so it asks first.
-  expect(within(dialog).getByText(/changes the 2 assessments/)).toBeInTheDocument()
+  expect(within(dialog).getByText(/standards used for the 2 assessments/)).toBeInTheDocument()
   expect(corrections).toHaveLength(0)
   fireEvent.click(within(dialog).getByRole('button', { name: 'Change scope' }))
 

@@ -1153,6 +1153,25 @@ describe('telling the engineer (F-10)', () => {
     expect(await notes('site_walk_failed')).toHaveLength(1)
   })
 
+  it('moves the walk’s Inbox item to Done once Create all adds it', async () => {
+    const walk = await readyWalk()
+    expect((await notes('site_walk_ready'))[0].readBy).toEqual([])
+
+    expect((await api.post(`${base}/${walk.id}/create`)).status).toBe(200)
+
+    expect((await notes('site_walk_ready'))[0].readBy).toEqual([String(actor._id)])
+    const inbox = await api.get('/api/notifications?kind=inbox')
+    expect(inbox.body.items.filter((i: { read: boolean }) => !i.read)).toEqual([])
+  })
+
+  it('bins the walk’s Inbox item when the walk is deleted, since what it opens is gone', async () => {
+    const walk = await readyWalk()
+
+    expect((await api.delete(`${base}/${walk.id}`)).status).toBe(204)
+
+    expect((await notes('site_walk_ready'))[0].dismissedBy).toEqual([String(actor._id)])
+  })
+
   it('does not tell them of the failure again when the retry succeeds', async () => {
     await seed()
     const walk = await startWalk()

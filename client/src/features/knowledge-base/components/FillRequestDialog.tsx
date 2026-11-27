@@ -9,12 +9,16 @@ import {
   type KnowledgeDocument,
   type KnowledgeGapRequest,
 } from '../api'
-import { calendarDate, needsReview } from '../display'
+import { needsReview } from '../display'
 import { RequestQuote } from './RequestQuote'
 
-// e.g. "21 Oct 2026 10:18": the design system's literal date with its year, then the time.
-const uploadedWhen = (iso: string) =>
-  `${calendarDate(iso)} ${new Date(iso).toTimeString().slice(0, 5)}`
+// e.g. "21 Oct 2026 10:18": the design system's literal date with its year, then the time, both
+// in the admin's own time zone (calendarDate is UTC, which put a just-after-midnight upload on
+// the day before).
+const uploadedWhen = (iso: string) => {
+  const date = new Date(iso)
+  return `${date.getDate()} ${date.toLocaleString('en-GB', { month: 'short' }).slice(0, 3)} ${date.getFullYear()} ${date.toTimeString().slice(0, 5)}`
+}
 
 /** Returns the mark-as-filled dialog for one request. */
 export function FillRequestDialog({
@@ -44,7 +48,7 @@ export function FillRequestDialog({
             .filter((d) => !d.withdrawn && !needsReview(d))
             .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)),
         ),
-      () => !controller.signal.aborted && setProblem('The documents could not be loaded.'),
+      () => !controller.signal.aborted && setProblem("Couldn't load the documents."),
     )
     return () => controller.abort()
   }, [])
@@ -68,16 +72,17 @@ export function FillRequestDialog({
 
   return (
     <Dialog
+      className="kb-fill-dialog"
       title="Mark as filled"
       description={`Pick the documents you added. ${request.askedBy.name} is told each one's title and upload time.`}
       width={560}
       onClose={busy ? undefined : onClose}
       footer={
         <>
-          <Button variant="secondary" disabled={busy} onClick={onClose}>
+          <Button pill variant="secondary" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="primary" loading={busy} disabled={!picked.length} onClick={confirm}>
+          <Button pill variant="primary" loading={busy} disabled={!picked.length} onClick={confirm}>
             Mark as filled
           </Button>
         </>

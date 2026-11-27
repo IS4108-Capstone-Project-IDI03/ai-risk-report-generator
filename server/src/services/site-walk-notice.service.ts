@@ -8,6 +8,7 @@
 // an admin who holds the assessment.
 import type { Types } from 'mongoose'
 import { AssessmentModel } from '../models/assessment.model'
+import { NotificationModel } from '../models/notification.model'
 import { SiteWalkModel } from '../models/site-walk.model'
 import { clientNameOf } from './client.service'
 import { audienceOf, createNotification } from './notification.service'
@@ -82,5 +83,30 @@ export async function notifyFailed(walkId: Types.ObjectId | string) {
     })
   } catch (error) {
     console.error('Could not create the site walk failure notification:', error)
+  }
+}
+
+/**
+ * Settles a walk's Inbox items for the engineer who finished with it: added to the
+ * assessment, they move to Done; deleted, they are binned (the walk they open is gone).
+ * Without this, "Review site walk" stayed in To do after Create all. Never throws:
+ * the walk is already added or deleted, and a notification error must not undo that.
+ */
+export async function settleWalkItems(
+  walkId: Types.ObjectId | string,
+  userId: string,
+  how: 'done' | 'deleted',
+) {
+  try {
+    await NotificationModel.updateMany(
+      {
+        kind: 'inbox',
+        purpose: { $in: ['site_walk_ready', 'site_walk_failed'] },
+        'context.walkId': String(walkId),
+      },
+      { $addToSet: how === 'done' ? { readBy: userId } : { dismissedBy: userId } },
+    )
+  } catch (error) {
+    console.error('Could not settle the site walk Inbox items:', error)
   }
 }

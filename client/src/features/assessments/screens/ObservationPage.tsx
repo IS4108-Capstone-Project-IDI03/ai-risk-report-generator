@@ -94,7 +94,7 @@ export function ObservationPage({
             : o.deleted
               ? 'Deleted Observations'
               : 'Observations'
-  const hasRecordings = o.recordings.length > 0 || o.hasAudio
+  const hasRecordings = o.recordings.length > 0
   // Opened from the list or by the stepper, it starts at its top.
   const top = useRef<HTMLDivElement>(null)
   // Braces matter: newer Chrome's scrollIntoView returns a promise, and an effect
@@ -200,8 +200,9 @@ export function ObservationPage({
       {/* c. The cards: the left column never ends above Details (the Note card grows to it). */}
       <div className="cpp-body">
         <div className="cpp-main">
+          {/* Each remounts for another observation; sibling keys must differ (React warned). */}
           <ObservationNote
-            key={o.key}
+            key={'note-' + o.key}
             note={o.detail ?? ''}
             canChange={o.canChange}
             save={save}
@@ -209,7 +210,7 @@ export function ObservationPage({
             onLeave={setBlurred}
           />
           <ObservationKinds
-            key={o.key}
+            key={'kinds-' + o.key}
             kinds={o.kinds}
             labels={o.labels}
             canChange={o.canChange}
@@ -218,7 +219,7 @@ export function ObservationPage({
             text={o.detail || o.recordings[0]?.text || ''}
             blurred={blurred}
           />
-          {hasRecordings && <RecordingsCard o={o} phone={phone} playSample={v.playSampleAudio} />}
+          {hasRecordings && <RecordingsCard o={o} phone={phone} />}
           <PhotosCard
             tiles={o.media.map((m) => ({
               key: m.id ?? m.name,

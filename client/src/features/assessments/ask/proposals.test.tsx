@@ -243,17 +243,7 @@ function gateway({
 }
 
 function open(canReview = true) {
-  render(
-    <ReviewWorkspace
-      reference={REF}
-      canReview={canReview}
-      canAsk
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-    />,
-  )
+  render(<ReviewWorkspace reference={REF} canReview={canReview} canAsk onGenerate={() => {}} />)
 }
 const inspector = () => screen.getByRole('complementary', { name: 'Source panel' })
 const askTab = () => within(inspector()).getByRole('tabpanel', { name: 'Ask' })
@@ -448,6 +438,22 @@ describe('accepting the text in the section (AC2, AC3)', () => {
     expect(calls.some((c) => c.method === 'POST' && c.url.endsWith('/proposals/p1/accept'))).toBe(
       true,
     )
+  })
+})
+
+describe('the subsection source count', () => {
+  it('counts the cite marks in text already accepted, not only text awaiting Accept', async () => {
+    const accepted = structuredClone(INSERTED)
+    const section = accepted.sections[0]
+    const text = section.document!.document.subsections[0].blocks[2] as { ai?: string }
+    delete text.ai
+    section.aiDrafts = []
+    section.review.aiText = { pending: 0, unsupported: 0 }
+    gateway({ workspace: accepted })
+    open()
+    const draft = await screen.findByRole('region', { name: 'Draft editor' })
+    // The findings cite O:o2; the accepted paragraph adds C:fm25:4.
+    expect(await within(draft).findByRole('button', { name: /2 sources/ })).toBeInTheDocument()
   })
 })
 

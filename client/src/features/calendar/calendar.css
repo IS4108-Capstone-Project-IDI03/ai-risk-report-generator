@@ -15,31 +15,16 @@
   }
 }
 
-/* Toolbar: period, Today and the view on the left; filters and New assessment on the right. */
-.cal-toolbar {
-  min-height: 64px;
-}
-.cal-stepper {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-/* Wide enough for the longest month, so the arrows don't move. */
-.cal-period {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 200px;
-}
-.cal-period > strong,
+/* Toolbar (the shared ListToolbar): period, Today and the view on the left; filters on the right. */
+/* The period stepper (the shared PeriodStepper); its month and year buttons in the month view. */
 .cal-period-pick {
+  /* The date picker's pull-in (lining the month up with its days) would make the month and year
+     buttons overlap here, where each sits in its own popover. */
+  margin-left: 0;
   color: var(--marsh-navy);
   font: 700 16px/1.2 var(--font-sans);
   font-variant-numeric: tabular-nums;
   text-align: center;
-}
-.cal-period > strong {
-  min-width: 152px;
 }
 /* The month or year chooser that opens from it: at least the date picker calendar's width,
    and filling its popover. */
@@ -51,16 +36,18 @@
 .cal-walk {
   display: inline-flex;
 }
-.cal-toolbar .cal-pills {
+.cal-toolbar > .ds-list-toolbar-pills {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-left: auto;
 }
 
-/* The grid: weekday names, then one grid per week. --cal-lane is an entry's height. */
+/* The grid: weekday names, then one grid per week. --cal-lane is an entry's height,
+   --cal-date-row the row holding each day's date and + button. */
 .cal-grid {
   --cal-lane: 24px;
+  --cal-date-row: 30px;
   border-top: 1px solid var(--graphite-100);
 }
 .cal-grid[data-view='week'] {
@@ -149,6 +136,44 @@ button.cal-date {
 @media (hover: none) {
   .cal-add {
     opacity: 1 !important;
+  }
+}
+
+/* A finger on a tablet (v2 "Phone": 44 px targets): the date row fits the 44 px + button,
+   month entries grow to 36 px with 8 px between them, and invisible boxes make each date
+   and entry 44 px tall, so neighbours never share a tap. */
+@media (pointer: coarse) {
+  .cal-grid {
+    --cal-date-row: 48px;
+  }
+  /* A lane takes room only when an entry is in it, so an empty week stays short. */
+  .cal-grid[data-view='month'] {
+    --cal-lane: auto;
+  }
+  .cal-grid[data-view='month'] :is(.cal-chip, .cal-more) {
+    min-height: 36px;
+  }
+  .cal-week {
+    row-gap: 8px;
+  }
+  .cal-date,
+  .cal-chip,
+  .cal-more {
+    position: relative;
+  }
+  button.cal-date::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    left: -4px;
+    width: max(calc(100% + 8px), 44px);
+    height: 44px;
+  }
+  .cal-chip::after,
+  .cal-more::after {
+    content: '';
+    position: absolute;
+    inset: -4px 0;
   }
 }
 
@@ -268,24 +293,6 @@ button.cal-date {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
-.cal-details dl {
-  display: grid;
-  grid-template-columns: 112px minmax(0, 1fr);
-  gap: 10px 12px;
-  align-items: center;
-  margin: 0;
-}
-.cal-details dt {
-  color: var(--graphite-700);
-  font-size: 12px;
-  font-weight: 600;
-}
-.cal-details dd {
-  margin: 0;
-}
-.cal-details-date {
-  font-variant-numeric: tabular-nums;
-}
 .cal-details-contact {
   display: block;
 }
@@ -388,15 +395,6 @@ button.cal-date {
 .cal-row-note[data-state='soon'] {
   color: var(--amber-600);
 }
-.cal-due-tile {
-  display: inline-grid;
-  place-items: center;
-  flex: none;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--graphite-200);
-  border-radius: var(--radius-tile);
-}
 
 @media (hover: hover) and (pointer: fine) {
   button.cal-date:hover,
@@ -416,37 +414,16 @@ button.cal-date {
   gap: 16px;
   min-width: 0;
 }
-.cal-side-card {
+.cal-side-card.ds-panel {
+  gap: 8px;
   padding: 16px 8px 8px;
 }
-.cal-side-card h2 {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  padding: 0 8px 8px;
-  color: var(--marsh-navy);
-  font: 700 16px/1.2 var(--font-sans);
+.cal-side-card .ds-panel-head {
+  padding: 0 8px;
 }
-.cal-count {
-  min-width: 22px;
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--ink-100);
-  color: var(--report-navy);
-  font: 700 12px/20px var(--font-sans);
-  font-variant-numeric: tabular-nums;
-  text-align: center;
-}
-.cal-count[data-late] {
-  background: var(--red-50);
-  color: var(--red-600);
-}
-.cal-side-none {
-  margin: 0;
-  padding: 4px 8px 12px;
-  color: var(--graphite-600);
-  font: 400 14px/1.4 var(--font-sans);
+/* A list with nothing in it is just its heading and a 0: no caption to read. */
+.cal-side-card--empty.ds-panel {
+  padding-bottom: 16px;
 }
 .cal-side-row {
   display: flex;
@@ -500,10 +477,14 @@ button.cal-date {
   .cal-layout {
     gap: 0;
   }
-  .cal-period {
-    min-width: 184px;
+  /* The period steps on the first row with Today at its end, then the filters scroll below. */
+  .cal-stepper {
+    flex: 1 1 0;
   }
-  .cal-toolbar .cal-pills {
+  .cal-stepper .ds-period-middle {
+    flex: 1;
+  }
+  .cal-toolbar > .ds-list-toolbar-pills {
     margin-left: 0;
   }
   .cal-row {

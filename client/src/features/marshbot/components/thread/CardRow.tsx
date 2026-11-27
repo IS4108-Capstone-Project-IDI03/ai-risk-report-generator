@@ -3,7 +3,8 @@
 // from anywhere on it. A saved `quote` is not drawn (round 7).
 // Used by every card in this folder.
 import { useContext } from 'react'
-import { Icon } from '../../../../design-system'
+import { IconTile } from '../../../../design-system'
+import { tileTone } from './tileTone'
 import { TurnContext, useMarshBot } from '../../context'
 import type { CardRow as Row } from '../../types'
 import { RowEnd } from './RowEnd'
@@ -26,9 +27,7 @@ export function CardRow({ row }: { row: Row }) {
         open()
       }}
     >
-      <span className="mbt-tile" data-tone={row.tone} aria-hidden="true">
-        <Icon name={row.icon} size={16} />
-      </span>
+      <IconTile className="mbt-tile" icon={row.icon} tone={tileTone(row.tone)} />
       <span className="mbt-row-text">
         <span className="mbt-row-title">{row.title}</span>
         {row.detail && (

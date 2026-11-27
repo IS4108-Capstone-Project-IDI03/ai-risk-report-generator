@@ -1,5 +1,5 @@
 // The rule for a new password: a letter and a number, no length minimum, no symbol (F-08, S-01).
-// Used by SetPassword, SignIn (request access) and settings/PasswordSection. Must match
+// Used by SetPassword and settings/PasswordSection. Must match
 // server/src/services/invitation.service.ts `newPasswordSchema`.
 export const PASSWORD_RULE = 'Use at least one letter and one number.'
 

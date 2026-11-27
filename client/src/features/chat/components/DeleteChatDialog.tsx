@@ -21,10 +21,10 @@ export function DeleteChatDialog({ title, onConfirm, onClose }: Props) {
       onClose={onClose}
       footer={
         <span ref={buttons} className="chat-dialog-actions">
-          <Button variant="secondary" onClick={onClose}>
+          <Button pill variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button variant="danger" onClick={onConfirm}>
+          <Button pill variant="danger" onClick={onConfirm}>
             Delete chat
           </Button>
         </span>

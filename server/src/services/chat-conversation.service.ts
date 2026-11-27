@@ -29,8 +29,18 @@ export async function ownedConversation(userId: string, id: string) {
 
 /** Starts a chat named from the first question (trimmed, no AI call). Returns the thread. */
 export async function createConversation(userId: string, firstQuestion: string) {
-  const title = firstQuestion.trim().slice(0, TITLE_CHARS).trim() || 'New chat'
+  const title = titleFrom(firstQuestion) || 'New chat'
   return toThread(await ChatConversationModel.create({ userId, title }))
+}
+
+// A long first question is cut at its last whole word within TITLE_CHARS and ends in "…";
+// without this a name could stop mid-word ("…standard spray sprinkl").
+function titleFrom(question: string): string {
+  const text = question.trim().replace(/\s+/g, ' ')
+  if (text.length <= TITLE_CHARS) return text
+  const cut = text.slice(0, TITLE_CHARS - 1)
+  const space = cut.lastIndexOf(' ')
+  return `${(space > 0 ? cut.slice(0, space) : cut).trimEnd()}…`
 }
 
 /**

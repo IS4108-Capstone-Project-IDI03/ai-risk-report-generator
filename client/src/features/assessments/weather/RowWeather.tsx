@@ -24,6 +24,8 @@ export function RowWeather({ reference }: { reference: string }) {
         {'Checking site weather…'}
       </span>
     )
+  // No weather service set up: nothing a row could ever show, so the list stays quiet.
+  if (weather.status === 'unconfigured') return null
   if (!reading)
     return (
       <span className="wx-rowline" data-tone="none">

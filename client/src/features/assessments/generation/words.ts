@@ -31,12 +31,18 @@ export function sectionList(ids: string[]): string {
   return `Sections ${numbers.slice(0, -1).join(', ')} and ${numbers.at(-1)}`
 }
 
+// The sections Section 2 summarises that changed: "Section 7", or "Sections 7 and 11"
+// when the gateway names them all, so Generation and Export list the same ones.
+function changedSections(o: Extract<OutOfDate, { why: 'section' }>): string {
+  return sectionList(o.sections?.length ? o.sections : [o.section])
+}
+
 // What changed, as a phrase after "Section 7's".
 const WHAT = { observations: 'observations', figures: 'figures', scope: 'site details' } as const
 
 /** Returns the short reason under an out-of-date row: "Observations changed". */
 export function outOfDateReason(o: OutOfDate): string {
-  if (o.why === 'section') return `Needs redrafting because Section ${o.section} changed`
+  if (o.why === 'section') return `Needs redrafting because ${changedSections(o)} changed`
   const what = WHAT[o.why]
   return `${what[0].toUpperCase()}${what.slice(1)} changed`
 }
@@ -274,8 +280,8 @@ function outOfDateLine(parts: string[], part: (id: string) => GenerationPart) {
   const causes = parts.filter((id) => part(id).outOfDate?.why !== 'section')
   const followers = parts.filter((id) => part(id).outOfDate?.why === 'section')
   if (!causes.length) {
-    const o = part(followers[0]).outOfDate as { section: string }
-    return `Section ${followers[0]} needs redrafting because Section ${o.section} changed.`
+    const o = part(followers[0]).outOfDate as Extract<OutOfDate, { why: 'section' }>
+    return `Section ${followers[0]} needs redrafting because ${changedSections(o)} changed.`
   }
   const one = part(causes[0]).outOfDate
   const cause =

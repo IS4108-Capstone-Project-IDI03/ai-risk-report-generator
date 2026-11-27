@@ -81,7 +81,7 @@ describe('changeRows', () => {
     expect(grays).toMatchObject({
       values: '–',
       points: [],
-      chip: { text: 'No observations yet', tone: 'neutral' },
+      chip: { text: 'None yet', tone: 'neutral' },
     })
   })
 

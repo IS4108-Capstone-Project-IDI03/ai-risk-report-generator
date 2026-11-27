@@ -43,7 +43,6 @@ export function CaptureVoicePanel({ v }: { v: AssessmentWorkflow }) {
         >
           {v.recLabel}
         </Button>
-        {!!v.recHint && <span className="cap-hint cap-rec-hint">{v.recHint}</span>}
         {!!v.liveVoice && (
           <CaptureFilePicker
             tone="link"

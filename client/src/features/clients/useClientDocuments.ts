@@ -29,7 +29,7 @@ export function useClientDocuments(clientId: string) {
     return () => controller.abort()
   }, [clientId])
 
-  // Deletes on the gateway, then drops the row; a failure throws to the dialog.
+  // Deletes on the server, then drops the row; a failure throws to the dialog.
   const remove = useCallback(async (id: string) => {
     await deleteClientDocument(id)
     setLoaded((l) => l && { ...l, documents: l.documents.filter((d) => d.id !== id) })

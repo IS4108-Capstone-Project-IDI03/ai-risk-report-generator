@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <!-- MarshBot's mark (AS-06 board 16): the Visor robot's idle face on a light blue tile, the same
        light background as the face on the Overview (.mb-face in features/marshbot/marshbot.css).
-       Must match the idle face in client/src/features/marshbot/components/MarshBotFace.tsx. -->
+       Must match the idle face in client/src/design-system/components/conversation/MarshBotFace.tsx. -->
   <defs>
     <radialGradient id="tile" cx="50%" cy="42%" r="60%">
       <stop offset="0" stop-color="#ffffff"/>

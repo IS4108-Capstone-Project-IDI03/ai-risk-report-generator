@@ -1,7 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Extension, type Editor } from '@tiptap/core'
 import { EditorContent, useEditor } from '@tiptap/react'
-import { Button, Callout, Dialog, IconRegistry, toast } from '../../../design-system'
+import {
+  BackButton,
+  Button,
+  Callout,
+  Dialog,
+  HelpTip,
+  IconAction,
+  IconRegistry,
+  SectionRow,
+  toast,
+  useIsPhone,
+} from '../../../design-system'
 import type { AcceptedOfi, Assessment, ReviewWorkspace, SavedObservation, Summary } from '../api'
 import { AskHighlight, setAskMarks } from '../ask/askHighlight'
 import type { AskDrafting } from '../ask/AskPanel'
@@ -21,6 +32,7 @@ import { DRAFT, useComments } from '../comments/useComments'
 import { toEditorJSON } from '../document/convert'
 import { toggleSubheading } from '../document/commands'
 import { DocumentToolbar } from '../document/DocumentToolbar'
+import { PanelOverlay } from '../document/PanelOverlay'
 import { FindBar } from '../document/FindBar'
 import { FindReplace } from '../document/findReplace'
 import { DocumentPartsContext } from '../document/parts'
@@ -53,6 +65,19 @@ const STATUS_TEXT: Record<SaveStatus, string> = {
   saving: 'Saving…',
   failed: 'Not saved',
   conflict: 'Not saved',
+}
+
+// The outline beside the page: shown or hidden by its toggle, remembered on this browser. Left
+// unchosen, it shows where the page and the comment margin both keep their full width with it.
+const OUTLINE_KEY = 'dm.outline'
+function outlineAtFirst() {
+  try {
+    const chosen = localStorage.getItem(OUTLINE_KEY)
+    if (chosen) return chosen === 'shown'
+  } catch {
+    // Storage blocked (a private window): fall back to the width.
+  }
+  return window.matchMedia?.('(min-width: 1600px)').matches ?? true
 }
 
 const prefersReducedMotion = () =>
@@ -114,8 +139,6 @@ function DocumentBody({
   onViewObservation,
   onReturn,
   onReload,
-  wrapStyle,
-  railStyle,
 }: {
   reference: string
   report: ReportDocument
@@ -133,8 +156,6 @@ function DocumentBody({
   onViewObservation?: (id: string | null) => void
   onReturn: (sectionId: string) => void
   onReload: () => void
-  wrapStyle: React.CSSProperties
-  railStyle: React.CSSProperties
 }) {
   const { status, savedAt, problem, saver } = useDocumentSave(
     reference,
@@ -159,6 +180,15 @@ function DocumentBody({
   // The Ask panel (AS-02), and why the selection could not be asked about.
   const [askOpen, setAskOpen] = useState(false)
   const [askHint, setAskHint] = useState<string | null>(null)
+  const [outline, setOutline] = useState(outlineAtFirst)
+  const toggleOutline = () => {
+    setOutline(!outline)
+    try {
+      localStorage.setItem(OUTLINE_KEY, outline ? 'hidden' : 'shown')
+    } catch {
+      // Not remembered: it still toggles for this visit.
+    }
+  }
 
   const editor = useEditor({
     immediatelyRender: true,
@@ -234,15 +264,45 @@ function DocumentBody({
     observer.observe(element)
     return () => observer.disconnect()
   }, [])
+  // The sticky bar's height, so a part scrolled to (scroll-margin, document.css) starts under
+  // it. Without this its heading was hidden under the bar's rows on a phone.
+  useEffect(() => {
+    const bar = header.current
+    if (!bar || typeof ResizeObserver !== 'function') return
+    const observer = new ResizeObserver(() =>
+      main.current?.style.setProperty('--dm-head-h', `${bar.offsetHeight}px`),
+    )
+    observer.observe(bar)
+    return () => observer.disconnect()
+  }, [])
+  // On a phone Return to review and Page layout are round icons, so the bar is two rows.
+  const phone = useIsPhone()
   const room =
     mainWidth === 0 || mainWidth >= (pageMode ? MARGIN_ROOM.page : MARGIN_ROOM.continuous)
   const inMargin = room && comments.panel === null
+  // Ask open takes the margin's place too (startComment and a clicked thread close
+  // Ask first, so they test inMargin alone): the margin would push the page under Ask.
   const marginShown =
     inMargin &&
+    !(askOpen && ask) &&
     (comments.active === DRAFT ||
       comments.entries.some(
         (e) => e.range && (e.thread.status === 'open' || e.thread.id === comments.active),
       ))
+  // The page beside the comment margin, or beside the comments list or Ask when
+  // either is open: it keeps their room, or the panel would cover its right edge.
+  const canvasClass = marginShown
+    ? 'dm-canvas has-margin'
+    : room && (comments.panel || (askOpen && ask))
+      ? 'dm-canvas has-panel'
+      : 'dm-canvas'
+  // Changing it narrows or widens the page, so the text reflows: the text that
+  // was at the top of the view (noted on each scroll, below) is put back there,
+  // or opening Comments jumped sections.
+  const seen = useRef<Place | null>(null)
+  useLayoutEffect(() => {
+    if (editor && seen.current) restorePlace(editor.view, seen.current, bottomOf(header.current))
+  }, [canvasClass, editor])
   // A new thread on the selected text (AC1): in the margin, or in the
   // comments list's place where there is no margin.
   const startComment = () => {
@@ -336,6 +396,15 @@ function DocumentBody({
           },
         }
       : undefined
+  // Closing Ask clears the passage it marked; closing Comments drops an unposted comment.
+  const closeAsk = () => {
+    setAskOpen(false)
+    if (editor) setAskMarks(editor.view, { shown: null })
+  }
+  const closeComments = () => {
+    if (comments.active === DRAFT) comments.cancelDraft()
+    comments.setPanel(null)
+  }
   // Back to a passage asked about (AC3): marked and scrolled to; the panel
   // steps aside where it covers the text.
   const showAsked = (passage: AskPassage) => {
@@ -409,9 +478,29 @@ function DocumentBody({
     reopen: comments.reopen,
   }
 
-  // Opens on the section being reviewed.
+  // Opens on the section being reviewed. The parts above it (figures, charts,
+  // OFIs) load after it and push it down, so it is kept at the top while the page
+  // grows, until the engineer scrolls, clicks or types, or 4 s pass. Without this,
+  // opening on Section 11 landed in Section 5.
   useEffect(() => {
-    document.getElementById(`dm-section-${startAt}`)?.scrollIntoView?.({ block: 'start' })
+    const pin = () =>
+      document.getElementById(`dm-section-${startAt}`)?.scrollIntoView?.({ block: 'start' })
+    pin()
+    const page = document.getElementById(`dm-section-${startAt}`)?.parentElement
+    if (!page || typeof ResizeObserver === 'undefined') return
+    const observer = new ResizeObserver(pin)
+    observer.observe(page)
+    const events = ['wheel', 'touchstart', 'pointerdown', 'keydown'] as const
+    const stop = () => {
+      observer.disconnect()
+      events.forEach((e) => window.removeEventListener(e, stop, true))
+    }
+    events.forEach((e) => window.addEventListener(e, stop, { capture: true, passive: true }))
+    const timer = setTimeout(stop, 4000)
+    return () => {
+      clearTimeout(timer)
+      stop()
+    }
   }, [startAt])
 
   // The section in view, for the outline and Return to review, until the
@@ -419,6 +508,7 @@ function DocumentBody({
   // the workspace below 1080px), measured from under the sticky header.
   useEffect(() => {
     const follow = () => {
+      if (editor) seen.current = placeOf(editor.view, bottomOf(header.current))
       if (!editor || editor.isFocused) return
       const top = (header.current?.getBoundingClientRect().bottom ?? 0) + 24
       let inView = report.parts[0].id
@@ -540,31 +630,44 @@ function DocumentBody({
   if (!editor) return null
   return (
     <DocumentPartsContext.Provider value={located}>
-      <div style={wrapStyle} className="dm-wrap">
-        <nav aria-label="Document outline" className="om-scroll dm-outline" style={railStyle}>
-          <p className="rv-label rv-rail-head">Outline</p>
-          <ol className="dm-outline-list">
+      <div className="rv-ws dm-wrap">
+        <nav
+          aria-label="Document outline"
+          id="dm-outline"
+          className="om-scroll rv-rail dm-outline"
+          data-closed={outline ? undefined : ''}
+        >
+          <div className="rv-rail-head dm-outline-head">
+            <p className="rv-label">Outline</p>
+            {/* How the document behaves, behind the (?) rather than under the outline. */}
+            <HelpTip label="About this document">
+              {readOnly ? (
+                <p>
+                  You can read the whole report and comment on any part of it. Only its assigned
+                  engineer changes the text.
+                </p>
+              ) : (
+                <>
+                  <p>Headings and parts filled in elsewhere stay as they are.</p>
+                  <p>Violet text is still as the draft wrote it. Once you change it, it's yours.</p>
+                  <p>Changes save when you pause.</p>
+                </>
+              )}
+            </HelpTip>
+          </div>
+          {/* The same rows as the review workspace's outline (design system section rows). */}
+          <ol className="rv-rail-list dm-outline-list">
             {report.parts.map((part) => (
               <li key={part.id}>
-                <button
-                  type="button"
-                  className="rv-rail-row"
-                  aria-current={current === part.id ? 'true' : undefined}
-                  onClick={() => goTo(part.id)}
-                >
-                  <span className="rv-rail-number">{part.number}</span>
-                  <span className="rv-rail-body">
-                    <span className="rv-rail-title">{part.title}</span>
-                  </span>
-                </button>
+                <SectionRow
+                  number={part.number}
+                  name={part.title}
+                  current={current === part.id}
+                  onSelect={() => goTo(part.id)}
+                />
               </li>
             ))}
           </ol>
-          <p className="rv-rail-legend">
-            {readOnly
-              ? 'You can read the whole report and comment on any part of it. Only its assigned engineer changes the text.'
-              : 'Headings and parts filled in elsewhere stay as they are. Violet text is still as the draft wrote it; once you change it, it is yours. Changes save when you pause.'}
-          </p>
         </nav>
         <section
           aria-label="Document editor"
@@ -573,83 +676,121 @@ function DocumentBody({
           data-walk="document.page"
         >
           <div className="dm-head" ref={header}>
+            {/* One bar: back to review at the left, the tools over the page, and the save state
+                with Page layout and Save at the right. On a narrower editor the tools take a row
+                of their own under it (document.css). */}
             <div className="dm-bar">
-              <Button variant="ghost" size="sm" iconLeft="chevron-left" onClick={returnToReview}>
-                Return to review
-              </Button>
-              <div className="dm-save-row">
-                <p className="dm-save-status" role="status">
-                  {readOnly ? (
-                    'Read only · You can comment and reply'
-                  ) : (
-                    <>
-                      {STATUS_TEXT[status]}
-                      {savedAt && status !== 'saving' && (
-                        <span className="dm-save-time">
-                          {' '}
-                          · Last saved {formatDayTime(new Date(savedAt))}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </p>
-                <Tip id="document.save-status" />
-              </div>
-              <Button
-                variant="secondary"
-                size="sm"
-                iconLeft={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
-                data-walk="document.page-layout"
-                onClick={switchView}
-              >
-                {pageMode ? 'Continuous view' : 'Page layout'}
-              </Button>
-              {!readOnly && (
+              <span className="dm-outline-toggle">
+                <IconAction
+                  icon={outline ? 'panel-left-close' : 'panel-left-open'}
+                  label={outline ? 'Hide outline' : 'Show outline'}
+                  placement="bottom"
+                  aria-expanded={outline}
+                  aria-controls="dm-outline"
+                  onClick={toggleOutline}
+                />
+              </span>
+              {phone ? (
+                <BackButton label="Return to review" onClick={returnToReview} />
+              ) : (
                 <Button
-                  variant="primary"
+                  pill
+                  variant="ghost"
                   size="sm"
-                  iconLeft={IconRegistry.editor.save}
-                  disabled={status === 'saving' || status === 'conflict'}
-                  loading={status === 'saving'}
-                  onClick={() => void saver.save()}
+                  iconLeft="chevron-left"
+                  onClick={returnToReview}
                 >
-                  Save
+                  Return to review
                 </Button>
               )}
+              <DocumentToolbar
+                editor={editor}
+                onFind={() => setFindOpen(true)}
+                readOnly={readOnly}
+                comments={
+                  canComment || comments.counts.all
+                    ? {
+                        onComment: canComment ? startComment : undefined,
+                        onList: () => {
+                          // Closed where there is no margin, a new thread goes too.
+                          if (comments.panel && !room && comments.active === DRAFT)
+                            comments.cancelDraft()
+                          comments.setPanel(comments.panel ? null : 'list')
+                          setAskOpen(false)
+                        },
+                        listOpen: comments.panel !== null,
+                        open: comments.counts.open,
+                      }
+                    : undefined
+                }
+                ask={
+                  ask
+                    ? {
+                        onAsk: askAboutSelection,
+                        onRewrite: drafting ? rewriteSelection : undefined,
+                        onPanel: () => (askOpen ? setAskOpen(false) : openAsk()),
+                        panelOpen: askOpen,
+                        labelOf,
+                        blocked: ask.archived ? READ_ONLY : undefined,
+                      }
+                    : undefined
+                }
+              />
+              <div className="dm-bar-end">
+                <div className="dm-save-row">
+                  <p className="dm-save-status" role="status">
+                    {readOnly ? (
+                      'Read only · You can comment and reply'
+                    ) : (
+                      <>
+                        {STATUS_TEXT[status]}
+                        {savedAt && status !== 'saving' && (
+                          <span className="dm-save-time">
+                            {' '}
+                            · Last saved {formatDayTime(new Date(savedAt))}
+                          </span>
+                        )}
+                      </>
+                    )}
+                  </p>
+                  <Tip id="document.save-status" />
+                </div>
+                {phone ? (
+                  <IconAction
+                    icon={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
+                    label={pageMode ? 'Continuous view' : 'Page layout'}
+                    placement="bottom"
+                    shaded
+                    data-walk="document.page-layout"
+                    onClick={switchView}
+                  />
+                ) : (
+                  <Button
+                    pill
+                    variant="secondary"
+                    size="sm"
+                    iconLeft={pageMode ? IconRegistry.editor.continuous : IconRegistry.editor.pages}
+                    data-walk="document.page-layout"
+                    onClick={switchView}
+                  >
+                    {pageMode ? 'Continuous view' : 'Page layout'}
+                  </Button>
+                )}
+                {!readOnly && (
+                  <Button
+                    pill
+                    variant="primary"
+                    size="sm"
+                    iconLeft={IconRegistry.editor.save}
+                    disabled={status === 'saving' || status === 'conflict'}
+                    loading={status === 'saving'}
+                    onClick={() => void saver.save()}
+                  >
+                    Save
+                  </Button>
+                )}
+              </div>
             </div>
-            <DocumentToolbar
-              editor={editor}
-              onFind={() => setFindOpen(true)}
-              readOnly={readOnly}
-              comments={
-                canComment || comments.counts.all
-                  ? {
-                      onComment: canComment ? startComment : undefined,
-                      onList: () => {
-                        // Closed where there is no margin, a new thread goes too.
-                        if (comments.panel && !room && comments.active === DRAFT)
-                          comments.cancelDraft()
-                        comments.setPanel(comments.panel ? null : 'list')
-                        setAskOpen(false)
-                      },
-                      listOpen: comments.panel !== null,
-                      open: comments.counts.open,
-                    }
-                  : undefined
-              }
-              ask={
-                ask
-                  ? {
-                      onAsk: askAboutSelection,
-                      onRewrite: drafting ? rewriteSelection : undefined,
-                      onPanel: () => (askOpen ? setAskOpen(false) : openAsk()),
-                      panelOpen: askOpen,
-                      labelOf,
-                      blocked: ask.archived ? READ_ONLY : undefined,
-                    }
-                  : undefined
-              }
-            />
             {comments.hint && (
               <p className="dm-comment-hint" role="status">
                 {comments.hint}
@@ -671,7 +812,7 @@ function DocumentBody({
                   tone="warning"
                   title="Your latest changes were not saved"
                   actions={
-                    <Button variant="secondary" size="sm" onClick={onReload}>
+                    <Button pill variant="secondary" size="sm" onClick={onReload}>
                       Reload the document
                     </Button>
                   }
@@ -687,7 +828,7 @@ function DocumentBody({
           )}
           <div className="dm-viewport">
             <div className="om-scroll dm-scroll">
-              <div className={marginShown ? 'dm-canvas has-margin' : 'dm-canvas'}>
+              <div className={canvasClass}>
                 {/* The editor keeps its place in the tree in either view, so
                     switching never remounts it (RV-12). */}
                 <div className={pageMode ? 'dm-sheet is-page' : 'dm-sheet'}>
@@ -729,38 +870,37 @@ function DocumentBody({
                 )}
               </div>
             </div>
-            {/* Questions about the assessment and the passages asked about (AS-02). */}
+            {/* Questions about the assessment and the passages asked about (AS-02). Where the
+                page has no room beside it, over a scrim under the bar (PanelOverlay). */}
             {askOpen && ask && !comments.panel && (
-              <DocumentAsk
-                editor={editor}
-                ask={ask}
-                overlay={!room}
-                onShowPassage={showAsked}
-                drafting={drafting}
-                guidance={guidance}
-                onClose={() => {
-                  setAskOpen(false)
-                  setAskMarks(editor.view, { shown: null })
-                }}
-              />
+              <PanelOverlay overlay={!room} bar={header} onClose={closeAsk}>
+                <DocumentAsk
+                  editor={editor}
+                  ask={ask}
+                  overlay={!room}
+                  onShowPassage={showAsked}
+                  drafting={drafting}
+                  guidance={guidance}
+                  onClose={closeAsk}
+                />
+              </PanelOverlay>
             )}
             {/* The comments list (AC8), and threads where there is no margin. */}
             {comments.panel && (
-              <DictationScope reference={reference}>
-                <CommentsPanel
-                  comments={comments}
-                  parts={report.parts}
-                  me={me}
-                  canComment={canComment}
-                  actions={actions}
-                  marginShown={room}
-                  overlay={!room}
-                  onClose={() => {
-                    if (comments.active === DRAFT) comments.cancelDraft()
-                    comments.setPanel(null)
-                  }}
-                />
-              </DictationScope>
+              <PanelOverlay overlay={!room} bar={header} onClose={closeComments}>
+                <DictationScope reference={reference}>
+                  <CommentsPanel
+                    comments={comments}
+                    parts={report.parts}
+                    me={me}
+                    canComment={canComment}
+                    actions={actions}
+                    marginShown={room}
+                    overlay={!room}
+                    onClose={closeComments}
+                  />
+                </DictationScope>
+              </PanelOverlay>
             )}
           </div>
         </section>
@@ -779,10 +919,11 @@ function DocumentBody({
           <div
             style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', flexWrap: 'wrap' }}
           >
-            <Button variant="secondary" disabled={leaveBusy} onClick={() => setLeaving(null)}>
+            <Button pill variant="secondary" disabled={leaveBusy} onClick={() => setLeaving(null)}>
               Keep editing
             </Button>
             <Button
+              pill
               variant="danger"
               disabled={leaveBusy}
               onClick={() => {
@@ -796,6 +937,7 @@ function DocumentBody({
             </Button>
             {status !== 'conflict' && (
               <Button
+                pill
                 variant="primary"
                 loading={leaveBusy}
                 onClick={async () => {
@@ -845,8 +987,6 @@ export function DocumentEdit({
   onViewObservation,
   onReturn,
   onReload,
-  wrapStyle,
-  railStyle,
 }: {
   reference: string
   // The assessment with its client and site, for the page layout's cover (RV-12).
@@ -876,8 +1016,6 @@ export function DocumentEdit({
   onReturn: (sectionId: string) => void
   // Reads the workspace again and reopens the document from it.
   onReload: () => void
-  wrapStyle: React.CSSProperties
-  railStyle: React.CSSProperties
 }) {
   // Why an undrafted section was not drafted (AC3) comes from Generation's
   // list; the document opens without it if it cannot be read.
@@ -912,8 +1050,6 @@ export function DocumentEdit({
       onViewObservation={onViewObservation}
       onReturn={onReturn}
       onReload={onReload}
-      wrapStyle={wrapStyle}
-      railStyle={railStyle}
     />
   )
 }

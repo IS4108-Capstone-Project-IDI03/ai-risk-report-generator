@@ -6,6 +6,7 @@ import { Toaster } from '../../design-system'
 import { NewAssessmentButton } from './components/NewAssessmentButton'
 import { NewAssessment } from './screens/NewAssessment'
 import { calls, CLIENTS, created, gateway, json, sent, SITES } from './testKit'
+import { chooseOption } from '../../design-system/components/forms/selectTestHelpers'
 
 const type = (field: HTMLElement, value: string) => fireEvent.change(field, { target: { value } })
 const site = (n: number) => screen.getByRole('region', { name: 'Site ' + n })
@@ -25,7 +26,7 @@ function open(onCreated = vi.fn()) {
 function fillNewClient() {
   type(screen.getByLabelText(/^Client name/), 'Pacific Crest REIT')
   type(within(site(1)).getByLabelText(/^Site name/), 'Tuas Hub')
-  type(within(site(1)).getByLabelText(/^Facility type/), 'Distribution warehouse')
+  chooseOption(/^Facility type/, 'Distribution warehouse', site(1))
   type(within(site(1)).getByLabelText(/^Address/), '21 Tuas South Ave 3')
 }
 // Opens the client card's documents popover and adds files, as the picker would.
@@ -69,8 +70,8 @@ describe('New Assessment by hand (CP-23)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add site' }))
     type(within(site(2)).getByLabelText(/^Site name/), 'Senai Hub')
     type(within(site(2)).getByLabelText(/^Address/), 'PLO 12, Senai')
-    type(within(site(2)).getByLabelText(/^Jurisdiction/), 'MY')
-    type(within(site(2)).getByLabelText(/^Facility type/), 'Cold store')
+    chooseOption(/^Jurisdiction/, 'Malaysia', site(2))
+    chooseOption(/^Facility type/, 'Cold store', site(2))
 
     fireEvent.click(screen.getByRole('button', { name: 'Create' }))
 
@@ -325,6 +326,19 @@ describe('New Assessment by hand (CP-23)', () => {
     expect(start).toHaveValue('12/11/2026')
     expect(end).toHaveValue('')
     expect(end).toHaveAttribute('placeholder', 'dd/mm/yyyy')
+  })
+
+  // Found live: a survey moved to 10 Dec kept its report due on 10 Dec, the old default.
+  it('moves the default report due with the survey start, but never a due date I typed', () => {
+    gateway({ 'GET /api/clients': () => json(200, []) })
+    open()
+    const one = visit(site(1), 1)
+    type(one.getByLabelText(/^Survey start/), '10/12/2026')
+    expect(one.getByLabelText(/^Report due/)).toHaveValue('24/12/2026')
+
+    type(one.getByLabelText(/^Report due/), '31/12/2026')
+    type(one.getByLabelText(/^Survey start/), '14/12/2026')
+    expect(one.getByLabelText(/^Report due/)).toHaveValue('31/12/2026')
   })
 
   it('blocks an end or due date before the start, but not an equal one', async () => {

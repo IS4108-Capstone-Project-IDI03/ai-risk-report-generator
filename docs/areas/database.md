@@ -560,7 +560,10 @@ observation and knowledge-document ones:
 (`risk_engineer` or `knowledge_admin`, F-05), optional `jobTitle`,
 `phone` and `office` (a two-letter jurisdiction code), `active`, and the
 bcrypt `passwordHash` (F-04, never selected by default). A deactivated account
-cannot sign in. Two token pairs are stored as sha256 hashes of the emailed
+cannot sign in, and its open sessions are refused from its next request; a new role
+or name applies to open sessions at once too (the gateway keeps each account's role,
+name and active flag in memory, loaded at start and updated on every save,
+`auth.service.ts` `rememberAccount`). Two token pairs are stored as sha256 hashes of the emailed
 code, never the code: `resetTokenHash`/`resetTokenExpiresAt` for the password
 reset (F-06), and `inviteTokenHash`/`inviteTokenExpiresAt` for the invitation
 that lets a new account's owner set their first password (F-08). The hashes
@@ -605,7 +608,8 @@ invalid, used or expired link; a password without a letter and a number, or over
 72 bytes, is 400 with `fields.password` (no length minimum, no symbol needed). It is
 separate from the reset: `POST /api/auth/request-reset` sends nothing to an
 account with no password (the response is the same as for any address), and
-neither code works in the other's route.
+neither code works in the other's route. `POST /api/auth/reset` `{ token, password }`
+applies the same password rule (400 with `fields.password`, and the code still works).
 
 ## Role permissions (F-05)
 
@@ -1379,7 +1383,7 @@ Each turn:
 | `error` | `{ step, cause, at }` when it stopped, else `null` |
 | `provider`, `model`, `promptVersion` | what wrote the answer (AS-03 AC3), from its trace's `provider` (S4's `LLM_PROVIDER`), `model` and `prompt_version`; `null` while answering, or when S4 was never reached |
 | `askedAt`, `answeredAt` | when it was asked, and when its answer ended (`null` while answering) |
-| `trace` | the run (AS-01 AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1` from AS-02, `as08-v1` for what a section should cover, with a `guide` block: `kind`, `section_id`, `template_parts`, `template_parts_cited`), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
+| `trace` | the run (AS-01 AC6): `story`, `pipeline` (`retrieve`, `assemble`, `generate`, `guardrail`), `provider`, `model`, `effort`, `prompt_version` (`as01-v1`, `as02-v1`/`as02-v2` from AS-02, `as08-v1`/`as08-v2` for what a section should cover, with a `guide` block: `kind`, `section_id`, `template_parts`, `template_parts_cited`), `scope` (jurisdiction, facility type, the standard ids searched, how many observations), `retrieved` (the observation ids and chunk ids given to the model), `passage` (AS-02: `section_id`, `chars`, `citations`, `findings`, `findings_in_passage`, or `null`; never its words), `reranked`, `guardrail` (`passed`, `kept`, `dropped` lines with why, `unverified_citations`, `described_citations`: quotes only in a picture's AI description, KB-02), `timings_ms` per step, `privacy` (`enabled`, `masked_count`, never the mapping) and `generated_at`. Never the masked text |
 
 - A question is saved (pushed onto its conversation, or as the first of a
   new one) before S4 is asked, so it is kept even if the answer fails; the
@@ -1444,7 +1448,7 @@ it; the assigned engineer accepts or deletes its text in the section.
 | `sentences` | `{ text, citations, supported, paragraph }`: each sentence, the citations that count (as an answer's), `supported: false` with none (AC3), and its paragraph from 0 |
 | `missing` | what evidence S4 said was missing; not part of the text |
 | `sources` | the cited sources as S4 returned them, by citation ID: a standard passage's text and Chroma labels, or an observation as it was sent |
-| `provider`, `model`, `promptVersion` | what wrote it, from S4's trace (`as04-v1`) |
+| `provider`, `model`, `promptVersion` | what wrote it, from S4's trace (`as04-v1`, `as04-v2`) |
 | `insertion` | `{ version, previous, signature, at, by }`: the version Insert or Replace made, the section's text just before (what Undo restores), a signature of the text it made (Undo refuses once it differs), who and when; `null` until inserted |
 | `settled` | `{ action, at, by }`: the last Accept (`accepted`), Delete (`deleted`) or Undo (`undone`); `null` before |
 | `metadata` | the five required fields: `source_type: 'report_text_proposal'`, the site's `jurisdiction` and `facility_type`, the section's one category (else `all`) as `COPE_dimension`, and `effective_date` (when proposed) |

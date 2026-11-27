@@ -7,6 +7,7 @@ import { useState } from 'react'
 import {
   FileTile,
   Icon,
+  IconAction,
   IconButton,
   IconRegistry,
   Sheet,
@@ -18,7 +19,6 @@ import { formatDay } from '../../assessments/format'
 import { documentDownloadUrl, documentFileUrl, type ClientDocument } from '../api'
 import { fileSize } from '../formatClient'
 import { DocumentTagCell } from './DocumentTagCell'
-import { RowAction } from './RowAction'
 
 export function DocumentRow({
   doc,
@@ -137,13 +137,13 @@ export function DocumentRow({
       </td>
       <td className="cl-cell-actions">
         <span className="cl-row-actions cl-row-actions--always">
-          <RowAction
+          <IconAction
             icon="download"
             label={`Open ${doc.name}`}
             tooltip="Open file"
             href={documentFileUrl(doc.id)}
           />
-          <RowAction
+          <IconAction
             icon={IconRegistry.action.discard}
             label={`Delete ${doc.name}`}
             tooltip="Delete document"

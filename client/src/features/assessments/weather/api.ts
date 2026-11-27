@@ -58,6 +58,6 @@ export async function fetchSiteWeather(reference: string, signal?: AbortSignal) 
   )
   const known =
     !!data && typeof data === 'object' && STATUSES.includes((data as SiteWeather).status)
-  if (!known) throw new GatewayError(status, 'The gateway sent no site weather.')
+  if (!known) throw new GatewayError(status, 'The server sent no site weather.')
   return data
 }

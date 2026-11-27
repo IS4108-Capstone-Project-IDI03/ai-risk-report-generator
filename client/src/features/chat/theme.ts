@@ -1,8 +1,7 @@
 // Maps the design system's colour tokens onto OpenUI's theme names, so the chat
 // screen keeps Marsh's colours (docs/areas/design-system-v2.md). Values are our CSS
 // variables, so a token change reaches the chat screen too.
-// Apple-style trial (Jesper, 15 Oct): rounder corners replace the design system's
-// 8px cap here; see chat.css.
+// Corners use the design system's radius tokens; see chat.css.
 import { createTheme } from '@openuidev/react-ui'
 
 /** OpenUI theme overrides: design-system colours, Apple-style type and corners. */
@@ -30,11 +29,11 @@ export const chatTheme = createTheme({
   fontLabel: 'var(--chat-font)',
   fontCode: 'var(--font-mono)',
   fontNumbers: 'var(--chat-font)',
-  radiusS: '6px',
-  radiusM: '10px',
-  radiusL: '14px',
-  radiusXl: '16px',
-  radius2xl: '18px',
+  radiusS: 'var(--radius-lg)',
+  radiusM: 'var(--radius-field)',
+  radiusL: 'var(--radius-popover)',
+  radiusXl: 'var(--radius-card)',
+  radius2xl: 'var(--radius-card)',
   shadowS: 'var(--chat-shadow-sm)',
   shadowM: 'var(--chat-shadow-md)',
 })

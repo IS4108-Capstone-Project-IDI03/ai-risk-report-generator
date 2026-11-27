@@ -3,65 +3,43 @@
 // hours and failed/cancelled for 7 days (the gateway decides). Re-read every 3 seconds
 // while any is still queued or processing. Used by screens/AddDocuments.tsx.
 import { useEffect, useState } from 'react'
-import { Badge, Button, Callout, EmptyState, Table } from '../../../design-system'
+import {
+  Button,
+  Callout,
+  EmptyNote,
+  EmptyState,
+  HelpTip,
+  ListCard,
+  TableFooter,
+  useIsPhone,
+} from '../../../design-system'
+import { plural } from '../../clients/formatClient'
 import {
   cancelIngestion,
   listKnowledgeDocuments,
   retryIngestion,
-  type IngestionStage,
-  type IngestionStatus,
   type KnowledgeDocument,
 } from '../api'
-import {
-  calendarDate,
-  dateTime,
-  facilityName,
-  formatDuration,
-  needsReview,
-  reviewReasons,
-  SOURCE_LABELS,
-} from '../display'
+import { needsReview } from '../display'
 import { followList } from '../uploads'
 import { Tip } from '../../help/Tip'
-import { ChooseSourceType } from './ChooseSourceType'
-import { ReviewBadge } from './ReviewBadge'
+import { RichText } from '../../help/RichText'
+import { TIPS } from '../../help/tips'
+import { UploadedRow } from './UploadedRow'
 
-const STATUS: Record<IngestionStatus, { label: string; tone: string }> = {
-  // Waits for the admin to choose a source type before it is ingested (IN-19).
-  awaiting_type: { label: 'Type needed', tone: 'moderate' },
-  // Recent uploads never lists a manual draft (IN-18); listed so every status has a label.
-  draft: { label: 'Draft', tone: 'neutral' },
-  queued: { label: 'Queued', tone: 'neutral' },
-  processing: { label: 'Processing', tone: 'info' },
-  complete: { label: 'Complete', tone: 'low' },
-  failed: { label: 'Failed', tone: 'critical' },
-  cancelled: { label: 'Cancelled', tone: 'neutral' },
-}
-
-// What each stage reads as in the status badge (E2).
-const STAGE_LABELS: Record<IngestionStage, string> = {
-  parsing: 'Parsing',
-  anonymising: 'Anonymising',
-  chunking: 'Chunking',
-  indexing: 'Indexing',
-  complete: 'Complete',
-  failed: 'Failed',
-}
-
-// Stages that report the page reached (anonymising is too quick to need one).
-const PAGE_COUNTED_STAGES: IngestionStage[] = ['parsing', 'chunking', 'indexing']
+// How long an upload stays in this list (fixed help text).
+const KEEP_LINE =
+  'Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.'
 
 // Re-read too whenever a new upload is accepted (refreshKey). An unreachable
 // gateway leaves the last list showing.
 /** Returns the Recent uploads section. */
 export function UploadedDocuments({
-  narrow,
   refreshKey,
   onCompleted,
   onLoaded,
   onReview,
 }: {
-  narrow: boolean
   refreshKey: number
   // Opens a document's Review page from its Needs review badge (IN-07).
   onReview: (id: string) => void
@@ -70,6 +48,7 @@ export function UploadedDocuments({
   // Reports the list each time it is read, so the screen knows Recent uploads has loaded (F-12).
   onLoaded?: (documents: KnowledgeDocument[]) => void
 }) {
+  const phone = useIsPhone()
   const [documents, setDocuments] = useState<KnowledgeDocument[] | null>(null)
   const [unreachable, setUnreachable] = useState(false)
   const [attempt, setAttempt] = useState(0)
@@ -92,7 +71,7 @@ export function UploadedDocuments({
     try {
       await retryIngestion(id)
     } catch {
-      setRetryError('The retry could not be started. Check the connection, then try again.')
+      setRetryError("Couldn't try this upload again. Check your connection, then try again.")
     } finally {
       setRetrying((r) => ({ ...r, [id]: false }))
       refresh()
@@ -105,7 +84,7 @@ export function UploadedDocuments({
     try {
       await cancelIngestion(id)
     } catch {
-      setCancelError('The stop request could not be sent. Check the connection, then try again.')
+      setCancelError("Couldn't stop this upload. Check your connection, then try again.")
     } finally {
       setCancelling((c) => ({ ...c, [id]: false }))
       refresh()
@@ -145,144 +124,23 @@ export function UploadedDocuments({
   const firstReview = documents?.find((d) => d.status === 'complete' && needsReview(d))?.id
   const firstType = documents?.find((d) => d.status === 'awaiting_type')?.id
 
-  const title = (d: KnowledgeDocument) => (
-    <span className="kb-doc">
-      <strong>{d.title}</strong>
-      <small>
-        {d.sourceType === 'marsh_report'
-          ? `${SOURCE_LABELS[d.sourceType]} · ${facilityName(d.facilityType)} · ${calendarDate(d.effectiveDate)}`
-          : [
-              // "NFPA 13" once the standard number is known (IN-07).
-              [d.issuingBody, d.standardNumber].filter(Boolean).join(' '),
-              d.edition && `${d.edition} Edition`,
-              d.sourceType ? SOURCE_LABELS[d.sourceType] : 'Source type unconfirmed',
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-      </small>
-      {/* Why it needs review, under the title as in the Documents list (IN-07). */}
-      {d.status === 'complete' && needsReview(d) && (
-        <small className="kb-why">{reviewReasons(d).join(' · ')}</small>
-      )}
-    </span>
-  )
-  const status = (d: KnowledgeDocument) => {
-    const badge = STATUS[d.status]
-    // Progress is only shown for a processing document the worker has started.
-    const p = d.status === 'processing' ? d.progress : undefined
-    const stage = p && STAGE_LABELS[p.currentStage]
-
-    // "12 / 45 pages", or "12 pages" if the total couldn't be read: while
-    // parsing, the pages parsed so far (in 20-page batches), and while
-    // chunking or indexing, the page reached (E2b). The chunk count has no knowable total,
-    // so pages are shown instead of a progress bar.
-    // Once chunking's OCR pass starts, "3 / 17 OCR" (table and formula regions
-    // read) replaces the page count, which has already reached the last page.
-    const pageLabel =
-      p && p.currentStage === 'chunking' && p.ocrTotal != null
-        ? `${p.ocrCurrent ?? 0} / ${p.ocrTotal} OCR`
-        : p && PAGE_COUNTED_STAGES.includes(p.currentStage) && p.pageCurrent != null
-          ? p.pageTotal
-            ? `${p.pageCurrent} / ${p.pageTotal} pages`
-            : `${p.pageCurrent} pages`
-          : null
-
-    return (
-      <span
-        className="kb-status"
-        data-walk={d.id === firstType ? 'knowledge-add.type-needed.status' : undefined}
-      >
-        <span className="kb-status-line">
-          {/* One badge: a finished upload that needs review shows the Documents
-              list's Needs review badge instead of Complete (IN-05, IN-07). */}
-          {d.status === 'complete' && needsReview(d) ? (
-            <ReviewBadge
-              title={d.title}
-              onReview={() => onReview(d.id)}
-              walk={d.id === firstReview ? 'knowledge-add.needs-review' : undefined}
-            />
-          ) : (
-            <Badge tone={badge.tone}>{stage ?? badge.label}</Badge>
-          )}
-        </span>
-        {p && (
-          <span className="kb-stage-detail">
-            {pageLabel && <span className="kb-page-count">{pageLabel}</span>}
-            <span className="kb-elapsed">{formatDuration(p.elapsedMs)} elapsed</span>
-          </span>
-        )}
-        {d.error && <span className="kb-status-reason">{d.error}</span>}
-        {d.status === 'awaiting_type' && (
-          <span className="kb-stage-detail">
-            Its source type couldn't be read. Choose one to start.
-          </span>
-        )}
-      </span>
-    )
-  }
-  const action = (d: KnowledgeDocument) => {
-    if (d.status === 'awaiting_type') {
-      return (
-        <ChooseSourceType
-          document={d}
-          onStarted={refresh}
-          onError={setStartError}
-          walk={d.id === firstType ? 'knowledge-add.type-needed.action' : undefined}
-        />
-      )
-    }
-    if (d.status === 'failed' || d.status === 'cancelled') {
-      return (
-        <Button
-          variant="secondary"
-          size="sm"
-          iconLeft="refresh-cw"
-          disabled={retrying[d.id]}
-          onClick={() => retry(d.id)}
-        >
-          {retrying[d.id] ? 'Retrying…' : 'Retry'}
-        </Button>
-      )
-    }
-    if (d.status === 'queued' || d.status === 'processing') {
-      return (
-        <Button
-          variant="danger-tonal"
-          size="sm"
-          iconLeft="x"
-          disabled={cancelling[d.id]}
-          onClick={() => cancel(d.id)}
-        >
-          {cancelling[d.id] ? 'Stopping…' : 'Stop'}
-        </Button>
-      )
-    }
-    return null
-  }
-  const original = (d: KnowledgeDocument) => (
-    <a
-      className="kb-link"
-      href={d.fileUrl ?? undefined}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`View original of ${d.title}`}
-    >
-      View original
-    </a>
-  )
-
   return (
     <section className="kb-uploaded" aria-labelledby="kb-uploaded-title">
       {/* On a phone there is no table: this heading stands in for its headings (F-12). */}
-      <header className="kb-uploaded-head" data-walk={narrow ? 'knowledge-add.head' : undefined}>
-        <div className="kb-title-row">
-          <h2 id="kb-uploaded-title">Recent uploads</h2>
-          {/* The status tip (F-13): on a phone, which has no Status heading, it sits here. */}
-          {narrow && <Tip id="knowledge-add.status" />}
-        </div>
-        <p>
-          Complete uploads leave this list after 24 hours, failed or cancelled ones after 7 days.
-        </p>
+      <header className="kb-uploaded-head" data-walk={phone ? 'knowledge-add.head' : undefined}>
+        <h2 id="kb-uploaded-title">Recent uploads</h2>
+        {/* One (?) per heading: on a phone, which has no Status heading, the status tip (F-13)
+            takes this heading's place and carries the list's own line first. */}
+        {phone ? (
+          <Tip id="knowledge-add.status">
+            <p>{KEEP_LINE}</p>
+            <RichText text={TIPS['knowledge-add.status'].text ?? ''} />
+          </Tip>
+        ) : (
+          <HelpTip label="About recent uploads">
+            <p>{KEEP_LINE}</p>
+          </HelpTip>
+        )}
       </header>
       {retryError && (
         <Callout tone="danger" title="Retry not started">
@@ -295,7 +153,7 @@ export function UploadedDocuments({
         </Callout>
       )}
       {startError && (
-        <Callout tone="danger" title="Ingestion not started">
+        <Callout tone="danger" title="Reading not started">
           {startError}
         </Callout>
       )}
@@ -304,71 +162,75 @@ export function UploadedDocuments({
           tone="danger"
           title="Recent uploads not loaded"
           actions={
-            <Button variant="secondary" size="sm" onClick={() => setAttempt((n) => n + 1)}>
+            <Button variant="secondary" size="sm" pill onClick={() => setAttempt((n) => n + 1)}>
               Try again
             </Button>
           }
         >
-          The gateway could not be reached, so ingestion status is not up to date. Check that the
-          server is running, then try again.
+          Can&apos;t reach the server, so these statuses may be out of date. Check your connection,
+          then try again.
         </Callout>
       )}
-      {documents === null ? (
-        !unreachable && (
-          <p className="kb-empty" role="status">
-            Loading recent uploads…
-          </p>
-        )
-      ) : documents.length === 0 ? (
-        <EmptyState
-          icon="library"
-          title="No recent uploads"
-          description="Documents appear here once an upload is accepted, with their ingestion status."
-        />
-      ) : narrow ? (
-        <ul className="kb-stack" aria-label="Recent uploads">
-          {documents.map((d, i) => (
-            <li key={d.id} data-walk={i === 0 ? 'knowledge-add.row-1' : undefined}>
-              {title(d)}
-              {status(d)}
-              <span className="kb-stack-meta">
-                <span className="kb-mono">{dateTime(d.uploadedAt)}</span>
-                <span className="kb-stack-actions">
-                  {action(d)}
-                  {original(d)}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <Table
-          walk={{ head: 'knowledge-add.head', row1: 'knowledge-add.row-1' }}
-          columns={[
-            { key: 'document', header: 'Document' },
-            { key: 'uploaded', header: 'Uploaded' },
-            {
-              key: 'status',
-              header: (
-                <span className="kb-th-row">
-                  Status
-                  <Tip id="knowledge-add.status" />
-                </span>
-              ),
-            },
-            { key: 'action', header: 'Action', align: 'right' },
-            { key: 'original', header: 'Original' },
-          ]}
-          rows={documents.map((d) => ({
-            id: d.id,
-            document: title(d),
-            uploaded: <span className="kb-mono">{dateTime(d.uploadedAt)}</span>,
-            status: status(d),
-            action: action(d),
-            original: original(d),
-          }))}
-        />
-      )}
+      <ListCard>
+        {documents === null ? (
+          !unreachable && (
+            <EmptyNote centred status>
+              Loading recent uploads…
+            </EmptyNote>
+          )
+        ) : documents.length === 0 ? (
+          <EmptyState
+            icon="library"
+            title="No recent uploads"
+            description="Documents appear here once an upload is accepted."
+          />
+        ) : (
+          <>
+            <table className="cl-table kb-uploads" aria-label="Recent uploads">
+              <colgroup>
+                <col />
+                <col className="kb-col-when" />
+                <col className="kb-col-state" />
+                <col className="cl-col-actions-2" />
+              </colgroup>
+              <thead data-walk={phone ? undefined : 'knowledge-add.head'}>
+                <tr>
+                  <th scope="col">Document</th>
+                  <th scope="col">Uploaded</th>
+                  <th scope="col">
+                    <span className="cl-th">
+                      Status
+                      <Tip id="knowledge-add.status" />
+                    </span>
+                  </th>
+                  <th scope="col">
+                    <span className="kb-sr">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {documents.map((d, i) => (
+                  <UploadedRow
+                    key={d.id}
+                    document={d}
+                    first={i === 0}
+                    firstReview={d.id === firstReview}
+                    firstType={d.id === firstType}
+                    retrying={retrying[d.id]}
+                    cancelling={cancelling[d.id]}
+                    onRetry={() => retry(d.id)}
+                    onStop={() => cancel(d.id)}
+                    onReview={() => onReview(d.id)}
+                    onStarted={refresh}
+                    onStartError={setStartError}
+                  />
+                ))}
+              </tbody>
+            </table>
+            <TableFooter>{plural(documents.length, 'upload')}</TableFooter>
+          </>
+        )}
+      </ListCard>
     </section>
   )
 }

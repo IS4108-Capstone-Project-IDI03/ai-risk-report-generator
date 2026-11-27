@@ -14,18 +14,18 @@
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   width: 100%;
   max-width: 520px;
   margin: 0 auto;
-  padding: 20px 16px 24px;
+  padding: 16px 16px 24px;
 }
 
 /* The recorder, photos and notes: one column, and the left column on a wide screen. */
 .sw-rec-main {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 16px;
   min-width: 0;
 }
 .sw-list-empty {
@@ -33,6 +33,12 @@
   margin: 0;
   color: var(--text-muted);
   font-size: 14px;
+}
+/* It is a card of its own, like the list it stands in for (wide screens only, below). */
+.sw-recording .sw-list-empty {
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card, 16px);
+  background: var(--surface-card);
 }
 
 /* ---- The clock ---- */
@@ -47,10 +53,6 @@
   min-height: 30px;
   display: flex;
   align-items: center;
-}
-.sw-record-idle {
-  color: var(--text-secondary);
-  font-size: 14px;
 }
 .sw-rec-pill {
   display: inline-flex;
@@ -84,7 +86,7 @@
   }
 }
 .sw-clock {
-  margin: 8px 0 0;
+  margin: 0;
   color: var(--marsh-navy);
   font-size: clamp(56px, 18vw, 76px);
   font-weight: 300;
@@ -95,13 +97,15 @@
 .sw-clock-cap {
   font-variant-numeric: tabular-nums;
 }
-.sw-record .sw-alert {
+/* The one-minute warning and "Recording stopped" (design system Callouts) span the card. */
+.sw-record .sw-callout {
   align-self: stretch;
   margin-top: 16px;
   text-align: left;
 }
-.sw-record .sw-alert .sw-button {
-  align-self: flex-start;
+/* A refused start or a failed save sits above the cards, as wide as they are. */
+.sw-problem {
+  flex: none;
 }
 
 /* ---- Controls: a large main button between two smaller ones ---- */
@@ -142,7 +146,7 @@
 }
 /* Side buttons: centred on the main one, with all three labels on one line. */
 .sw-control:not(.sw-control--main) .sw-control-icon {
-  margin-block: 10px; /* (76px - 56px) / 2 */
+  margin-block: 16px; /* (88px - 56px) / 2 */
 }
 .sw-control:hover:not(:disabled) .sw-control-icon {
   background: rgb(0 15 71 / 0.1);
@@ -156,8 +160,9 @@
 }
 .sw-control--main .sw-control-icon,
 .sw-control--main:hover:not(:disabled) .sw-control-icon {
-  width: 76px;
-  height: 76px;
+  /* 88 px like the red Start button, so the card never changes height when recording begins. */
+  width: 88px;
+  height: 88px;
   background: var(--surface-nav);
   color: var(--text-inverse);
   box-shadow: var(--sw-shadow-md);
@@ -167,34 +172,23 @@
   font-weight: 600;
 }
 
-/* ---- The one-minute warning: calm, not an alarm ---- */
-.sw-warning {
-  align-self: stretch;
-  margin: 16px 0 0;
-  padding: 12px 16px;
-  border-radius: 14px;
-  background: var(--sw-fill);
-  color: var(--text-primary);
-  text-align: left;
-  text-wrap: pretty;
-}
-
 /* ---- Finish, pinned at the bottom ---- */
+/* The sticky action bar of v2 (section 6): white, a hairline above, the button 48 px. */
 .sw-finish {
   width: 100%;
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--graphite-200);
+  background: var(--surface-card);
+}
+.sw-finish > * {
   max-width: 520px;
-  margin: 0 auto;
-  padding: 12px 16px max(16px, env(safe-area-inset-bottom));
+  margin-inline: auto;
 }
 /* The reason box wraps a greyed-out Finish walk in an inline box; without this the button
    shrinks to its words on a phone instead of filling the bar (CP-24). */
 .sw-finish .ds-reason-wrap {
   display: flex;
   width: 100%;
-}
-.sw-finish .sw-note {
-  margin: 8px 0 0;
-  text-align: center;
 }
 
 /* ---- Finished, starting, or could not start ---- */
@@ -334,26 +328,34 @@
   background: rgb(255 255 255 / 0.12);
 }
 
-/* ---- Round 3: a louder recording state, bolder layout ---- */
-/* The panel is a card; while recording it turns red-tinted with a ring, so the state
-   is obvious from across a room. */
+/* ---- Cards (v2 section 5): white, radius 16, a 1 px --graphite-200 edge, no shadow; Notes and Photos are the shared Panel ---- */
+.sw-recording .sw-record,
+.sw-recording .sw-list {
+  border: 1px solid var(--graphite-200);
+  border-radius: var(--radius-card, 16px);
+  background: var(--surface-card);
+  box-shadow: none;
+}
+/* A note's round mark on the white list card: the pale grey disc of the other round marks. */
+.sw-recording .sw-item-icon {
+  background: var(--graphite-100);
+}
+
+/* The recorder card: while recording it takes a red ring and tint, so the state shows from across
+   a room. Red means "recording" here, never severity. */
 .sw-record {
-  padding: 20px 16px 22px;
-  border-radius: 28px;
-  background: var(--graphite-0);
-  box-shadow: var(--sw-shadow-md);
+  padding: 16px 16px 24px;
   transition:
     background-color 120ms var(--sw-ease),
-    box-shadow 120ms var(--sw-ease);
+    border-color 120ms var(--sw-ease);
 }
-.sw-record--live {
-  background: linear-gradient(180deg, rgb(229 55 43 / 0.14), rgb(229 55 43 / 0.04));
-  box-shadow:
-    0 0 0 2px var(--sw-rec),
-    var(--sw-shadow-md);
+.sw-recording .sw-record--live {
+  border-color: var(--sw-rec);
+  background: color-mix(in srgb, var(--red-50) 70%, var(--surface-card));
+  box-shadow: 0 0 0 1px var(--sw-rec);
 }
-.sw-record--paused {
-  background: var(--sw-fill);
+.sw-recording .sw-record--paused {
+  background: var(--graphite-50);
 }
 .sw-record .sw-rec-pill {
   padding: 6px 14px;
@@ -366,11 +368,11 @@
   width: 10px;
   height: 10px;
   background: var(--text-inverse);
-  box-shadow: 0 0 0 0 rgb(255 255 255 / 0.7);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--text-inverse) 70%, transparent);
   animation: sw-ring 1.4s ease-out infinite;
 }
 .sw-record .sw-rec-pill--paused {
-  background: var(--sw-line);
+  background: var(--graphite-200);
   color: var(--text-primary);
 }
 .sw-record .sw-rec-pill--paused .sw-rec-dot {
@@ -380,7 +382,7 @@
 }
 @keyframes sw-ring {
   to {
-    box-shadow: 0 0 0 10px rgb(255 255 255 / 0);
+    box-shadow: 0 0 0 10px transparent;
   }
 }
 .sw-record--live .sw-clock {
@@ -396,7 +398,7 @@
   width: 88px;
   height: 88px;
   background: var(--sw-rec);
-  box-shadow: 0 10px 28px rgb(229 55 43 / 0.35);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--sw-rec) 35%, transparent);
 }
 .sw-control--main.sw-control--rec {
   color: var(--sw-rec);
@@ -405,26 +407,6 @@
   transition:
     width 200ms var(--sw-ease),
     height 200ms var(--sw-ease);
-}
-
-/* Photo strip: bigger thumbnails and a heading with an icon */
-.sw-photostrip h2,
-.sw-composer h2 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--marsh-navy);
-  font-size: 14px;
-}
-.sw-composer h2 {
-  margin: 0 0 8px;
-  font-weight: 600;
-}
-.sw-composer {
-  padding: 14px;
-  border-radius: 20px;
-  background: var(--graphite-0);
-  box-shadow: var(--sw-shadow-sm);
 }
 
 /* Walk list: a card; each row's status is on its second line */
@@ -478,26 +460,28 @@
     display: grid;
     grid-template-columns: minmax(380px, 460px) minmax(0, 1fr);
     align-items: start;
-    gap: 24px 32px;
+    gap: 16px 24px;
     max-width: 1200px;
-    padding-top: 28px;
+    padding-top: 24px;
   }
-  .sw-recording-body > .sw-alert {
+  .sw-recording-body > .sw-problem {
     grid-column: 1 / -1;
   }
   .sw-list {
     max-width: 72ch;
   }
-  .sw-list-empty {
+  .sw-recording .sw-list-empty {
     display: block;
     padding: 24px;
-    border-radius: 14px;
-    background: var(--sw-fill);
     text-align: center;
   }
+  .sw-finish > * {
+    max-width: 460px;
+    margin-inline: 0;
+  }
   .sw-finish {
-    display: grid;
-    grid-template-columns: minmax(380px, 460px);
-    max-width: 1200px;
+    display: block;
+    /* Under the recorder column, as the column's left edge: (page - 1200) / 2 + the body's padding. */
+    padding-inline: max(16px, calc((100% - 1200px) / 2 + 16px));
   }
 }

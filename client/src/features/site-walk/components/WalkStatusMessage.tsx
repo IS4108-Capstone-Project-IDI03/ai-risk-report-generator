@@ -1,6 +1,6 @@
 // What the Review screen shows when there is no proposal to edit (CP-22):
 // still loading, still being read, failed (with Retry), or already created.
-import { EmptyState } from '../../../design-system'
+import { Button, EmptyState } from '../../../design-system'
 import type { SiteWalk } from '../api'
 
 // Explains why a walk has no editable proposal and offers Retry when failed.
@@ -31,9 +31,9 @@ export function WalkStatusMessage({
         title={text}
         action={
           walk?.status === 'failed' && onRetry ? (
-            <button type="button" className="ob-button ob-button--primary" onClick={onRetry}>
+            <Button variant="create" iconLeft="rotate-ccw" onClick={onRetry}>
               Retry
-            </button>
+            </Button>
           ) : undefined
         }
       />

@@ -111,7 +111,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
           'site-walk.row-1',
           'site-walk.row-red?',
         ],
-        say: 'This is what I heard from your walk: a **location**, and an **observation** with its category and severity. If you see a red mark, it means something is still missing.',
+        say: 'This is what I heard from your walk: the **locations** you were at, and the **observations** you made there, each with its category and severity. If you see a red mark, it means something is still missing.',
       },
       {
         target: 'site-walk.row-1',
@@ -128,7 +128,7 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
         // The Observations tab after Create all: the first row that came from a site walk (it wears the badge).
         target: 'site-walk.new-row',
         mood: 'pleased',
-        say: "And it's done! Your one sentence is now an observation on the assessment. This small badge shows that it came from a site walk.",
+        say: "And it's done! What you said is now on the assessment as observations. This small badge shows that they came from a site walk.",
       },
     ],
   },

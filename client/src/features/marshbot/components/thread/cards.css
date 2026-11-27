@@ -12,7 +12,7 @@
   box-sizing: border-box;
   background: var(--surface-card);
   border: 1px solid var(--graphite-200);
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   box-shadow: 0 2px 8px rgb(0 15 71 / 0.05);
 }
 .mbt-card[data-wide] {
@@ -65,7 +65,7 @@
   transition: background-color var(--duration-fast) var(--ease-standard);
 }
 .mbt-row:last-child {
-  border-radius: 0 0 17px 17px;
+  border-radius: 0 0 calc(var(--radius-card) - 1px) calc(var(--radius-card) - 1px);
 }
 .mbt-row[data-link] {
   cursor: pointer;
@@ -78,32 +78,6 @@
 /* The keyboard's twin of the hover: the row lights up while its own button has focus. */
 .mbt-row[data-link]:focus-within {
   background: var(--graphite-50);
-}
-.mbt-tile {
-  width: 32px;
-  height: 32px;
-  border-radius: 9px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--graphite-100);
-  color: var(--graphite-600);
-}
-.mbt-tile[data-tone='violet'] {
-  background: var(--violet-50);
-  color: var(--violet-600);
-}
-.mbt-tile[data-tone='amber'] {
-  background: var(--amber-50);
-  color: var(--amber-600);
-}
-.mbt-tile[data-tone='red'] {
-  background: var(--red-50);
-  color: var(--red-600);
-}
-.mbt-tile[data-tone='green'] {
-  background: var(--green-50);
-  color: var(--green-600);
 }
 .mbt-row-text {
   min-width: 0;
@@ -178,7 +152,7 @@
 .mbt .mbt-open {
   width: var(--mbt-arrow, 32px) !important;
   height: var(--mbt-arrow, 32px) !important;
-  border-radius: 999px !important;
+  border-radius: var(--radius-pill) !important;
   background: var(--graphite-100) !important;
   color: var(--marsh-navy) !important;
 }
@@ -205,7 +179,7 @@
   border-top: 1px solid var(--mbt-line);
 }
 .mbt-ticks:last-child {
-  border-radius: 0 0 17px 17px;
+  border-radius: 0 0 calc(var(--radius-card) - 1px) calc(var(--radius-card) - 1px);
 }
 .mbt-ticks li {
   margin: -1px 0 0 -1px;
@@ -282,11 +256,11 @@
 .mbt-segs i {
   flex: 1;
   min-width: 2px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--graphite-200);
 }
 .mbt-segs[data-fill] {
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   background: var(--graphite-200);
 }
 .mbt-segs[data-fill] i {
@@ -303,18 +277,23 @@
 }
 
 /* --- Checklist: the areas that need more, opened up side by side --- */
+/* The hairlines between areas are each area's own right and bottom edge, drawn into the 1 px gap,
+   so a row an area short ends in white, not a grey hole. */
 .mbt-gaps {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 1px;
   border-top: 1px solid var(--graphite-100);
-  background: var(--graphite-100);
+  background: var(--surface-card);
 }
 .mbt-gap {
   min-width: 0;
   display: flex;
   flex-direction: column;
   background: var(--surface-card);
+  box-shadow:
+    1px 0 0 var(--graphite-100),
+    0 1px 0 var(--graphite-100);
 }
 .mbt-gap header {
   display: grid;
@@ -348,19 +327,23 @@
   padding: 0 0 4px;
   list-style: none;
 }
+/* The dot sits on an item's first line, so a question that wraps (a tablet's narrow column)
+   still reads as one item; a one-line item stays centred in its 34 px row. */
 .mbt-gap li {
   display: grid;
   grid-template-columns: 6px minmax(0, 1fr);
   column-gap: 12px;
-  align-items: center;
+  align-items: start;
+  box-sizing: border-box;
   min-height: 34px;
-  padding: 0 16px 0 20px;
+  padding: calc((34px - var(--mbt-leading)) / 2) 16px calc((34px - var(--mbt-leading)) / 2) 20px;
   font-size: var(--mbt-size);
   line-height: var(--mbt-leading);
   color: var(--graphite-900);
 }
 .mbt-gap li::before {
   content: '';
+  margin-top: calc((var(--mbt-leading) - 5px) / 2);
   width: 5px;
   height: 5px;
   border-radius: 50%;
@@ -529,7 +512,7 @@
   align-items: center;
   padding: 0 6px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: none;
   font: inherit;
   text-align: left;
@@ -660,7 +643,7 @@
   flex-direction: column;
   gap: 6px;
   padding: 10px;
-  border-radius: 14px;
+  border-radius: var(--radius-popover);
   background: var(--graphite-50);
 }
 .mbt-lane h4 {
@@ -698,7 +681,7 @@
   height: 20px;
   padding: 0 7px;
   box-sizing: border-box;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--graphite-100);
   font-size: var(--mbt-size);
   line-height: var(--mbt-leading);
@@ -736,7 +719,7 @@
   box-sizing: border-box;
   padding: 8px 12px;
   border: 1px solid var(--graphite-100);
-  border-radius: 10px;
+  border-radius: var(--radius-field);
   background: var(--surface-card);
 }
 .mbt-lane[data-state='wait'] .mbt-lane-card {
@@ -804,7 +787,7 @@
 /* The bar: its fill is the stage's share of the longest stage. */
 .mbt-time-bar {
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   overflow: hidden;
   background: var(--graphite-200);
 }
@@ -838,7 +821,7 @@
 }
 .mbt-time-days em {
   padding: 0 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--ink-50);
   color: var(--marsh-navy);
   font-size: var(--mbt-size);

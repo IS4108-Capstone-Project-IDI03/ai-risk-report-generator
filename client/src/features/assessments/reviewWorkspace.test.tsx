@@ -430,7 +430,7 @@ it('shows the draft editor with its sources, observations and claims beside it (
   // The first drafted section opens in the draft editor (AC1).
   expect(await screen.findByRole('region', { name: 'Draft editor' })).toBeInTheDocument()
   expect(within(editor()).getByRole('heading', { name: '7. Construction' })).toBeInTheDocument()
-  expect(within(editor()).getByText(/claude-opus-5-5 \(high effort\)/)).toBeInTheDocument()
+  expect(within(editor()).getByText(/^Drafted /)).toBeInTheDocument()
   expect(within(editor()).getByText(/completed from measured values/)).toBeInTheDocument()
   expect(within(editor()).getByText(/No evidence covers this subsection/)).toBeInTheDocument()
   expect(within(editor()).getByText('Unsupported')).toBeInTheDocument()
@@ -630,8 +630,8 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   // Laid out like a section's draft: the editor bar, the provenance, then each OFI in an
   // AI draft box.
   // Counted with every part of the report: 1, 2, 3, 7, 9, 10 and Appendix A here.
-  expect(within(editor()).getByText('Draft editor · 3 of 7')).toBeInTheDocument()
-  expect(within(editor()).getByText(/prompt gn05-v4/)).toBeInTheDocument()
+  expect(within(editor()).getByText('3 of 7')).toBeInTheDocument()
+  expect(within(editor()).getByText(/^Drafted /)).toBeInTheDocument()
   // In Review the AI boxes carry no "AI draft" badge: their violet styling marks them,
   // and only exceptions and decisions are labelled (Miya, 15 Oct).
   expect(within(editor()).queryByText('AI draft')).toBeNull()
@@ -650,10 +650,10 @@ it('shows the OFIs accepted into the report as section 3 (GN-05)', async () => {
   // Next leads into the first section.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Next' }))
   expect(within(editor()).getByRole('heading', { name: '7. Construction' })).toBeVisible()
-  expect(within(editor()).getByText('Draft editor · 4 of 7')).toBeInTheDocument()
+  expect(within(editor()).getByText('4 of 7')).toBeInTheDocument()
   // And Previous leads back to it.
   fireEvent.click(within(editor()).getByRole('button', { name: 'Previous' }))
-  expect(within(editor()).getByText('Draft editor · 3 of 7')).toBeInTheDocument()
+  expect(within(editor()).getByText('3 of 7')).toBeInTheDocument()
   ofis = { suggestions: [], accepted: [] }
 })
 
@@ -1082,12 +1082,12 @@ it('regenerates one section in the background and makes an accepted replacement 
   expect(within(rowOf(/Fire Protection/)).queryByText('Replacement ready')).toBeNull()
 
   // The replacement can be read, but not decided on, before it is accepted.
-  fireEvent.click(within(editor()).getByRole('button', { name: 'Replacement' }))
+  fireEvent.click(within(editor()).getByRole('radio', { name: 'Replacement' }))
   expect(within(editor()).getByText(REPLACEMENT_TEXT)).toBeInTheDocument()
   expect(within(editor()).queryByText(RISER.text)).toBeNull()
-  expect(within(editor()).getByText(/prompt gn01-v2\.4\+rv02-v1/)).toBeInTheDocument()
+  expect(within(editor()).getByText(/^Drafted /)).toBeInTheDocument()
   expect(within(editor()).queryByRole('button', { name: /^Accept finding/ })).toBeNull()
-  fireEvent.click(within(editor()).getByRole('button', { name: 'Saved draft' }))
+  fireEvent.click(within(editor()).getByRole('radio', { name: 'Saved draft' }))
   expect(within(editor()).getByText(RISER.text)).toBeInTheDocument()
 
   const adopted: ReviewSection = {
@@ -1235,27 +1235,15 @@ it('words Section 3’s notes for Redraft once it is drafted, and for Generation
   await screen.findByRole('region', { name: 'Draft editor' })
   fireEvent.click(rowOf(/Opportunities for Improvement/))
   const notes = screen.getByRole('complementary', { name: 'Section 3 suggestions' })
-  expect(notes).toHaveTextContent(
-    'Suggestions are accepted here. Redraft, beside the heading, drafts them again and keeps the OFIs you accepted.',
-  )
+  expect(notes).toHaveTextContent('Redraft drafts them again and keeps the OFIs you accepted.')
   expect(within(notes).queryByRole('button', { name: 'Go to Generation' })).toBeNull()
   cleanup()
 
   generation = generationOf(0)
   mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
-  render(
-    <ReviewWorkspaceScreen
-      reference={REF}
-      canReview
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-      openSection="3"
-    />,
-  )
+  render(<ReviewWorkspaceScreen reference={REF} canReview onGenerate={() => {}} openSection="3" />)
   const before = await screen.findByRole('complementary', { name: 'Section 3 suggestions' })
-  expect(before).toHaveTextContent('Suggestions are drafted on Generation and accepted here.')
+  expect(before).toHaveTextContent("They're drafted on the Generation tab, then accepted here.")
   expect(within(before).getByRole('button', { name: 'Go to Generation' })).toBeInTheDocument()
 }, 15_000)
 
@@ -1272,7 +1260,7 @@ describe('Review before the whole report is drafted (GN-13)', () => {
 
     // The list runs from Section 3: 3, 7, 9 and 10 here.
     fireEvent.click(rowOf(/Opportunities for Improvement/))
-    expect(screen.getByText('Draft editor · 1 of 4')).toBeInTheDocument()
+    expect(screen.getByText('1 of 4')).toBeInTheDocument()
     expect(within(editor()).getByRole('button', { name: 'Previous' })).toBeDisabled()
   })
 
@@ -1280,15 +1268,7 @@ describe('Review before the whole report is drafted (GN-13)', () => {
     generation = generationOf(8)
     mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
     render(
-      <ReviewWorkspaceScreen
-        reference={REF}
-        canReview
-        wrapStyle={{}}
-        railStyle={{}}
-        panelStyle={{}}
-        onGenerate={() => {}}
-        openSection="2"
-      />,
+      <ReviewWorkspaceScreen reference={REF} canReview onGenerate={() => {}} openSection="2" />,
     )
     expect(
       await within(await screen.findByRole('region', { name: 'Draft editor' })).findByRole(
@@ -1304,7 +1284,7 @@ describe('Review before the whole report is drafted (GN-13)', () => {
     for (const name of OPENING_ROWS)
       expect(within(nav()).getByRole('button', { name })).toBeVisible()
     fireEvent.click(rowOf(/Opportunities for Improvement/))
-    expect(screen.getByText('Draft editor · 3 of 7')).toBeInTheDocument()
+    expect(screen.getByText('3 of 7')).toBeInTheDocument()
   })
 
   it.each([
@@ -1340,16 +1320,7 @@ describe('Review before the whole report is drafted (GN-13)', () => {
 
     generation = generationOf(11)
     mockGateway(() => json(200, workspace([CONSTRUCTION, FIRE, EXPOSURES])))
-    render(
-      <ReviewWorkspaceScreen
-        reference={REF}
-        wrapStyle={{}}
-        railStyle={{}}
-        panelStyle={{}}
-        onGenerate={() => {}}
-        openSection="3"
-      />,
-    )
+    render(<ReviewWorkspaceScreen reference={REF} onGenerate={() => {}} openSection="3" />)
     await screen.findByRole('heading', { name: '3. Opportunities for Improvement' })
     expect(screen.queryByRole('button', { name: 'Redraft' })).toBeNull()
   })
@@ -1357,16 +1328,7 @@ describe('Review before the whole report is drafted (GN-13)', () => {
 
 it('shows decisions without the actions to whoever may not decide', async () => {
   mockGateway(reply([WAITING, FIRE, EXPOSURES]))
-  render(
-    <ReviewWorkspaceScreen
-      reference={REF}
-      canReview={false}
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-    />,
-  )
+  render(<ReviewWorkspaceScreen reference={REF} canReview={false} onGenerate={() => {}} />)
   await screen.findByRole('region', { name: 'Draft editor' })
   expect(within(findingOf(1)).queryByText('Accepted')).toBeNull()
   expect(screen.queryByRole('button', { name: /^(Accept|Edit|Reject) finding/ })).toBeNull()
@@ -1374,7 +1336,7 @@ it('shows decisions without the actions to whoever may not decide', async () => 
   expect(screen.queryByRole('button', { name: 'Regenerate' })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Accept replacement' })).toBeNull()
   // The replacement can still be read.
-  fireEvent.click(screen.getByRole('button', { name: 'Replacement' }))
+  fireEvent.click(screen.getByRole('radio', { name: 'Replacement' }))
   expect(within(editor()).getByText(REPLACEMENT_TEXT)).toBeInTheDocument()
 })
 

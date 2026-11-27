@@ -5,6 +5,7 @@ import { reportDrafted } from '../generation/fixtures'
 import type { ReviewSection, SourcePassage } from '../api'
 import { ReviewWorkspace } from '../screens/ReviewWorkspace'
 import type { AskAnswer } from './api'
+import { STOPPED } from './useAsk'
 
 // AS-01: the Ask tab beside the evidence panel. The gateway is a stubbed fetch;
 // an answer arrives as the server-sent events it streams.
@@ -183,17 +184,7 @@ function gateway({
 }
 
 function open(canAsk = true) {
-  render(
-    <ReviewWorkspace
-      reference={REF}
-      canReview
-      canAsk={canAsk}
-      wrapStyle={{}}
-      railStyle={{}}
-      panelStyle={{}}
-      onGenerate={() => {}}
-    />,
-  )
+  render(<ReviewWorkspace reference={REF} canReview canAsk={canAsk} onGenerate={() => {}} />)
 }
 const inspector = () => screen.getByRole('complementary', { name: 'Source panel' })
 async function openAsk() {
@@ -430,6 +421,33 @@ describe('failures (AC7, AC8)', () => {
     expect(within(alert).getByRole('button', { name: 'Ask again' })).toBeInTheDocument()
   })
 
+  it('shows an answer the engineer stopped as a quiet note, not an error', async () => {
+    gateway({
+      answer: () =>
+        sse(
+          { type: 'question', id: 'q4', question: 'Valve?', askedAt: ANSWER.askedAt },
+          {
+            type: 'result',
+            answer: {
+              ...ANSWER,
+              id: 'q4',
+              question: 'Valve?',
+              status: 'stopped',
+              statements: [],
+              error: { step: 'generate', cause: STOPPED, at: new Date().toISOString() },
+            },
+          },
+        ),
+    })
+    const panel = await openAsk()
+    ask(panel, 'Valve?')
+    const title = await within(panel).findByText('You stopped this answer')
+    const note = title.closest<HTMLElement>('[role="status"]')!
+    expect(note).toHaveTextContent('the answer was stopped before it finished')
+    expect(within(panel).queryByRole('alert')).not.toBeInTheDocument()
+    expect(within(note).getByRole('button', { name: 'Ask again' })).toBeInTheDocument()
+  })
+
   it('states a refusal over the question limits with its next step', async () => {
     const at = new Date()
     at.setHours(9, 30, 0, 0)
@@ -454,7 +472,7 @@ describe('failures (AC7, AC8)', () => {
     const panel = await openAsk()
     expect(await within(panel).findByText('Ask is unavailable')).toBeInTheDocument()
     expect(
-      within(panel).getByText('The gateway could not be reached, so nothing can be searched.'),
+      within(panel).getByText("Can't reach the server, so nothing can be searched."),
     ).toBeInTheDocument()
     await waitFor(() => expect(within(panel).queryByRole('textbox')).toBeNull())
   })

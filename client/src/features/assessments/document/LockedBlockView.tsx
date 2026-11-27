@@ -132,6 +132,7 @@ export function LockedBlockView({ node, editor, getPos }: NodeViewProps) {
         <span className="dm-locked-note">Not edited here</span>
         {where && (
           <Button
+            pill
             variant="ghost"
             size="sm"
             iconRight={IconRegistry.action.openExternal}

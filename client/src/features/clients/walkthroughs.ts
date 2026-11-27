@@ -88,14 +88,14 @@ export const WALKTHROUGHS: WalkthroughDef[] = [
       "I see it's your first time opening Insights.\n\nWould you like me to explain what you're looking at?",
     steps: [
       {
+        // At: The summary card (first: it sits above the figures).
+        target: 'insights.summary',
+        say: 'The **summary** is the only part I write, and I only write it when you ask me to. Each statement shows its source, and the summary never goes into a report.',
+      },
+      {
         // At: The five tiles.
         target: 'insights.tiles',
         say: 'These figures are **counted** directly from your observations, not written by AI. They come from your latest assessment at each site.',
-      },
-      {
-        // At: The summary card.
-        target: 'insights.summary',
-        say: 'The **summary** is the only part I write, and I only write it when you ask me to. Each statement shows its source, and the summary never goes into a report.',
       },
       {
         // At: The Sites needing attention card, "Where the findings are" and "Change between visits", one by one

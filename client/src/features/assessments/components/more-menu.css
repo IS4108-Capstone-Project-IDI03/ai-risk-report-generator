@@ -1,0 +1,7 @@
+/* MoreMenu's touch sizing (v2 section 2): its rows (workflow.css .om-more-item) are 44 px tall
+   on a phone or a touch screen. Imported by MoreMenu.tsx. */
+@media (max-width: 767px), (pointer: coarse) {
+  .om-more-item {
+    min-height: 44px;
+  }
+}

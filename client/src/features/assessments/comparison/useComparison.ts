@@ -8,7 +8,7 @@ import { toast } from '../../../design-system'
 import { GatewayError } from '../api'
 import { decideItem, getComparison, runComparison, type ComparisonPage, type Decision } from './api'
 
-const UNREACHABLE = 'The gateway could not be reached. Check your connection and try again.'
+const UNREACHABLE = "Can't reach the server. Check your connection, then try again."
 const reasonOf = (error: unknown) =>
   error instanceof GatewayError && error.status !== null ? error.message : UNREACHABLE
 

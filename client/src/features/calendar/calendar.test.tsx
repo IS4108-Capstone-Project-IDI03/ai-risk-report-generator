@@ -208,7 +208,9 @@ it('filters by what is shown and by assessment type, and the late count opens th
   ])
   expect(screen.getByText('1 assessment')).toBeVisible()
   // The side lists follow the filter.
-  expect(screen.getByText('None without a survey date match.')).toBeVisible()
+  expect(screen.getByRole('region', { name: /No survey date/ })).toHaveTextContent(
+    /^No survey date0$/,
+  )
 
   // From another month, the footer's late count returns to the month of the oldest late report.
   fireEvent.click(screen.getByRole('button', { name: 'Next month' }))

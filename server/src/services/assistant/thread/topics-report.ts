@@ -309,9 +309,16 @@ export function heldWords(ctx: TopicCtx, reopened: boolean, still = false): stri
     : !comments
       ? `${it === 'it' ? "it's" : "they're"} decided`
       : "they're all dealt with"
+  // Findings spread over several sections already end in a list ("…, Security, and Business
+  // Interruption"): another "and" after it would read "Business Interruption and Fire Protection
+  // has 1 open comment", so the comments follow after a semicolon instead.
+  const said =
+    pendingIn.length > 1 && clauses.length > 1
+      ? `${clauses[0]}; ${andList(clauses.slice(1))}`
+      : andList(clauses)
   return reopened
-    ? `${andList(clauses)}, so ${pendingN ? `sort ${it} out` : `resolve ${it}`} before you export.`
-    : `${andList(clauses)}, so the report stays in Review until ${until}.`
+    ? `${said}, so ${pendingN ? `sort ${it} out` : `resolve ${it}`} before you export.`
+    : `${said}, so the report stays in Review until ${until}.`
 }
 
 /** Review (S6): every section's review state. After Review only when work reopened. */

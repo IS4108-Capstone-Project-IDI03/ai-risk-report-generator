@@ -2,14 +2,16 @@
 // Recordings (CP-12): a table with one row per item: a thumbnail (opens it full
 // size to zoom), the observation, its location and its category. A tap
 // anywhere else on the row opens the observation (round 6), as a row of the
-// Observations table does. The count sits in the toolbar above the rows. On a
-// phone each row stacks. Rendered by screens/Photos.tsx, screens/Scans.tsx,
+// Observations table does. The toolbar and the footer count are the Observations
+// tab's own (v2 "One list frame"). On a phone each row stacks. Rendered by screens/Photos.tsx, screens/Scans.tsx,
 // components/RecordingTable.tsx (with a play tile for the thumbnail) and the
 // site walk proposal's ProposalMedia.tsx.
 //
 // A row given an `item` also shows, under the observation's text, the item's
-// own line (CP-12): its name, where its transcription stands, with Retry, and
-// its transcript or description, opened with a toggle. A site walk
+// own line (CP-12): where its transcription stands, with Retry, and its
+// transcript or description, opened with a toggle. The file's name is not
+// shown (redesign round 2: it told the engineer nothing); it stays in the
+// controls' screen-reader names, which tell one row from another, and a search still finds it. A site walk
 // proposal's rows have none, so they stay as they were.
 //
 // Given a `search` (CP-13), the toolbar has a search box: only the rows whose
@@ -20,7 +22,15 @@
 // the search (Location, Category, Severity and the item's own), as the
 // Observations tab's do, and narrow the rows with it.
 import type { ReactNode } from 'react'
-import { EmptyState, Icon, IconRegistry, SearchField } from '../../../design-system'
+import {
+  EmptyState,
+  Icon,
+  IconAction,
+  IconRegistry,
+  SearchField,
+  TableFooter,
+  useScrollFade,
+} from '../../../design-system'
 import type { TranscriptionStatus } from '../api'
 import { filtersSet, type EvidenceFilters, type FilterMenu } from '../evidenceFilters'
 import { rowMatches, searchWords, textHits } from '../evidenceSearch'
@@ -31,7 +41,7 @@ import { HitText } from './HitText'
 import { LocationPath } from './LocationPath'
 import { ZoomBadge } from './ZoomBadge'
 import { CategoryMark } from './ObservationMarks'
-import { FilterChip } from './ObservationFilters'
+import { PillFilter } from './ObservationFilters'
 
 export type PhotoRow = {
   key: string
@@ -46,7 +56,7 @@ export type PhotoRow = {
   item?: RowItem
 }
 export type RowItem = {
-  // A recording's or page's transcription; null for a photo, or a demo page.
+  // A recording's or page's transcription; null for a photo.
   status?: TranscriptionStatus | null
   // Starts a new transcription attempt; offered only when it failed.
   retry?: (() => void) | null
@@ -88,7 +98,7 @@ export function PhotoTable<R extends PhotoRow>({
 }: {
   label: string
   rows: R[]
-  // e.g. "3 photos across 2 locations", shown in the toolbar.
+  // e.g. "3 photos across 2 locations", shown in the footer.
   count: string
   onOpen?: (row: R & { url: string }) => void
   // In place of the thumbnail, e.g. a recording's play tile.
@@ -100,6 +110,8 @@ export function PhotoTable<R extends PhotoRow>({
   filters?: RowFilters<R>
 }) {
   const words = searchWords(search?.query ?? '')
+  // On a phone the filter pills scroll sideways: the edge with more past it fades.
+  const fade = useScrollFade<HTMLDivElement>()
   // Back with a search, the texts it found open again.
   const own = useOpenRows(() => textHits(rows, words))
   const { open, toggle, showAll } = openRows ?? own
@@ -116,43 +128,43 @@ export function PhotoTable<R extends PhotoRow>({
   }
   return (
     <div className="ob-card">
-      <div className="ob-filters">
-        {search && (
-          <SearchField
-            className="ob-search"
-            label={search.label}
-            placeholder={search.label}
-            value={search.query}
-            onChange={(e) => onQuery(e.target.value)}
-          />
-        )}
-        {filters && (
-          <div className="ob-filter-set">
-            {filters.menus.map((m) => (
-              <FilterChip
-                key={m.key}
-                name={m.name}
-                choices={m.choices}
-                value={filters.values[m.key]}
-                onChoose={(value) => filters.onChoose(m.key, value)}
-              />
-            ))}
-            {/* The search counts as one of them, as on the Observations tab. */}
-            {filtering + (query ? 1 : 0) > 1 && (
-              <button
-                type="button"
-                className="ob-button ob-button--small"
-                onClick={filters.onClear}
-              >
-                Clear all
-              </button>
-            )}
-          </div>
-        )}
-        <span className="ob-count">
-          {narrowed ? `${shown.length} of ${plural(rows.length, noun)}` : count}
-        </span>
-      </div>
+      {/* No search and no filters (a site-walk proposal's media): no empty toolbar strip. */}
+      {(search || filters) && (
+        <div className="ob-bar">
+          {search && (
+            <SearchField
+              className="ob-bar-search"
+              label={search.label}
+              placeholder={search.label}
+              value={search.query}
+              onChange={(e) => onQuery(e.target.value)}
+            />
+          )}
+          {filters && (
+            <div className="ob-bar-pills ds-scroll-fade" ref={fade}>
+              {filters.menus.map((m) => (
+                <PillFilter
+                  key={m.key}
+                  name={m.name}
+                  choices={m.choices}
+                  value={filters.values[m.key]}
+                  onChoose={(value) => filters.onChoose(m.key, value)}
+                />
+              ))}
+              {/* The search counts as one of them, as on the Observations tab. */}
+              {filtering + (query ? 1 : 0) > 1 && (
+                <button
+                  type="button"
+                  className="ob-button ob-button--small"
+                  onClick={filters.onClear}
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
       {narrowed && shown.length === 0 && (
         <div className="ob-empty">
           <EmptyState
@@ -200,7 +212,13 @@ export function PhotoTable<R extends PhotoRow>({
                   onClick={() => onOpen({ ...r, url: r.url! })}
                 >
                   {/* shortcut: loads the original; serve smaller copies if photo lists grow long. */}
-                  <img src={r.url} alt="" loading="lazy" />
+                  {/* A file that won't load leaves the grey tile, not the browser's broken-image mark. */}
+                  <img
+                    src={r.url}
+                    alt=""
+                    loading="lazy"
+                    onError={(e) => (e.currentTarget.style.visibility = 'hidden')}
+                  />
                   <ZoomBadge />
                 </button>
               ) : (
@@ -216,7 +234,6 @@ export function PhotoTable<R extends PhotoRow>({
                   <ItemLine
                     rowKey={r.key}
                     name={r.name}
-                    words={words}
                     item={r.item}
                     open={open.has(r.key)}
                     onToggle={() => toggle(r.key)}
@@ -247,34 +264,36 @@ export function PhotoTable<R extends PhotoRow>({
           ))}
         </ul>
       </div>
+      {/* The count under the rows, as every v2 table has it ("0 of 3 recordings" under none found). */}
+      <TableFooter>
+        {narrowed ? `${shown.length} of ${plural(rows.length, noun)}` : count}
+      </TableFooter>
     </div>
   )
 }
 
 const detailId = (key: string) => 'ob-pt-detail-' + key.replace(/[^\w-]/g, '-')
 
-// The item's own line: its name, where its transcription stands (with Retry
-// after a failure), and the toggle for its text.
+// The item's own line: where its transcription stands (with Retry after a
+// failure), and the toggle for its text. Nothing to say: no line, so the text sits alone.
 function ItemLine({
   rowKey,
   name,
-  words,
   item,
   open,
   onToggle,
 }: {
   rowKey: string
+  // Heard only: the toggle's screen-reader name says whose text it opens.
   name: string
-  words: readonly string[]
   item: RowItem
   open: boolean
   onToggle: () => void
 }) {
+  const busy = item.status === 'transcribing' || item.status === 'failed'
+  if (!busy && !item.detail) return null
   return (
     <p className="ob-pt-meta">
-      <span className="ob-pt-name">
-        <HitText text={name} words={words} />
-      </span>
       {item.status === 'transcribing' && (
         <span className="ob-pt-state">
           <Icon name="loader-circle" size={14} className="ob-spin" />
@@ -287,14 +306,11 @@ function ItemLine({
           Couldn’t transcribe
         </span>
       )}
+      {/* v2 failed row: a grey retry icon beside the red words. */}
       {item.status === 'failed' && !!item.retry && (
-        <button
-          type="button"
-          className="ob-button ob-button--tinted ob-button--small ob-pt-above"
-          onClick={item.retry}
-        >
-          Retry
-        </button>
+        <span className="ob-pt-above">
+          <IconAction icon="rotate-ccw" label="Retry" tooltip="Try again" onClick={item.retry} />
+        </span>
       )}
       {!!item.detail && (
         <button

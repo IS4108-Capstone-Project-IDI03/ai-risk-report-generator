@@ -11,26 +11,38 @@
   display: flex;
   flex-direction: column;
 }
+/* The page, and the comment margin beside it, centred on the canvas as one group, so the
+   page never sits off to one side with an empty column next to it. */
 .dm-canvas {
   display: flex;
   justify-content: center;
   align-items: stretch;
   min-width: 0;
+  padding: 0 clamp(16px, 2.4vw, 32px);
 }
 .dm-canvas > .dm-sheet {
-  flex: 1 1 auto;
+  flex: 0 1 820px;
   min-width: 0;
 }
 .dm-canvas > .dm-sheet.is-page {
   flex: 0 0 auto;
 }
 .dm-canvas.has-margin {
-  gap: 16px;
-  padding-right: clamp(12px, 2vw, 24px);
+  gap: 24px;
+}
+@media (max-width: 767px) {
+  .dm-canvas {
+    padding: 0;
+  }
 }
 .dm-canvas.has-margin > .dm-sheet.is-page {
   margin-left: 0;
   margin-right: 0;
+}
+/* The comments list or Ask open where the margin would fit: the page keeps
+   clear of it (its 380px, as .cm-panel, and a 16px gap). */
+.dm-canvas.has-panel {
+  padding-right: 396px;
 }
 
 /* A thread's passage: amber while the thread is open, stronger for the
@@ -38,7 +50,7 @@
 .dm-prose .dm-comment {
   background: var(--amber-50);
   border-bottom: 2px solid var(--amber-100);
-  border-radius: 2px;
+  border-radius: var(--radius-xs);
   cursor: pointer;
 }
 .dm-prose .dm-comment.is-active {
@@ -79,7 +91,7 @@
   padding: 10px 12px 12px;
   background: var(--surface-card);
   border: 1px solid var(--border-default);
-  border-radius: 14px;
+  border-radius: var(--radius-popover);
   box-shadow: var(--shadow-sm);
   font-family: var(--font-sans);
   font-size: var(--text-small-size);
@@ -113,7 +125,7 @@
 .cm-card-summary:focus-visible {
   outline: 2px solid var(--border-focus);
   outline-offset: 6px;
-  border-radius: 10px;
+  border-radius: var(--radius-field);
 }
 .cm-card-top {
   display: flex;
@@ -141,19 +153,6 @@
   display: flex;
   align-items: center;
   gap: 8px;
-}
-.cm-avatar {
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: var(--ink-50);
-  color: var(--report-navy);
-  font-size: 11px;
-  font-weight: 700;
 }
 .cm-who {
   display: flex;
@@ -241,7 +240,7 @@
 .cm-confirm {
   margin-top: 8px;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: var(--radius-field);
   background: var(--red-50);
 }
 .cm-confirm p {
@@ -281,8 +280,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 48px;
-  padding: 6px 10px 6px 16px;
+  min-height: 56px;
+  box-sizing: border-box;
+  padding: 8px 12px 8px 16px;
   border-bottom: 1px solid var(--border-subtle);
 }
 .cm-panel-title {
@@ -292,12 +292,18 @@
   font-weight: 700;
   color: var(--marsh-navy);
 }
+/* Open / Resolved / All at its own width, the counts beside it. */
 .cm-panel-filter {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-subtle);
+}
+.cm-panel-filter > :first-child {
+  flex: none;
 }
 .cm-panel-count,
 .cm-panel-note {
@@ -307,10 +313,28 @@
   color: var(--text-muted);
 }
 .cm-panel-body {
+  /* Holds its absolutely placed children (the Ask tab's screen-reader labels): placed from the
+     panel instead, they hung below it and made the workspace scroll, leaving a blank band. */
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 12px 16px 16px;
+}
+/* One thread open in the panel: its card runs down to the panel's foot with the Reply box there,
+   like a chat, so the box never floats mid-panel over an empty band. A long thread still scrolls. */
+.cm-panel-body:has(> .cm-card.is-active) {
+  display: flex;
+  flex-direction: column;
+}
+.cm-panel-body > .cm-card.is-active {
+  display: flex;
+  flex: 1 0 auto;
+  flex-direction: column;
+}
+.cm-panel-body > .cm-card.is-active > .cm-composer {
+  margin-top: auto;
+  padding-top: 10px;
 }
 .cm-list {
   display: flex;
@@ -327,7 +351,7 @@
   width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border-default);
-  border-radius: 14px;
+  border-radius: var(--radius-popover);
   background: var(--surface-card);
   font: inherit;
   font-size: var(--text-small-size);
@@ -375,12 +399,6 @@
 .cm-row-meta:empty {
   display: none;
 }
-.cm-tag {
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--graphite-100);
-  color: var(--graphite-700);
-}
 
 /* Below the stacked breakpoint the page scrolls with the workspace, so the
    comments list covers the window's right edge; on a phone, all of it. */
@@ -388,6 +406,30 @@
   .cm-panel {
     position: fixed;
     z-index: 40;
+  }
+}
+/* Over the page (document/PanelOverlay.tsx): the panel and a dimming scrim start under the
+   editor's bar, so Return to review, Page layout and Save are never covered. */
+.dm-overlay > .cm-panel {
+  position: fixed;
+  top: var(--dm-overlay-top, 0px);
+  z-index: 40;
+}
+.dm-scrim {
+  position: fixed;
+  inset: var(--dm-overlay-top, 0px) 0 0 0;
+  z-index: 39;
+  background: rgb(0 15 71 / 0.24);
+  animation: dmScrimIn var(--duration-slow) var(--ease-out);
+}
+@keyframes dmScrimIn {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dm-scrim {
+    animation: none;
   }
 }
 @media (max-width: 767px) {

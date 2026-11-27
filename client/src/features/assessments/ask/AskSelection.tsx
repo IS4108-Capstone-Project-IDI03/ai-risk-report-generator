@@ -137,6 +137,7 @@ export function AskSelection({
     <div className="rv-ask-offer" style={{ top: offer.top, left: offer.left }}>
       <div className="rv-ask-offer-buttons">
         <Button
+          pill
           variant="secondary"
           size="sm"
           iconLeft="message-circle-question"
@@ -155,6 +156,7 @@ export function AskSelection({
         </Button>
         {onRewrite && (
           <Button
+            pill
             variant="secondary"
             size="sm"
             iconLeft="pen-line"

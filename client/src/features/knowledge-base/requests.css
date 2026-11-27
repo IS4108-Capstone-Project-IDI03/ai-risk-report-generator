@@ -1,0 +1,171 @@
+/* The Requests tab (CB-07): the open requests in one list card, and the quoted question at the top
+   of the fill and dismiss dialogs. Frame and footer are the shared ListCard. */
+.kb-request-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* One request: who and when, the question, the engineer's words, and the actions on the right. */
+.kb-request {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--graphite-100);
+  transition: background-color 120ms var(--ease-standard);
+}
+.kb-request:last-child {
+  border-bottom: 0;
+}
+/* The request a notification opened (F-10): the soft blue tint. */
+.kb-request[data-focused] {
+  background: var(--surface-selected);
+}
+.kb-request-body {
+  display: grid;
+  flex: 1;
+  gap: 6px;
+  min-width: 0;
+  max-width: 72ch;
+}
+.kb-request-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+  color: var(--graphite-600);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.kb-request-meta > span {
+  color: var(--graphite-900);
+  font-weight: 600;
+}
+.kb-request-question {
+  margin: 0;
+  color: var(--graphite-900);
+  font: 600 16px/1.35 var(--font-sans);
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+/* The engineer's own words, quoted behind a thin rule. */
+.kb-request-message,
+.kb-request-quote {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.kb-request-message figcaption,
+.kb-request-quote figcaption {
+  color: var(--graphite-700);
+  font: 600 12px/1.2 var(--font-sans);
+}
+.kb-request-message blockquote {
+  margin: 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--graphite-200);
+  color: var(--graphite-700);
+  overflow-wrap: anywhere;
+}
+.kb-request-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+}
+@media (max-width: 767px) {
+  .kb-request {
+    flex-direction: column;
+    padding: 16px;
+  }
+  .kb-request-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .kb-request-actions .ds-press {
+    flex: 1;
+    min-height: 44px;
+  }
+  .kb-request-actions .ds-icon-button {
+    width: 44px !important;
+    height: 44px !important;
+  }
+}
+
+/* The question being closed, quoted at the top of the fill and dismiss dialogs. */
+.kb-request-quote {
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--graphite-50);
+}
+.kb-request-quote blockquote {
+  margin: 0;
+  color: var(--graphite-900);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.kb-request-quote p {
+  margin: 4px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--graphite-200);
+  color: var(--graphite-700);
+  overflow-wrap: anywhere;
+}
+.kb-request-dialog {
+  display: grid;
+  gap: 16px;
+}
+.kb-request-dialog > p {
+  margin: 0;
+}
+.kb-request-picker {
+  display: grid;
+  /* Without this, a list taller than its box squeezes each row to its 44 px touch minimum and
+     the two-line titles run over the dates below them. */
+  grid-auto-rows: max-content;
+  max-height: min(50vh, 420px);
+  overflow-y: auto;
+  border: 1px solid var(--graphite-200);
+  border-radius: 12px;
+}
+/* Mark as filled: the list takes the room the window has and scrolls only past that, instead of
+   inside a 420 px box under a dialog that could have been taller. The flex chain lets it shrink
+   to fit; under 132 px (a tiny window) the dialog scrolls instead. */
+.ds-dialog.kb-fill-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.kb-fill-dialog .ds-dialog-body,
+.kb-fill-dialog .kb-request-dialog {
+  display: flex;
+  flex: 0 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+.kb-fill-dialog .kb-request-dialog {
+  gap: 16px;
+}
+.kb-fill-dialog .kb-request-picker {
+  flex: 0 1 auto;
+  min-height: 132px;
+  max-height: none;
+}
+/* One document per row: a divider between rows, a tint on hover, the selected fill once picked. */
+.kb-request-picker > label {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--graphite-100);
+  transition: background-color 120ms var(--ease-standard);
+}
+.kb-request-picker > label:last-child {
+  border-bottom: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+  .kb-request-picker > label:hover {
+    background: var(--graphite-50);
+  }
+}
+.kb-request-picker > label:has(input:checked) {
+  background: var(--surface-selected);
+}

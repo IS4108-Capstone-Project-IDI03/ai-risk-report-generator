@@ -37,6 +37,7 @@ function rowsOf(intake: Intake) {
       pasted: f.pasted,
       state: done ? 'done' : after || words ? 'working' : 'waiting',
       label: after ? 'Almost done' : (words ?? undefined),
+      stopped: phase === 'failed',
     })
     // An email's attachments, known once read, tick with their email.
     for (const s of read?.sources ?? [])
@@ -47,6 +48,7 @@ function rowsOf(intake: Intake) {
           inEmail: f.name,
           state: done ? 'done' : 'working',
           label: 'Almost done',
+          stopped: phase === 'failed',
         })
   })
   const failed: FileRow[] = files
@@ -88,7 +90,11 @@ export function ReadingCard({
     <section className="na-card na-reading" aria-label="Reading documents">
       <div className="na-reading-head">
         <h2>
-          {finished ? plural(total, 'document') + ' read' : 'Reading ' + plural(total, 'document')}
+          {finished
+            ? plural(total, 'document') + ' read'
+            : phase === 'failed'
+              ? plural(total, 'document') + ' not read'
+              : 'Reading ' + plural(total, 'document')}
         </h2>
         {/* Announced to a screen reader only; the bar shows progress (board 24). */}
         <span className="na-sr-only" aria-live="polite">{`${read} of ${total} read`}</span>
@@ -122,7 +128,7 @@ export function ReadingCard({
       {phase === 'failed' ? (
         <p className="na-read-error" role="alert">
           <Icon name="circle-alert" size={14} />
-          <strong>{'Not read.'}</strong> {intake.error}
+          {intake.error}
         </p>
       ) : (
         <p className="na-hint">

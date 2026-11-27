@@ -3,6 +3,11 @@ import '@testing-library/jest-dom/vitest'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import App from '../../App'
 import { SESSIONS, signIn } from '../../test/session'
+import {
+  chooseOption,
+  optionWords,
+  selectField,
+} from '../../design-system/components/forms/selectTestHelpers'
 
 const JIDE = {
   id: '6ab39017e45cf009e4507732',
@@ -92,7 +97,7 @@ describe('User accounts (F-03)', () => {
     expect(fetchMock).toHaveBeenLastCalledWith(`/api/users/${JIDE.id}`, expect.anything())
     expect(within(profile).getByText('jide.okafor@example.com')).toBeInTheDocument()
     expect(within(profile).getByText('Singapore')).toBeInTheDocument()
-    expect(within(profile).getByRole('button', { name: 'Edit profile' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit profile' })).toBeInTheDocument()
   }, 10000)
 
   it('saves the edited fields and shows them when the profile is reopened', async () => {
@@ -109,7 +114,7 @@ describe('User accounts (F-03)', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
     fireEvent.change(field(/^Job title/), { target: { value: 'Senior risk engineer · Property' } })
-    fireEvent.change(field(/^Office/), { target: { value: 'MY' } })
+    chooseOption(/^Office/, 'Malaysia')
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(await screen.findByText('Profile saved')).toBeInTheDocument()
@@ -126,7 +131,7 @@ describe('User accounts (F-03)', () => {
       active: true,
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Back to accounts' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     const reopened = await openJide()
 
     expect(fetchMock).toHaveBeenCalledTimes(5)
@@ -168,7 +173,7 @@ describe('User accounts (F-03)', () => {
     await openAccounts()
 
     expect(
-      await screen.findByText(/The gateway could not be reached, so the accounts could not be/),
+      await screen.findByText(/Can't reach the server, so the accounts could not be/),
     ).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
   })
@@ -186,13 +191,8 @@ describe('Role assignment (F-05)', () => {
     await openJide()
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit profile' }))
-    const role = field(/^Role/)
-    expect(
-      within(role)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['Risk engineer', 'Knowledge admin'])
-    fireEvent.change(role, { target: { value: 'knowledge_admin' } })
+    expect(optionWords(/^Role/)).toEqual(['Risk engineer', 'Knowledge admin'])
+    chooseOption(/^Role/, 'Knowledge admin')
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
 
     expect(await screen.findByText('Profile saved')).toBeInTheDocument()
@@ -252,8 +252,15 @@ describe('New accounts (F-08)', () => {
   async function openNewAccount() {
     await openAccounts()
     fireEvent.click(await screen.findByRole('button', { name: 'Add account' }))
-    return screen.findByRole('region', { name: 'Add account' })
+    return screen.findByRole('dialog', { name: 'Add account' })
   }
+  // The dialog's own Add account (the list's button of the same name stays behind it).
+  const submit = () =>
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: 'Add account' })).getByRole('button', {
+        name: 'Add account',
+      }),
+    )
 
   it('saves the account and shows it as active in the account list', async () => {
     const fetchMock = mockGateway(
@@ -265,8 +272,8 @@ describe('New accounts (F-08)', () => {
 
     fireEvent.change(field(/^Name/), { target: { value: 'Priya Nair' } })
     fireEvent.change(field(/^Email/), { target: { value: 'priya.nair@example.com' } })
-    fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+    chooseOption(/^Role/, 'Risk engineer')
+    submit()
 
     expect(await screen.findByText('Account created for Priya Nair')).toBeInTheDocument()
     const [url, init] = fetchMock.mock.calls[1]
@@ -304,8 +311,8 @@ describe('New accounts (F-08)', () => {
 
     fireEvent.change(field(/^Name/), { target: { value: 'Priya Nair' } })
     fireEvent.change(field(/^Email/), { target: { value: 'priya.nair@example.com' } })
-    fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+    chooseOption(/^Role/, 'Risk engineer')
+    submit()
 
     expect(
       await screen.findByText('Account created for Priya Nair, but no invitation sent'),
@@ -319,13 +326,8 @@ describe('New accounts (F-08)', () => {
     mockGateway(() => respond(200, [ALEX, JIDE]))
     await openNewAccount()
 
-    const role = field(/^Role/)
-    expect(role.value).toBe('')
-    expect(
-      within(role)
-        .getAllByRole('option')
-        .map((o) => o.textContent),
-    ).toEqual(['Choose a role', 'Risk engineer', 'Knowledge admin'])
+    expect(selectField(/^Role/)).toHaveTextContent(/^Choose a role$/)
+    expect(optionWords(/^Role/)).toEqual(['Choose a role', 'Risk engineer', 'Knowledge admin'])
     expect(field(/^Job title/)).not.toBeRequired()
   })
 
@@ -345,7 +347,7 @@ describe('New accounts (F-08)', () => {
     await openNewAccount()
 
     fireEvent.change(field(/^Email/), { target: { value: 'priya' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+    submit()
 
     expect(
       await screen.findByText('Correct the highlighted fields, then add the account again.'),
@@ -357,7 +359,7 @@ describe('New accounts (F-08)', () => {
     expect(field(/^Role/)).toHaveAttribute('aria-invalid', 'true')
     expect(field(/^Job title/)).toHaveAttribute('aria-invalid', 'false')
     expect(field(/^Name/)).toHaveFocus()
-    expect(screen.getByRole('region', { name: 'Add account' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Add account' })).toBeInTheDocument()
     expect(screen.queryByText(/Account created/)).toBeNull()
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
@@ -375,8 +377,8 @@ describe('New accounts (F-08)', () => {
 
     fireEvent.change(field(/^Name/), { target: { value: 'Jide Okafor' } })
     fireEvent.change(field(/^Email/), { target: { value: 'jide.okafor@example.com' } })
-    fireEvent.change(field(/^Role/), { target: { value: 'risk_engineer' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add account' }))
+    chooseOption(/^Role/, 'Risk engineer')
+    submit()
 
     expect(await screen.findByText('Another account already uses this email.')).toBeVisible()
     expect(field(/^Email/)).toHaveAttribute('aria-invalid', 'true')
@@ -422,7 +424,7 @@ describe('Invitations (F-08)', () => {
       within(profile).getByText(/The link in their invitation email works until /),
     ).toBeVisible()
 
-    fireEvent.click(within(profile).getByRole('button', { name: 'Resend invitation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resend invitation' }))
 
     expect(
       await screen.findByText(
@@ -443,7 +445,7 @@ describe('Invitations (F-08)', () => {
     const profile = await openPriya()
 
     expect(within(profile).getByText(/Their invitation link expired on /)).toBeVisible()
-    expect(within(profile).getByRole('button', { name: 'Resend invitation' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Resend invitation' })).toBeEnabled()
   })
 
   it('reports an invitation that could not be sent', async () => {
@@ -455,9 +457,9 @@ describe('Invitations (F-08)', () => {
           error: 'The invitation email could not be sent. Try again in a few minutes.',
         }),
     )
-    const profile = await openPriya()
+    await openPriya()
 
-    fireEvent.click(within(profile).getByRole('button', { name: 'Resend invitation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resend invitation' }))
 
     expect(await screen.findByText('Invitation not sent')).toBeVisible()
     expect(
@@ -474,6 +476,6 @@ describe('Invitations (F-08)', () => {
     const profile = await openJide()
 
     expect(within(profile).getByText('Active')).toBeVisible()
-    expect(within(profile).queryByRole('button', { name: 'Resend invitation' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Resend invitation' })).toBeNull()
   })
 })

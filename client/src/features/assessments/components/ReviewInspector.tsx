@@ -43,14 +43,14 @@ export function ReviewInspector({
   children,
 }: {
   label: string
-  style: React.CSSProperties
+  style?: React.CSSProperties
   ask?: InspectorAsk
   children: React.ReactNode
 }) {
   const phone = useCompact(759)
   if (!ask)
     return (
-      <aside aria-label={label} className="om-scroll" style={style}>
+      <aside aria-label={label} className="om-scroll rv-side" style={style}>
         {children}
       </aside>
     )
@@ -73,9 +73,10 @@ export function ReviewInspector({
   )
   if (phone)
     return (
-      <aside aria-label={label} className="om-scroll" style={style}>
+      <aside aria-label={label} className="om-scroll rv-side" style={style}>
         <div className="rv-inspector-ask">
           <Button
+            pill
             variant="secondary"
             size="sm"
             iconLeft="message-circle-question"
@@ -100,7 +101,7 @@ export function ReviewInspector({
       </aside>
     )
   return (
-    <aside aria-label={label} className="om-scroll" style={style}>
+    <aside aria-label={label} className="om-scroll rv-side" style={style}>
       <div className="rv-inspector-tabs">
         <Tabs
           items={[

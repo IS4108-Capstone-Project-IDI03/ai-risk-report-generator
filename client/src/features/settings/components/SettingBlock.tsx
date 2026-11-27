@@ -5,7 +5,9 @@ import type { ReactNode } from 'react'
 
 type Props = {
   title?: string
-  // The title's heading level: 4 inside a group that has its own h3 title ("Not used yet").
+  // A (?) help tip beside the title, for what would otherwise be a caption under it.
+  tip?: ReactNode
+  // The title's heading level: 4 inside a group that has its own h3 title ("Can't be changed yet").
   titleLevel?: 3 | 4
   // Quiet helper text under the title (13 px, grey).
   help?: ReactNode
@@ -21,6 +23,7 @@ type Props = {
 /** Returns the block: head (title, help, status) beside a body of controls. */
 export function SettingBlock({
   title,
+  tip,
   titleLevel = 3,
   help,
   status,
@@ -33,7 +36,12 @@ export function SettingBlock({
     <div className="st-block" data-muted={muted || undefined} data-wide={wide || undefined}>
       {(title || help || status) && (
         <div className="st-block-head">
-          {title && <Title className="st-block-title">{title}</Title>}
+          {title && (
+            <div className="st-block-titlerow">
+              <Title className="st-block-title">{title}</Title>
+              {tip}
+            </div>
+          )}
           {help && <div className="st-help">{help}</div>}
           {status}
         </div>

@@ -3,14 +3,12 @@
 // greyed and read-only. The live session's newest bot turn ends in the action slot. Drawn by
 // Thread.tsx.
 import { useContext, type ReactNode } from 'react'
-import { Icon } from '../../../../design-system'
+import { BotTurn, EngineerBubble, Icon } from '../../../../design-system'
 import { STAGE_LABEL } from '../../../assessments/format'
 import { clock, sessionTime, turnAnchor } from '../../format'
 import { MarshBotContext, RevealContext, TurnContext } from '../../context'
 import { MILESTONE_SLACK_MS, TURN_GAP_MS } from '../../settings'
 import { STAGES, type Session, type Stage } from '../../types'
-import { BotTurn } from './BotTurn'
-import { EngineerBubble } from './EngineerBubble'
 import { TurnBody } from './TurnBody'
 
 // A stage the assessment moved on to, marked in the conversation where it happened, so the

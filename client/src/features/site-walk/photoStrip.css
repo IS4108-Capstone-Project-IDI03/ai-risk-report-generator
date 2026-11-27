@@ -4,9 +4,9 @@
    12 / 600 wherever the tiles are used and not only on the site walk screens (CP-24). */
 .sw-photostrip {
   --sw-font: var(--font-sans);
-  --sw-fill: rgb(0 15 71 / 0.06);
-  --sw-hover: rgb(0 15 71 / 0.04);
-  --sw-shadow-sm: 0 1px 2px rgb(0 15 71 / 0.06), 0 1px 1px rgb(0 15 71 / 0.04);
+  --sw-fill: var(--graphite-100);
+  --sw-hover: var(--graphite-100);
+  --sw-shadow-sm: 0 1px 2px color-mix(in srgb, var(--marsh-navy) 12%, transparent);
   --sw-ease: cubic-bezier(0.23, 1, 0.32, 1);
 }
 .sw-photostrip ul {
@@ -30,9 +30,8 @@
   padding: 0;
   overflow: hidden;
   border: 0;
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--sw-fill);
-  box-shadow: var(--sw-shadow-sm);
   cursor: pointer;
 }
 .sw-photo-open img {

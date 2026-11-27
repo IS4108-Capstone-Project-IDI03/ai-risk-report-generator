@@ -4,8 +4,8 @@
 // box is left), once per distinct text. A new observation shows a suggestion pre-selected (dashed,
 // sparkle, dismissible); a saved one shows "Suggested: ... Add", never saved without a click.
 // Called by screens/SiteObservation.tsx and components/ObservationKinds.tsx. Calls api.suggestKinds.
-import { useEffect, useRef, useState } from 'react'
-import { Icon } from '../../../design-system'
+import { useEffect, useId, useRef, useState } from 'react'
+import { Icon, IconAction } from '../../../design-system'
 import { suggestKinds, type Kind } from '../api'
 import {
   CHIPS,
@@ -58,6 +58,7 @@ export function KindPicker({
   const [touched, setTouched] = useState(value.length > 0)
   const [adding, setAdding] = useState(false)
   const [word, setWord] = useState('')
+  const legendId = useId()
   // Answers by text, so one text is asked once; null while asked or after a failure (never retried).
   const cache = useRef(new Map<string, Kind[] | null>())
   const live = useRef({ text, touched, disabled, mode, value })
@@ -130,8 +131,23 @@ export function KindPicker({
     if (labels.length + 1 >= MAX_LABELS) setAdding(false)
   }
   return (
-    <fieldset className="kp" disabled={disabled}>
-      <legend className="kp-legend">{'Tags'}</legend>
+    // Named by its word alone, so the add button in the legend doesn't join the group's name.
+    <fieldset className="kp" disabled={disabled} aria-labelledby={legendId}>
+      {/* The title line: "Tags", and the add-label + at its right end (v2 shaded icon action). */}
+      <legend className="kp-legend">
+        <span id={legendId}>{'Tags'}</span>
+        {onLabels && labels.length < MAX_LABELS && !adding && (
+          <IconAction
+            icon="plus"
+            label="Add label"
+            shaded
+            className="kp-add"
+            // A legend's own controls are not disabled with its fieldset.
+            disabled={disabled}
+            onClick={() => setAdding(true)}
+          />
+        )}
+      </legend>
       <div className="kp-chips">
         {CHIPS.map((kind) => {
           const on = chips.includes(kind)
@@ -179,16 +195,6 @@ export function KindPicker({
             </button>
           </span>
         ))}
-        {onLabels && labels.length < MAX_LABELS && !adding && (
-          <button
-            type="button"
-            className="kp-add"
-            aria-label="Add label"
-            onClick={() => setAdding(true)}
-          >
-            <Icon name="plus" size={16} />
-          </button>
-        )}
         {onLabels && adding && (
           <input
             className="kp-input"

@@ -1,5 +1,5 @@
 // The map itself (CP-26): draws numbered pins, and says so when Google can't
-// load. Used by SiteMapCard on the Overview and SiteCard on the create form.
+// load. Used by the Details panel's map and SiteCard on the create form.
 // Calls googleMaps.ts. Keyboard users have the Coordinates field beside it.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '../../../design-system'

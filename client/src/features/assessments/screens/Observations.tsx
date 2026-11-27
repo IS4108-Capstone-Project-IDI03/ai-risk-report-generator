@@ -43,6 +43,7 @@ import { useFitPane } from '../useFitPane'
 import { useObservationsView } from '../useObservationsView'
 import { ObservationPage } from './ObservationPage'
 import { SiteWalks } from './SiteWalks'
+import { useNarrowPane } from '../../site-walk/useNarrowPane'
 import '../observations.css'
 
 // `from`: a recording or review opened in the Site Walk Proposals list goes Back to it.
@@ -86,7 +87,7 @@ export function Observations({
 }) {
   const view = useObservationsView(v)
   const phone = useIsPhone()
-  const { walks, reload } = useSiteWalks(v.captureRef)
+  const { walks, loaded: walksLoaded, reload } = useSiteWalks(v.captureRef)
   const [walk, setWalk] = useState<WalkScreen>(walkFromUrl)
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
@@ -162,6 +163,8 @@ export function Observations({
   // Back from capture, the list scrolls once to the newest saved, and focus
   // goes there (CP-16).
   const page = useRef<HTMLDivElement>(null)
+  // Too narrow for the navigator beside the list: it becomes the phone's button and sheet.
+  const [narrow, watchPage] = useNarrowPane(page)
   const landed = useRef(false)
   useEffect(() => {
     if (landed.current || !v.obsReturning || open) return
@@ -214,6 +217,7 @@ export function Observations({
     return (
       <SiteWalks
         walks={walks}
+        loaded={walksLoaded}
         waiting={waiting}
         archived={v.archivedOpen}
         onBack={() => setWalk(null)}
@@ -238,11 +242,15 @@ export function Observations({
         }
         onDelete={
           canCapture
-            ? (walkId) =>
-                discardWalk(v.captureRef, walkId).then(() => {
+            ? (walkId) => {
+                // Named as DeleteWalkDialog names it: a walk with no proposal yet is a site walk.
+                const gone = walks.find((w) => w.id === walkId)
+                const what = gone?.status === 'ready' || gone?.proposal ? 'Proposal' : 'Site walk'
+                return discardWalk(v.captureRef, walkId).then(() => {
                   reload()
-                  v.notify('Proposal deleted')
+                  v.notify(`${what} deleted`)
                 })
+              }
             : undefined
         }
       />
@@ -280,7 +288,7 @@ export function Observations({
         ready={v.obsSynced}
         hold={!!open || v.archivedOpen || v.obsTotal === 0 || v.obsShowDeleted}
       />
-      <div ref={page} className="ob">
+      <div ref={watchPage} className="ob">
         {open ? (
           // c. One observation on its own page, edited in place.
           <ObservationPage
@@ -325,8 +333,13 @@ export function Observations({
                 }}
               />
             ) : (
-              <div ref={pane} className="ob-layout" data-fit="">
-                {!v.obsShowDeleted && <LocationNavigator v={v} view={view} />}
+              <div
+                ref={pane}
+                className="ob-layout"
+                data-fit={narrow ? undefined : ''}
+                style={narrow ? { gridTemplateColumns: 'minmax(0, 1fr)' } : undefined}
+              >
+                {!v.obsShowDeleted && <LocationNavigator v={v} view={view} narrow={narrow} />}
                 <div
                   className="ob-card"
                   style={{ gridColumn: v.obsShowDeleted ? '1 / -1' : undefined }}

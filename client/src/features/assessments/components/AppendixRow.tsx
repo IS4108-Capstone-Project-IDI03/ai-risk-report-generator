@@ -1,7 +1,7 @@
 // One chosen photo in Appendix A (GN-07): thumbnail, caption field, and its
 // move and remove controls. Used by AppendixPhotos.tsx.
 import { useState } from 'react'
-import { IconButton } from '../../../design-system'
+import { IconAction } from '../../../design-system'
 import type { AppendixList } from '../api'
 
 // One chosen photo: thumbnail, caption field (saved when left), and its controls.
@@ -40,19 +40,22 @@ export function AppendixRow({
       </label>
       {canEdit && (
         <span className="rv-appendix-controls">
-          <IconButton
+          <IconAction
+            size="md"
             icon="arrow-up"
             label={`Move ${photo.name} up`}
             disabled={!onUp}
             onClick={onUp}
           />
-          <IconButton
+          <IconAction
+            size="md"
             icon="arrow-down"
             label={`Move ${photo.name} down`}
             disabled={!onDown}
             onClick={onDown}
           />
-          <IconButton
+          <IconAction
+            size="md"
             icon="x"
             label={`Remove ${photo.name} from the appendix`}
             onClick={onRemove}

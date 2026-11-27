@@ -23,6 +23,9 @@ export type TopBarProps = {
   lead?: React.ReactNode
   // A row under the title inside the bar, e.g. the client page's Tabs.
   tabs?: React.ReactNode
+  // On a phone the title takes its own row and the action wraps under it, for an action too
+  // wide to sit beside the title (the assessment's History, Details and Archive).
+  stack?: boolean
 }
 
 /** Returns the white top bar: eyebrow over a 28/700 navy title, action and bell on the right. */
@@ -36,9 +39,14 @@ export function TopBar({
   back,
   lead,
   tabs,
+  stack,
 }: TopBarProps) {
   return (
-    <header className="ds-topbar" data-tabs={tabs ? '' : undefined}>
+    <header
+      className="ds-topbar"
+      data-tabs={tabs ? '' : undefined}
+      data-stack={stack ? '' : undefined}
+    >
       {back ? <BackButton label={back.label} onClick={back.onClick} /> : null}
       {lead}
       <div className="ds-topbar-main">

@@ -122,6 +122,14 @@ export function WalkthroughHost({
   // What the cut-out shows: on a desktop, only the part of the box the bubble leaves free.
   // Kept with the message it was worked out for: a new message's first draw has the old one's.
   const [drawn, setDrawn] = useState<{ key: string; box: Box | null } | null>(null)
+  // A resized window (a tablet turned): without this, a centred card, which has no target to
+  // follow, stays where the old window put it, cut off at the edge.
+  const [resized, setResized] = useState(0)
+  useEffect(() => {
+    const on = () => setResized((n) => n + 1)
+    window.addEventListener('resize', on)
+    return () => window.removeEventListener('resize', on)
+  }, [])
   useLayoutEffect(() => {
     const el = bubbleRef.current
     // A leaving bubble keeps its place: re-placed against no box (between screens), it would jump
@@ -209,7 +217,7 @@ export function WalkthroughHost({
     if (rows >= enough) return atBottom()
     setSheetMax(betweenLines(el, Math.max(above, below)))
     setSide(below >= above ? 'bottom' : 'top')
-  }, [view, box, phone, targets, letGo, leaving, end])
+  }, [view, box, phone, targets, letGo, leaving, end, resized])
 
   // c2. Something else may scroll the target away after the step has shown (MarshBot's conversation
   // follows its newest message while it types, and can push a card under the pinned tab row): once
