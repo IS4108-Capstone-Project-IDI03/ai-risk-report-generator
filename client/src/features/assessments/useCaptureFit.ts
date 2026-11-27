@@ -17,7 +17,11 @@ export function useCaptureFit<T extends HTMLElement>() {
     const fit = () => {
       const rest =
         el.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop
-      const room = Math.max(scroller.clientHeight - rest - 16, left.offsetHeight)
+      const fill = scroller.clientHeight - rest - 16
+      // --cap-stretch stretches the form to the window's foot so Save sits at the bottom. It comes from
+      // the window alone: were it --cap-room, the stretched form would hold the room open forever.
+      el.style.setProperty('--cap-stretch', fill + 'px')
+      const room = Math.max(fill, left.offsetHeight)
       el.style.setProperty('--cap-room', room + 'px')
     }
     fit()

@@ -883,6 +883,20 @@
   .cap-layout[data-pane] > .cap-checklist-pane {
     max-height: var(--cap-room, none);
   }
+  /* The form runs down to the window's foot like the checklist beside it, so Cancel and Save
+     sit at the bottom edge instead of floating mid-page on a tall screen. */
+  .cap-layout[data-pane] > .cap-main {
+    display: flex;
+    flex-direction: column;
+    min-height: var(--cap-stretch, auto);
+  }
+  .cap-layout[data-pane] > .cap-main > .cap-form {
+    flex: 1 0 auto;
+  }
+  /* The spare height goes under the tags (the last group), so the foot keeps its 12 px gap. */
+  .cap-layout[data-pane] .cap-form > .cap-group + .cap-group {
+    flex-grow: 1;
+  }
   .cap-checklist-pane-body {
     min-height: 0;
     overflow-y: auto;
