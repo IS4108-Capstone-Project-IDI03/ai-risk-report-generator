@@ -543,15 +543,13 @@ describe('the panel header', () => {
       />,
     )
 
-  it('has Edit Details as an icon named by its tooltip, like Edit Site, and a Close with a real tooltip', () => {
+  it('has Edit Details as a labelled button in the footer, and a Close with a real tooltip', () => {
     serveDocuments([])
     panel()
-    // Round 10: no words on the button; the same icon button as Edit Site.
+    // The record's action sits in the panel's footer at its bottom edge, as other side panels' do.
     const edit = screen.getByRole('button', { name: 'Edit Details' })
-    expect(edit).toHaveTextContent('')
-    fireEvent.mouseEnter(edit.parentElement!)
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Edit Details')
-    fireEvent.mouseLeave(edit.parentElement!)
+    expect(edit).toHaveTextContent('Edit Details')
+    expect(edit.closest('footer')).toHaveClass('ds-side-panel-foot')
     const close = screen.getByRole('button', { name: 'Close' })
     expect(close).not.toHaveAttribute('title')
     fireEvent.mouseEnter(close.parentElement!)

@@ -1,10 +1,10 @@
 // The assessment's Details (AS-06 boards 06, D1, D3) in the design system's SidePanel: from the
-// right over a dimmed page on a computer, a bottom sheet on a phone. Its Edit Details icon opens
-// the dialog; Edit Site sits by the site; Open Map swaps the content to the site map, and the
+// right over a dimmed page on a computer, a bottom sheet on a phone. Edit details, in the panel's
+// footer like every side panel's record actions, opens the dialog; Edit Site sits by the site; Open Map swaps the content to the site map, and the
 // panel's Back returns. Opened by the header's Details button and the rail's client card
 // (AssessmentApp.tsx).
 import { useState } from 'react'
-import { IconAction, SidePanel, useIsPhone } from '../../../design-system'
+import { Button, SidePanel, useIsPhone } from '../../../design-system'
 import { EditSiteDialog } from '../../clients/ClientDialogs'
 import { EditDetailsDialog } from '../../assessments/components/EditDetailsDialog'
 import type { AssessmentWorkflow } from '../../assessments/useAssessmentWorkflow'
@@ -55,16 +55,12 @@ export function DetailsPanel({
       toasterId={toasterId}
     />
   )
-  // The way in to the details dialog: the same icon button as Edit Site (round 10), named by its
-  // tooltip. `bottom`: it sits at the panel's top edge.
+  // The way in to the details dialog: the record's action, so it sits in the footer at the panel's
+  // bottom edge (as a knowledge-base document's and an account's do), not in the header.
   const editDetails = edit && (
-    <IconAction
-      icon="pencil"
-      label="Edit Details"
-      placement="bottom"
-      className="mb-hit"
-      onClick={() => setDialog('details')}
-    />
+    <Button variant="secondary" pill iconLeft="pencil" onClick={() => setDialog('details')}>
+      Edit Details
+    </Button>
   )
   return (
     <>
@@ -73,7 +69,7 @@ export function DetailsPanel({
         onClose={onClose}
         title={title}
         className={mapping ? 'mb-details-panel mb-details-map' : 'mb-details-panel'}
-        actions={mapping ? undefined : editDetails}
+        footer={mapping ? undefined : editDetails}
         back={mapping ? { label: 'Back to Details', onClick: () => setView('details') } : undefined}
         toaster={DETAILS_TOASTER}
       >

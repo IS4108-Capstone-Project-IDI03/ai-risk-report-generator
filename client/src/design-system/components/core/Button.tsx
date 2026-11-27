@@ -31,6 +31,8 @@ export type ButtonProps = Omit<
   fullWidth?: boolean
   children?: React.ReactNode
   style?: React.CSSProperties
+  // A link that opens in a new tab, drawn as this button (a document's View original).
+  href?: string
 }
 import { useState } from 'react'
 // `link` is the padding a link variant keeps (links have none by default), `wrap` lets the label
@@ -206,8 +208,11 @@ function Button({
   fullWidth = false,
   children,
   style = {},
+  href,
   ...rest
 }: ButtonProps) {
+  // shortcut: typed as a button so the shared props spread; an <a> ignores `disabled`.
+  const Tag = (href ? 'a' : 'button') as 'button'
   const [hover, setHover] = useState(false)
   const [active, setActive] = useState(false)
   const s = SIZES[size] || SIZES.md
@@ -217,8 +222,9 @@ function Button({
   return (
     <ReasonWrap reason={disabledReason}>
       {(describedBy, onBlockedClick) => (
-        <button
-          type={'button'}
+        <Tag
+          type={href ? undefined : 'button'}
+          {...(href ? { href, target: '_blank', rel: 'noreferrer' } : {})}
           className="ds-press"
           disabled={disabled || loading}
           aria-disabled={disabledReason ? true : undefined}
@@ -278,7 +284,7 @@ function Button({
           ) : null}
           {children}
           {iconRight ? <Icon name={iconRight} size={s.icon} /> : null}
-        </button>
+        </Tag>
       )}
     </ReasonWrap>
   )

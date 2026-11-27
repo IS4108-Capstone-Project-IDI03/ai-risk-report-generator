@@ -1,7 +1,8 @@
 // Side panel (v2, NEW pattern; the assessment's Details panel, AS-06, made shared): a record's
 // details in a full-height panel flush with the window's right edge over a dimmed page on a
 // computer, and a bottom sheet on a phone. Header: an optional Back, tile, the title and one grey
-// line, icon actions, Close. An optional footer bar holds the record's actions. The one details
+// line, Close. The footer bar, pinned to the bottom edge, holds the record's actions: there is no
+// header slot for them, so a short record never shows its actions at the top over empty space. The one details
 // panel of the app: the assessment's Details, the client's details, a knowledge-base document and
 // a user account. Calls Sheet, BackButton, IconAction, Toaster.
 import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react'
@@ -19,8 +20,6 @@ export type SidePanelProps = {
   subtitle?: ReactNode
   // A 40 px tile or avatar before the title (computer only; a phone sheet keeps its row for the title).
   lead?: ReactNode
-  // Icon actions before Close (an Edit pencil).
-  actions?: ReactNode
   // A bar pinned to the panel's foot: the record's actions.
   footer?: ReactNode
   children: ReactNode
@@ -45,7 +44,6 @@ export function SidePanel({
   title,
   subtitle,
   lead,
-  actions,
   footer,
   children,
   width = 400,
@@ -67,7 +65,7 @@ export function SidePanel({
     return () => opener.current?.focus?.()
   }, [open])
 
-  // The round Back leads the title (on a phone the sheet puts actions after it: CSS `order` moves it).
+  // The round Back leads the title (on a phone the sheet puts it after the title: CSS `order` moves it).
   const backButton = back && (
     <span className="ds-side-panel-back">
       <BackButton label={back.label} onClick={back.onClick} />
@@ -80,14 +78,7 @@ export function SidePanel({
         onClose={onClose}
         title={title}
         subtitle={typeof subtitle === 'string' ? subtitle : undefined}
-        headerAction={
-          backButton || actions ? (
-            <>
-              {backButton}
-              {actions}
-            </>
-          ) : undefined
-        }
+        headerAction={backButton || undefined}
         closeWalk={closeWalk}
         unsaved={unsaved}
         className={className ? `ds-side-sheet ${className}` : 'ds-side-sheet'}
@@ -140,7 +131,6 @@ export function SidePanel({
             {subtitle && <p>{subtitle}</p>}
           </div>
           <span className="ds-side-panel-tools">
-            {actions}
             <IconAction
               icon="x"
               label="Close"

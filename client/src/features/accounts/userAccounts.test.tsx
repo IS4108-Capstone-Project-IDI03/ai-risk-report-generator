@@ -429,7 +429,7 @@ describe('Invitations (F-08)', () => {
       within(profile).getByText(/The link in their invitation email works until /),
     ).toBeVisible()
 
-    fireEvent.click(within(profile).getByRole('button', { name: 'Resend invitation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resend invitation' }))
 
     expect(
       await screen.findByText(
@@ -450,7 +450,7 @@ describe('Invitations (F-08)', () => {
     const profile = await openPriya()
 
     expect(within(profile).getByText(/Their invitation link expired on /)).toBeVisible()
-    expect(within(profile).getByRole('button', { name: 'Resend invitation' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Resend invitation' })).toBeEnabled()
   })
 
   it('reports an invitation that could not be sent', async () => {
@@ -462,9 +462,9 @@ describe('Invitations (F-08)', () => {
           error: 'The invitation email could not be sent. Try again in a few minutes.',
         }),
     )
-    const profile = await openPriya()
+    await openPriya()
 
-    fireEvent.click(within(profile).getByRole('button', { name: 'Resend invitation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Resend invitation' }))
 
     expect(await screen.findByText('Invitation not sent')).toBeVisible()
     expect(
@@ -481,6 +481,6 @@ describe('Invitations (F-08)', () => {
     const profile = await openJide()
 
     expect(within(profile).getByText('Active')).toBeVisible()
-    expect(within(profile).queryByRole('button', { name: 'Resend invitation' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Resend invitation' })).toBeNull()
   })
 })

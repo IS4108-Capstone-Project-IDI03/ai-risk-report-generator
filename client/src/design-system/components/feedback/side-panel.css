@@ -85,11 +85,14 @@
   overscroll-behavior: contain;
   padding: 4px 20px 24px;
 }
-/* The record's actions: a hairline above, pinned to the sidebar's bottom edge. */
+/* The record's actions: a hairline above, pinned to the sidebar's bottom edge, at its trailing
+   end. Every side panel's record actions live here, never in the header: a short record leaves its
+   spare space above this row, not under the actions. */
 .ds-side-panel-foot {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
   padding: 12px 20px;
   border-top: 1px solid var(--graphite-200);
@@ -124,11 +127,24 @@
 .ds-side-sheet .ds-side-panel-foot {
   padding: 12px 0 0;
 }
-/* Touch: the header's icon actions (Edit, Close) are 44 px targets. */
+/* A phone: a footer's own buttons share its width, as a dialog's do. */
+.ds-side-sheet .ds-side-panel-foot > .ds-press {
+  flex: 1;
+}
+/* Every footer's buttons are one size, whatever a caller passes: labelled, 40 px tall with 14 px
+   words (44 px on touch). !important: Button sets its height and font inline. */
+.ds-side-panel-foot .ds-press {
+  height: 40px !important;
+  font-size: var(--text-small-size) !important;
+}
+/* Touch: the header's icon actions (Back, Close) and the footer's buttons are 44 px targets. */
 @media (max-width: 767px), (pointer: coarse) {
   .ds-side-panel-tools .ds-icon-button,
   .ds-side-sheet .ds-sheet-head .ds-icon-button {
     width: 44px !important;
+    height: 44px !important;
+  }
+  .ds-side-panel-foot .ds-press {
     height: 44px !important;
   }
 }

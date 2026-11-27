@@ -649,16 +649,17 @@ describe('Knowledge base documents (KB-01)', () => {
     expect(within(details).queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 
-  it('draws Delete as a red bin, apart from the quiet grey Withdraw', async () => {
+  it('draws Delete in red and the quiet Withdraw beside it, on a row apart from the others', async () => {
     mockGateway([REPORT])
     await openKnowledgeBase()
     const details = await open(REPORT.title)
 
     const remove = within(details).getByRole('button', { name: 'Delete' })
-    expect(remove.style.color).toBe('var(--red-600)')
-    expect(within(details).getByRole('button', { name: 'Withdraw' }).style.color).toBe(
-      'var(--graphite-600)',
-    )
+    const withdraw = within(details).getByRole('button', { name: 'Withdraw' })
+    expect(remove.style.color).toBe('var(--action-danger)')
+    expect(withdraw.style.color).toBe('var(--text-body)')
+    expect(remove.parentElement).toHaveClass('kb-actions-risk')
+    expect(withdraw.parentElement).toHaveClass('kb-actions-risk')
   })
 
   describe('a document a report cites (IN-12)', () => {
@@ -677,7 +678,7 @@ describe('Knowledge base documents (KB-01)', () => {
       const remove = within(screen.getByRole('dialog', { name: CITED.title })).getByRole('button', {
         name: 'Delete (cited by a report)',
       })
-      expect(remove.style.color).toBe('var(--graphite-600)')
+      expect(remove.style.color).toBe('var(--text-body)')
       expect(dialog).toHaveTextContent("A report cites this document, so it can't be deleted.")
       expect(within(dialog).queryByLabelText('Document title')).not.toBeInTheDocument()
       expect(deletes).toEqual([])
