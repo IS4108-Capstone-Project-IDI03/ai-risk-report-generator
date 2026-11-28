@@ -27,7 +27,7 @@ Docs go from short to deep. Start at the top and stop when you have what you nee
 | `docs/areas/design-system-v2.md` | The one design system (rules, then inventory) | You touch any UI |
 | `docs/devguides/DECISIONS.md` | Dated log of decisions | You ask "why?" |
 | `docs/devguides/USER_STORIES.md` | The backlog, by epic | You look up a story |
-| `CLAUDE.md`, `AGENTS.md` | Rules for people and coding agents | Before you change code |
+| `CLAUDE.md` | Rules for people and coding agents | Before you change code |
 
 ## Rules for keeping this tidy
 
